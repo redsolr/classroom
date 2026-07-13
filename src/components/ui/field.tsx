@@ -75,11 +75,15 @@ export function Field({
   className?: string;
   hint?: string;
 }) {
+  // Wrapping <label> gives the control an accessible name without id
+  // plumbing — screen readers and getByLabel() both resolve it.
   return (
-    <div className={className}>
-      <Label>{label}</Label>
+    <label className={cn("block", className)}>
+      <span className="mb-1.5 block text-[0.8rem] font-medium text-fg-secondary">
+        {label}
+      </span>
       {children}
-      {hint && <p className="mt-1 text-[0.75rem] text-fg-tertiary">{hint}</p>}
-    </div>
+      {hint && <span className="mt-1 block text-[0.75rem] text-fg-tertiary">{hint}</span>}
+    </label>
   );
 }

@@ -22,7 +22,11 @@ const createLessonSchema = z.object({
   studentId: z.string().uuid(),
   title: z.string().trim().optional(),
   startedAt: z.string().trim().min(1),
-  durationMinutes: z.coerce.number().int().positive().optional(),
+  // An empty form field arrives as "" — treat it as "no duration", not 0.
+  durationMinutes: z.preprocess(
+    (v) => (v === "" || v == null ? undefined : v),
+    z.coerce.number().int().positive().optional(),
+  ),
   sourceType: z
     .enum(["manual", "notes", "chat", "transcript", "audio"])
     .default("notes"),

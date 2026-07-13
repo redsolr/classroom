@@ -16,8 +16,34 @@ import { NextResponse } from "next/server";
 
 const mockProxy = () => NextResponse.next();
 
+// Fail loudly with an ACTIONABLE message when real-auth mode is started
+// without WorkOS configured — authkit's own error ("You must provide a
+// valid cookie password…") doesn't say how to fix it.
+const missingWorkOSVars = [
+  "WORKOS_API_KEY",
+  "WORKOS_CLIENT_ID",
+  "WORKOS_COOKIE_PASSWORD",
+  "NEXT_PUBLIC_WORKOS_REDIRECT_URI",
+].filter((key) => !process.env[key]);
+if (
+  missingWorkOSVars.length === 0 &&
+  (process.env.WORKOS_COOKIE_PASSWORD?.length ?? 0) < 32
+) {
+  missingWorkOSVars.push("WORKOS_COOKIE_PASSWORD (must be 32+ chars)");
+}
+
+const misconfiguredProxy = () => {
+  throw new Error(
+    `WorkOS auth is not configured — missing/invalid: ${missingWorkOSVars.join(", ")}. ` +
+      "Fill these in .env.local (see .env.example; generate a cookie password with " +
+      "`openssl rand -base64 32`), or run `npm run dev:mock` for keyless local development.",
+  );
+};
+
 export default process.env.MOCK_AUTH === "true"
   ? mockProxy
+  : missingWorkOSVars.length > 0
+  ? misconfiguredProxy
   : authkitProxy({
       middlewareAuth: {
         enabled: true,
