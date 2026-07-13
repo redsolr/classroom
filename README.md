@@ -33,12 +33,16 @@ cp .env.example .env.local       # defaults work as-is for mock-auth dev
 npm run docker:up                # Postgres on localhost:5439
 npm run db:migrate
 npm run db:seed                  # demo teacher + 3 students + lessons
-npm run dev:mock                 # http://localhost:3000 — no WorkOS keys needed
+npm run dev:mock                 # http://localhost:3020 — no WorkOS keys needed
 ```
 
 `dev:mock` sets `MOCK_AUTH=true`: the auth proxy passes through and every
 request resolves to the seeded demo teacher. For real auth, fill the
 `WORKOS_*` variables in `.env.local` and run `npm run dev`.
+
+The app is pinned to **port 3020** (web-app owns 3000, internal-console owns
+3001; Postgres is on 5439 because 5432/5433 are taken by the platform
+container and a native Windows PostgreSQL service).
 
 Without `ANTHROPIC_API_KEY`, "Process with AI" uses a deterministic mock
 extractor (free, offline) that understands simple note conventions:

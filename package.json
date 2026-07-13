@@ -3,10 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
-    "dev:mock": "cross-env MOCK_AUTH=true next dev --turbopack",
+    "dev": "next dev --turbopack -p 3020",
+    "dev:mock": "cross-env MOCK_AUTH=true next dev --turbopack -p 3020",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -p 3020",
     "lint": "eslint src --cache --cache-location node_modules/.cache/eslint/ --cache-strategy content",
     "lint:fix": "eslint src --fix --cache --cache-location node_modules/.cache/eslint/ --cache-strategy content",
     "tsc:check": "tsc --noEmit",
