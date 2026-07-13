@@ -113,6 +113,30 @@ test("full lesson loop: notes → AI draft → approve → records → public re
   await anonymousPage.close();
 });
 
+test("prep sheet assembles the approved record for the next lesson", async ({
+  page,
+}) => {
+  await page.goto("/students");
+  await page.getByRole("link", { name: studentName }).click();
+  await page.waitForURL(/\/students\/[0-9a-f-]{36}/);
+
+  await page.getByRole("link", { name: "Prep sheet" }).click();
+  await page.waitForURL(/\/students\/[0-9a-f-]{36}\/prep/);
+  await expect(
+    page.getByRole("heading", {
+      name: new RegExp(`Next lesson with ${studentName}`),
+    }),
+  ).toBeVisible();
+
+  // Everything approved in the lesson loop feeds the sheet: the correction
+  // to re-drill, the vocabulary to review, and the homework to check.
+  await expect(page.getByText("she goes").first()).toBeVisible();
+  await expect(page.getByText("stakeholder").first()).toBeVisible();
+  await expect(
+    page.getByText("write 5 sentences using past tense").first(),
+  ).toBeVisible();
+});
+
 test("an invalid recap token is a 404, not a data leak", async ({ page }) => {
   const response = await page.goto(`/r/definitely-not-a-real-token-${runId}`);
   expect(response?.status()).toBe(404);

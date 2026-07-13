@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { format, formatDistanceToNow } from "date-fns";
+import { ClipboardList } from "lucide-react";
 import { requireTeacher } from "@/lib/auth";
 import { getDashboardData, listStudents } from "@/lib/queries";
 import { Avatar } from "@/components/ui/avatar";
@@ -18,6 +19,13 @@ export default async function DashboardPage() {
   ]);
   const firstName = (teacher.name ?? "there").split(" ")[0];
   const studentOptions = students.map((s) => ({ id: s.id, name: s.name }));
+  const prepCandidates = students
+    .filter((s) => s.status === "active" || s.status === "trial")
+    .sort(
+      (a, b) =>
+        (b.lastLessonAt?.getTime() ?? 0) - (a.lastLessonAt?.getTime() ?? 0),
+    )
+    .slice(0, 6);
 
   return (
     <div>
@@ -43,6 +51,54 @@ export default async function DashboardPage() {
       />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader
+            title="Prep your next lessons"
+            actions={
+              <Link
+                href="/students"
+                className="text-[0.8125rem] text-accent-text hover:underline"
+              >
+                All students
+              </Link>
+            }
+          />
+          <div className="px-4 py-3">
+            {prepCandidates.length === 0 ? (
+              <p className="text-[0.875rem] text-fg-tertiary">
+                Add a student and their prep sheet will appear here.
+              </p>
+            ) : (
+              <ul className="divide-y divide-border">
+                {prepCandidates.map((s) => (
+                  <li key={s.id}>
+                    <Link
+                      href={`/students/${s.id}/prep`}
+                      className="-mx-2 flex items-center gap-2.5 rounded-md px-2 py-2 transition-colors hover:bg-surface-hover"
+                    >
+                      <Avatar name={s.name} size="sm" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[0.9375rem] font-medium">
+                          {s.name}
+                        </span>
+                        <span className="block text-[0.78rem] text-fg-tertiary">
+                          {s.lastLessonAt
+                            ? `last lesson ${formatDistanceToNow(new Date(s.lastLessonAt), { addSuffix: true })}`
+                            : "no lessons yet"}
+                          {s.openHomeworkCount > 0
+                            ? ` · ${s.openHomeworkCount} open homework`
+                            : ""}
+                        </span>
+                      </span>
+                      <ClipboardList className="size-4 text-fg-tertiary" />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </Card>
+
         <Card>
           <CardHeader
             title="Lessons awaiting review"

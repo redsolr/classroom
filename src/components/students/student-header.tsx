@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { ClipboardList, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import type { Student } from "@/db";
 import { deleteStudent, updateStudent } from "@/lib/actions/students";
 import { Avatar } from "@/components/ui/avatar";
@@ -38,6 +39,14 @@ export function StudentHeader({ student }: { student: Student }) {
           {student.lessonFrequency ? ` · ${student.lessonFrequency}` : ""}
         </p>
       </div>
+
+      <Link
+        href={`/students/${student.id}/prep`}
+        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border-strong bg-surface px-3 text-[0.875rem] font-medium shadow-sm transition-colors hover:bg-surface-hover"
+      >
+        <ClipboardList className="size-4 text-fg-tertiary" />
+        Prep sheet
+      </Link>
 
       <Dropdown>
         <DropdownTrigger className="rounded-md p-1.5 text-fg-tertiary transition-colors hover:bg-surface-hover hover:text-fg focus:outline-none">

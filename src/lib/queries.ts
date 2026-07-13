@@ -229,6 +229,120 @@ export type LessonDetail = NonNullable<
 >;
 
 // ---------------------------------------------------------------------------
+// Prep sheet — everything the teacher should glance at before the next
+// lesson with a student, assembled from the permanent record.
+// ---------------------------------------------------------------------------
+
+export async function getPrepSheet(teacherId: string, studentId: string) {
+  const student = await getStudent(teacherId, studentId);
+  if (!student) return null;
+
+  const [
+    recentLessons,
+    openHomework,
+    reviewVocabulary,
+    recentCorrections,
+    activeGoals,
+    prepInsights,
+  ] = await Promise.all([
+    db
+      .select()
+      .from(lessons)
+      .where(
+        and(eq(lessons.teacherId, teacherId), eq(lessons.studentId, studentId)),
+      )
+      .orderBy(desc(lessons.startedAt))
+      .limit(3),
+    db
+      .select()
+      .from(homework)
+      .where(
+        and(
+          eq(homework.teacherId, teacherId),
+          eq(homework.studentId, studentId),
+          inArray(homework.status, ["assigned", "submitted"]),
+        ),
+      )
+      .orderBy(sql`${homework.dueAt} ASC NULLS LAST`),
+    db
+      .select()
+      .from(vocabularyItems)
+      .where(
+        and(
+          eq(vocabularyItems.teacherId, teacherId),
+          eq(vocabularyItems.studentId, studentId),
+          inArray(vocabularyItems.status, ["new", "learning", "reviewing"]),
+        ),
+      )
+      .orderBy(desc(vocabularyItems.createdAt))
+      .limit(15),
+    db
+      .select()
+      .from(corrections)
+      .where(
+        and(
+          eq(corrections.teacherId, teacherId),
+          eq(corrections.studentId, studentId),
+        ),
+      )
+      .orderBy(desc(corrections.createdAt))
+      .limit(10),
+    db
+      .select()
+      .from(goals)
+      .where(
+        and(
+          eq(goals.teacherId, teacherId),
+          eq(goals.studentId, studentId),
+          eq(goals.status, "active"),
+        ),
+      )
+      .orderBy(desc(goals.updatedAt)),
+    db
+      .select()
+      .from(insights)
+      .where(
+        and(
+          eq(insights.teacherId, teacherId),
+          eq(insights.studentId, studentId),
+          inArray(insights.type, [
+            "recurringMistake",
+            "weakness",
+            "teachingStrategy",
+            "learningPreference",
+          ]),
+        ),
+      )
+      .orderBy(desc(insights.updatedAt))
+      .limit(8),
+  ]);
+
+  const lastLesson = recentLessons[0] ?? null;
+  const lastLessonTopics = lastLesson
+    ? await db
+        .select()
+        .from(lessonTopics)
+        .where(eq(lessonTopics.lessonId, lastLesson.id))
+        .orderBy(lessonTopics.createdAt)
+    : [];
+
+  return {
+    student,
+    lastLesson,
+    lastLessonTopics,
+    nextFocus:
+      recentLessons.find((l) => l.nextLessonFocus)?.nextLessonFocus ?? null,
+    openHomework,
+    reviewVocabulary,
+    recentCorrections,
+    activeGoals,
+    insights: prepInsights,
+  };
+}
+
+export type PrepSheet = NonNullable<Awaited<ReturnType<typeof getPrepSheet>>>;
+
+// ---------------------------------------------------------------------------
 // Dashboard
 // ---------------------------------------------------------------------------
 
