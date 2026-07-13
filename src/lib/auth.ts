@@ -1,4 +1,5 @@
 import { cache } from "react";
+import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { withAuth } from "@workos-inc/authkit-nextjs";
 import { db, teachers, type Teacher } from "@/db";
@@ -38,8 +39,8 @@ async function findOrCreateTeacher(input: {
 
 /**
  * Resolve the signed-in teacher, creating the row on first login.
- * Redirects to the AuthKit sign-in screen when unauthenticated
- * (except in MOCK_AUTH dev mode, which returns a canned teacher).
+ * Redirects to OUR custom /login when unauthenticated (except in
+ * MOCK_AUTH dev mode, which returns a canned teacher).
  *
  * Wrapped in React `cache` so a page and its nested components share
  * one lookup per request.
@@ -48,7 +49,8 @@ export const requireTeacher = cache(async (): Promise<Teacher> => {
   if (MOCK_AUTH) {
     return findOrCreateTeacher({ ...MOCK_TEACHER });
   }
-  const { user } = await withAuth({ ensureSignedIn: true });
+  const { user } = await withAuth();
+  if (!user) redirect("/login");
   const name =
     [user.firstName, user.lastName].filter(Boolean).join(" ") || null;
   return findOrCreateTeacher({

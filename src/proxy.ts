@@ -1,14 +1,22 @@
 /**
- * Next.js 16 proxy — WorkOS AuthKit (pattern lifted from Jurisimus web-app).
+ * Next.js 16 proxy — WorkOS AuthKit (pattern ported from Jurisimus web-app).
  *
- * Difference from web-app: class-room has no separate API backend doing
- * cookie enforcement and no custom login screen, so `middlewareAuth` is
- * ENABLED — unauthenticated visits to protected paths redirect to the
- * hosted AuthKit sign-in screen (WorkOS's current recommended flow).
+ * `middlewareAuth.enabled` is FALSE by design, same rationale as web-app:
+ * class-room now runs a fully CUSTOM login (`/login` + `/signup` + direct
+ * Google/Apple via `getAuthorizationUrl`), never the hosted AuthKit screen.
+ * `enabled: true` is the only thing that auto-redirects a protected path to
+ * `getSignInUrl()` (the hosted screen), and authkit offers no way to point
+ * that redirect at our own /login. So we disable it and enforce auth in the
+ * app layer: `requireTeacher()` redirects unauthenticated requests to
+ * /login on every protected page and server action. The proxy still runs
+ * on every request for SESSION REFRESH + header injection.
  *
- * Under `MOCK_AUTH=true` (server-only env var, set by `npm run dev:mock`)
- * the proxy is a pass-through and `requireTeacher()` returns a canned dev
- * teacher — local dev needs zero WorkOS keys.
+ * `unauthenticatedPaths` is retained as living documentation of the public
+ * surface (and a one-flip re-enable) but is INERT while `enabled: false`.
+ *
+ * Under `MOCK_AUTH=true` (set by `npm run dev:mock`) the proxy is a
+ * pass-through and `requireTeacher()` returns a canned dev teacher —
+ * local dev needs zero WorkOS keys.
  */
 
 import { authkitProxy } from "@workos-inc/authkit-nextjs";
@@ -46,10 +54,14 @@ export default process.env.MOCK_AUTH === "true"
   ? misconfiguredProxy
   : authkitProxy({
       middlewareAuth: {
-        enabled: true,
+        enabled: false,
         unauthenticatedPaths: [
           "/",
           "/login",
+          "/login/google",
+          "/login/apple",
+          "/signup",
+          "/forgot-password",
           "/callback",
           "/logout",
           // Public student recap — the token in the path is the sole

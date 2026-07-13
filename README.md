@@ -19,7 +19,7 @@ Self-contained Next.js full-stack app — deploys to Vercel as-is.
 | --- | --- |
 | Framework | Next.js 16 (App Router, server actions) + React 19 |
 | Database | PostgreSQL + Drizzle ORM (local Docker; Supabase in prod) |
-| Auth | WorkOS AuthKit (`authkit-nextjs`), hosted sign-in + `MOCK_AUTH` dev mode |
+| Auth | WorkOS custom flow ported from Jurisimus web-app — own /login + /signup (B2C, visible), direct Google/Apple OAuth, email-verification step, forgot-password; `MOCK_AUTH` dev mode |
 | AI | Anthropic `claude-opus-4-8` structured extraction (`messages.parse` + zod schema); deterministic mock when no API key |
 | Styling | Tailwind CSS v4 + Radix primitives, Linear/Attio-inspired design tokens |
 
