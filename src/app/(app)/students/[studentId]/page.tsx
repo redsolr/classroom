@@ -16,6 +16,7 @@ import {
   InsightsSection,
 } from "@/components/students/profile-sections";
 import { StudentHeader } from "@/components/students/student-header";
+import { ProgressSection } from "@/components/students/progress-section";
 import { TimelineSection } from "@/components/students/timeline-section";
 import {
   CorrectionsSection,
@@ -246,6 +247,7 @@ export default async function StudentProfilePage({
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="timeline">Timeline</TabsTrigger>
+          <TabsTrigger value="progress">Progress</TabsTrigger>
           <TabsTrigger value="lessons">
             Lessons ({profile.lessons.length})
           </TabsTrigger>
@@ -268,6 +270,9 @@ export default async function StudentProfilePage({
         </TabsContent>
         <TabsContent value="timeline" className="pt-5">
           <TimelineSection profile={profile} />
+        </TabsContent>
+        <TabsContent value="progress" className="pt-5">
+          <ProgressSection profile={profile} />
         </TabsContent>
         <TabsContent value="lessons" className="pt-5">
           <LessonsTab profile={profile} />

@@ -31,6 +31,15 @@
   --shadow-card: 0 1px 2px rgba(20, 20, 30, 0.04), 0 0 0 1px var(--border);
   --shadow-overlay:
     0 0 0 1px var(--border), 0 8px 24px rgba(20, 20, 30, 0.12);
+  /* Chart-fill tokens. The badge/status tokens double as fills in light mode,
+   * but the dark-mode status tokens are bright text pastels that fail the
+   * chart lightness band — dark fills pin to the light solids instead
+   * (validated for lightness band, chroma, CVD separation, and contrast
+   * against both surfaces). */
+  --viz-info: var(--info);
+  --viz-warning: var(--warning);
+  --viz-accent: var(--accent);
+  --viz-success: var(--success);
 }
 
 /* Theme is attribute-driven (see src/lib/theme.ts): light is the DEFAULT —
@@ -69,6 +78,10 @@
     --info-soft: #0e2a3a;
     --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 0 0 1px var(--border);
     --shadow-overlay: 0 0 0 1px var(--border-strong), 0 8px 32px rgba(0, 0, 0, 0.5);
+    --viz-info: #0284c7;
+    --viz-warning: #d97706;
+    --viz-accent: var(--accent);
+    --viz-success: #16a34a;
 }
 
 @theme inline {
@@ -93,6 +106,10 @@
   --color-warning-soft: var(--warning-soft);
   --color-info: var(--info);
   --color-info-soft: var(--info-soft);
+  --color-viz-info: var(--viz-info);
+  --color-viz-warning: var(--viz-warning);
+  --color-viz-accent: var(--viz-accent);
+  --color-viz-success: var(--viz-success);
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --shadow-card: var(--shadow-card);
   --shadow-overlay: var(--shadow-overlay);

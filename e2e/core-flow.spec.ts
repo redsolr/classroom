@@ -156,6 +156,25 @@ test("timeline shows the student's whole history in one stream", async ({
   await expect(page.getByText("she go → she goes").first()).toBeVisible();
 });
 
+test("progress tab shows deterministic counts from the record", async ({
+  page,
+}) => {
+  await page.goto("/students");
+  await page.getByRole("link", { name: studentName }).click();
+  await page.waitForURL(/\/students\/[0-9a-f-]{36}/);
+
+  await page.getByRole("tab", { name: "Progress" }).click();
+
+  // Counts derive from the approved record: 1 vocab item (new, unmastered),
+  // 1 open homework, and the lesson's single correction in the trend.
+  await expect(page.getByText("Vocabulary mastered")).toBeVisible();
+  await expect(page.getByText("Homework completed")).toBeVisible();
+  await expect(page.getByText("Vocabulary pipeline")).toBeVisible();
+  await expect(page.getByText("Corrections per lesson")).toBeVisible();
+  await expect(page.getByText("0 of 1").first()).toBeVisible();
+  await expect(page.getByText(/Most corrected: Grammar \(1\)/)).toBeVisible();
+});
+
 test("an invalid recap token is a 404, not a data leak", async ({ page }) => {
   const response = await page.goto(`/r/definitely-not-a-real-token-${runId}`);
   expect(response?.status()).toBe(404);
