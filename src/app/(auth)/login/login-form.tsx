@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
   AuthDivider,
   AuthField,
@@ -12,6 +11,7 @@ import {
   SocialButton,
   ToggleSwitch,
 } from "@/components/auth/auth-ui";
+import { useAuthForm } from "@/components/auth/use-auth-form";
 import { VerifyEmailForm } from "@/components/auth/verify-email-form";
 import { emailPasswordLogin } from "./actions";
 
@@ -22,17 +22,11 @@ function validateEmail(email: string): string | null {
 }
 
 export function LoginForm() {
-  const router = useRouter();
-  const [error, setError] = React.useState("");
+  const { error, setError, verify, isPending, submit } = useAuthForm();
   const [fieldErrors, setFieldErrors] = React.useState<{
     email?: string;
     password?: string;
   }>({});
-  const [verify, setVerify] = React.useState<{
-    email: string;
-    pendingAuthenticationToken: string;
-  } | null>(null);
-  const [isPending, startTransition] = React.useTransition();
 
   if (verify) {
     return (
@@ -56,31 +50,21 @@ export function LoginForm() {
       return;
     }
     setFieldErrors({});
-    setError("");
-    startTransition(async () => {
-      const result = await emailPasswordLogin(formData);
-      if (result.error) {
-        setError(result.error);
-        return;
-      }
-      if (result.verify) {
-        setVerify(result.verify);
-        return;
-      }
-      router.push("/dashboard");
-      router.refresh();
-    });
+    submit(emailPasswordLogin, formData);
   }
 
   return (
     <>
       <h1 className="auth-card-title mb-7">Sign in to your account</h1>
 
-      <form action={handleSubmit} className="space-y-4">
+      {/* noValidate: our JS validation is the single validator — the
+          browser's native email tooltip would race it. type="email" is
+          kept for semantics, autofill, and mobile keyboards. */}
+      <form action={handleSubmit} className="space-y-4" noValidate>
         <AuthField label="Email" error={fieldErrors.email}>
           <input
             name="email"
-            type="text"
+            type="email"
             autoComplete="email"
             className={`auth-input ${fieldErrors.email ? "auth-input-error" : ""}`}
           />

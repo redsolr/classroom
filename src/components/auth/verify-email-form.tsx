@@ -1,8 +1,7 @@
 "use client";
 
-import * as React from "react";
-import { useRouter } from "next/navigation";
 import { AuthField, AuthSubmit } from "@/components/auth/auth-ui";
+import { useAuthForm } from "@/components/auth/use-auth-form";
 import { verifyEmailCode } from "@/app/(auth)/verify-email/actions";
 
 /** Code-entry step shown when WorkOS requires email verification. */
@@ -13,9 +12,7 @@ export function VerifyEmailForm({
   email: string;
   pendingAuthenticationToken: string;
 }) {
-  const router = useRouter();
-  const [error, setError] = React.useState("");
-  const [isPending, startTransition] = React.useTransition();
+  const { error, isPending, submit } = useAuthForm();
 
   return (
     <>
@@ -26,21 +23,9 @@ export function VerifyEmailForm({
         your address.
       </p>
       <form
-        action={(fd) => {
-          setError("");
-          startTransition(async () => {
-            const result = await verifyEmailCode(
-              pendingAuthenticationToken,
-              fd,
-            );
-            if (result.error) {
-              setError(result.error);
-              return;
-            }
-            router.push("/dashboard");
-            router.refresh();
-          });
-        }}
+        action={(fd) =>
+          submit((formData) => verifyEmailCode(pendingAuthenticationToken, formData), fd)
+        }
         className="space-y-4"
       >
         <AuthField label="Verification code" error={error || undefined}>

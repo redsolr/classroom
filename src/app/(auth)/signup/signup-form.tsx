@@ -1,7 +1,5 @@
 "use client";
 
-import * as React from "react";
-import { useRouter } from "next/navigation";
 import {
   AuthDivider,
   AuthField,
@@ -10,17 +8,12 @@ import {
   PasswordInput,
   SocialButton,
 } from "@/components/auth/auth-ui";
+import { useAuthForm } from "@/components/auth/use-auth-form";
 import { VerifyEmailForm } from "@/components/auth/verify-email-form";
 import { createAccount } from "./actions";
 
 export function SignupForm() {
-  const router = useRouter();
-  const [error, setError] = React.useState("");
-  const [verify, setVerify] = React.useState<{
-    email: string;
-    pendingAuthenticationToken: string;
-  } | null>(null);
-  const [isPending, startTransition] = React.useTransition();
+  const { error, verify, isPending, submit } = useAuthForm();
 
   if (verify) {
     return (
@@ -31,23 +24,6 @@ export function SignupForm() {
     );
   }
 
-  function handleSubmit(formData: FormData) {
-    setError("");
-    startTransition(async () => {
-      const result = await createAccount(formData);
-      if (result.error) {
-        setError(result.error);
-        return;
-      }
-      if (result.verify) {
-        setVerify(result.verify);
-        return;
-      }
-      router.push("/dashboard");
-      router.refresh();
-    });
-  }
-
   return (
     <>
       <h1 className="auth-card-title">Create your class-room</h1>
@@ -55,7 +31,7 @@ export function SignupForm() {
         Free while in early access — remember every student from day one.
       </p>
 
-      <form action={handleSubmit} className="space-y-4">
+      <form action={(fd) => submit(createAccount, fd)} className="space-y-4">
         <AuthField label="Full name">
           <input
             name="fullName"

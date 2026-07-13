@@ -13,8 +13,8 @@ import {
   getRequestBaseUrl,
   getWorkOS,
   getWorkOSErrorData,
+  type AuthActionResult,
 } from "@/lib/workos";
-import type { AuthActionResult } from "@/app/(auth)/signup/actions";
 
 export async function emailPasswordLogin(
   formData: FormData,

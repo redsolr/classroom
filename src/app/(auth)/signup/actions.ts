@@ -14,13 +14,8 @@ import {
   getRequestBaseUrl,
   getWorkOS,
   getWorkOSErrorData,
+  type AuthActionResult,
 } from "@/lib/workos";
-
-export type AuthActionResult = {
-  error?: string;
-  /** Set when WorkOS requires email verification before completing auth. */
-  verify?: { email: string; pendingAuthenticationToken: string };
-};
 
 export async function createAccount(
   formData: FormData,

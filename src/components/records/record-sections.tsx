@@ -1,8 +1,7 @@
 "use client";
 
-import * as React from "react";
 import Link from "next/link";
-import { ArrowRight, BookMarked, ClipboardList, Plus, SpellCheck2 } from "lucide-react";
+import { ArrowRight, BookMarked, ClipboardList, SpellCheck2 } from "lucide-react";
 import type { Correction, Homework, VocabularyItem } from "@/db";
 import {
   addCorrection,
@@ -20,22 +19,51 @@ import {
   homeworkStatusTone,
   vocabularyStatusTone,
 } from "@/components/ui/badge";
-import { Button, SubmitButton } from "@/components/ui/button";
 import { ConfirmButton } from "@/components/ui/confirm-button";
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Field, Input, Select, Textarea } from "@/components/ui/field";
+import { FormDialog } from "@/components/ui/form-dialog";
 import { Card } from "@/components/ui/page-header";
 
 /**
- * Correction / vocabulary / homework lists with add + delete + status
- * controls. Used on the student profile (lessonId = null) and could be
- * scoped to a lesson. `lessonLinks` optionally maps lessonId → date label.
+ * Student-profile record lists (corrections / vocabulary / homework) with
+ * add, delete, and status controls. Lesson-scoped inline lists live in
+ * the lesson editor.
  */
 
 // ---------------------------------------------------------------------------
 // Corrections
 // ---------------------------------------------------------------------------
+
+function AddCorrectionDialog({ studentId }: { studentId: string }) {
+  return (
+    <FormDialog
+      triggerLabel="Add correction"
+      title="New correction"
+      submitLabel="Add correction"
+      action={(fd) => addCorrection(studentId, null, fd)}
+    >
+      <Field label="Category">
+        <Select name="category" defaultValue="grammar">
+          {Object.entries(correctionCategoryLabel).map(([v, l]) => (
+            <option key={v} value={v}>
+              {l}
+            </option>
+          ))}
+        </Select>
+      </Field>
+      <Field label="What the student said">
+        <Input name="originalText" required autoFocus />
+      </Field>
+      <Field label="Corrected form">
+        <Input name="correctedText" required />
+      </Field>
+      <Field label="Explanation">
+        <Textarea name="explanation" rows={2} placeholder="Optional" />
+      </Field>
+    </FormDialog>
+  );
+}
 
 export function CorrectionsSection({
   studentId,
@@ -44,64 +72,22 @@ export function CorrectionsSection({
   studentId: string;
   corrections: Correction[];
 }) {
-  const [open, setOpen] = React.useState(false);
-
-  const addDialog = (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size="sm">
-          <Plus className="size-3.5" />
-          Add correction
-        </Button>
-      </DialogTrigger>
-      <DialogContent title="New correction">
-        <form
-          action={async (fd) => {
-            await addCorrection(studentId, null, fd);
-            setOpen(false);
-          }}
-          className="space-y-3"
-        >
-          <Field label="Category">
-            <Select name="category" defaultValue="grammar">
-              {Object.entries(correctionCategoryLabel).map(([v, l]) => (
-                <option key={v} value={v}>
-                  {l}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label="What the student said">
-            <Input name="originalText" required autoFocus />
-          </Field>
-          <Field label="Corrected form">
-            <Input name="correctedText" required />
-          </Field>
-          <Field label="Explanation">
-            <Textarea name="explanation" rows={2} placeholder="Optional" />
-          </Field>
-          <div className="flex justify-end">
-            <SubmitButton>Add correction</SubmitButton>
-          </div>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-
   if (corrections.length === 0) {
     return (
       <EmptyState
         icon={<SpellCheck2 />}
         title="No corrections yet"
         description="Corrections captured from lessons build the student's error history."
-        action={addDialog}
+        action={<AddCorrectionDialog studentId={studentId} />}
       />
     );
   }
 
   return (
     <div className="space-y-2">
-      <div className="flex justify-end">{addDialog}</div>
+      <div className="flex justify-end">
+        <AddCorrectionDialog studentId={studentId} />
+      </div>
       {corrections.map((c) => (
         <Card key={c.id} className="flex items-start gap-3 px-4 py-3">
           <div className="min-w-0 flex-1">
@@ -136,6 +122,32 @@ export function CorrectionsSection({
 
 const VOCAB_STATUSES = ["new", "learning", "reviewing", "mastered"] as const;
 
+function AddVocabularyDialog({ studentId }: { studentId: string }) {
+  return (
+    <FormDialog
+      triggerLabel="Add vocabulary"
+      title="New vocabulary item"
+      submitLabel="Add vocabulary"
+      action={(fd) => addVocabulary(studentId, null, fd)}
+    >
+      <Field label="Term">
+        <Input name="term" required autoFocus />
+      </Field>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Meaning">
+          <Input name="meaning" placeholder="Optional" />
+        </Field>
+        <Field label="Translation">
+          <Input name="translation" placeholder="Optional" />
+        </Field>
+      </div>
+      <Field label="Example sentence">
+        <Input name="example" placeholder="Optional" />
+      </Field>
+    </FormDialog>
+  );
+}
+
 export function VocabularySection({
   studentId,
   vocabulary,
@@ -143,60 +155,22 @@ export function VocabularySection({
   studentId: string;
   vocabulary: VocabularyItem[];
 }) {
-  const [open, setOpen] = React.useState(false);
-
-  const addDialog = (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size="sm">
-          <Plus className="size-3.5" />
-          Add vocabulary
-        </Button>
-      </DialogTrigger>
-      <DialogContent title="New vocabulary item">
-        <form
-          action={async (fd) => {
-            await addVocabulary(studentId, null, fd);
-            setOpen(false);
-          }}
-          className="space-y-3"
-        >
-          <Field label="Term">
-            <Input name="term" required autoFocus />
-          </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Meaning">
-              <Input name="meaning" placeholder="Optional" />
-            </Field>
-            <Field label="Translation">
-              <Input name="translation" placeholder="Optional" />
-            </Field>
-          </div>
-          <Field label="Example sentence">
-            <Input name="example" placeholder="Optional" />
-          </Field>
-          <div className="flex justify-end">
-            <SubmitButton>Add vocabulary</SubmitButton>
-          </div>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-
   if (vocabulary.length === 0) {
     return (
       <EmptyState
         icon={<BookMarked />}
         title="No vocabulary yet"
         description="Words and phrases introduced in lessons collect here for review."
-        action={addDialog}
+        action={<AddVocabularyDialog studentId={studentId} />}
       />
     );
   }
 
   return (
     <div className="space-y-2">
-      <div className="flex justify-end">{addDialog}</div>
+      <div className="flex justify-end">
+        <AddVocabularyDialog studentId={studentId} />
+      </div>
       <Card>
         <ul className="divide-y divide-border">
           {vocabulary.map((v) => (
@@ -223,7 +197,7 @@ export function VocabularySection({
                     e.target.value as (typeof VOCAB_STATUSES)[number],
                   )
                 }
-                className="h-7 w-28 text-[0.8125rem]"
+                className="h-8 w-28 text-[0.8125rem]"
               >
                 {VOCAB_STATUSES.map((s) => (
                   <option key={s} value={s}>
@@ -255,6 +229,32 @@ const HOMEWORK_STATUSES = [
   "skipped",
 ] as const;
 
+function AddHomeworkDialog({ studentId }: { studentId: string }) {
+  return (
+    <FormDialog
+      triggerLabel="Assign homework"
+      title="New homework"
+      submitLabel="Assign"
+      action={(fd) => addHomework(studentId, null, fd)}
+    >
+      <Field label="Title">
+        <Input
+          name="title"
+          required
+          autoFocus
+          placeholder="e.g. Write 5 sentences using past tense"
+        />
+      </Field>
+      <Field label="Description">
+        <Textarea name="description" rows={2} placeholder="Optional" />
+      </Field>
+      <Field label="Due date">
+        <Input name="dueAt" type="date" />
+      </Field>
+    </FormDialog>
+  );
+}
+
 export function HomeworkSection({
   studentId,
   homework,
@@ -262,64 +262,28 @@ export function HomeworkSection({
   studentId: string;
   homework: Homework[];
 }) {
-  const [open, setOpen] = React.useState(false);
-
-  const addDialog = (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size="sm">
-          <Plus className="size-3.5" />
-          Assign homework
-        </Button>
-      </DialogTrigger>
-      <DialogContent title="New homework">
-        <form
-          action={async (fd) => {
-            await addHomework(studentId, null, fd);
-            setOpen(false);
-          }}
-          className="space-y-3"
-        >
-          <Field label="Title">
-            <Input
-              name="title"
-              required
-              autoFocus
-              placeholder="e.g. Write 5 sentences using past tense"
-            />
-          </Field>
-          <Field label="Description">
-            <Textarea name="description" rows={2} placeholder="Optional" />
-          </Field>
-          <Field label="Due date">
-            <Input name="dueAt" type="date" />
-          </Field>
-          <div className="flex justify-end">
-            <SubmitButton>Assign</SubmitButton>
-          </div>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-
   if (homework.length === 0) {
     return (
       <EmptyState
         icon={<ClipboardList />}
         title="No homework yet"
         description="Homework assigned after lessons is tracked here until it's completed."
-        action={addDialog}
+        action={<AddHomeworkDialog studentId={studentId} />}
       />
     );
   }
 
   return (
     <div className="space-y-2">
-      <div className="flex justify-end">{addDialog}</div>
+      <div className="flex justify-end">
+        <AddHomeworkDialog studentId={studentId} />
+      </div>
       {homework.map((h) => (
         <Card key={h.id} className="flex items-start gap-3 px-4 py-3">
           <div className="min-w-0 flex-1">
-            <p className={`text-[0.9375rem] font-medium ${["completed", "skipped"].includes(h.status) ? "text-fg-tertiary line-through" : ""}`}>
+            <p
+              className={`text-[0.9375rem] font-medium ${["completed", "skipped"].includes(h.status) ? "text-fg-tertiary line-through" : ""}`}
+            >
               {h.title}
             </p>
             {h.description && (
@@ -353,7 +317,7 @@ export function HomeworkSection({
                 e.target.value as (typeof HOMEWORK_STATUSES)[number],
               )
             }
-            className="h-7 w-28 shrink-0 text-[0.8125rem]"
+            className="h-8 w-28 shrink-0 text-[0.8125rem]"
           >
             {HOMEWORK_STATUSES.map((s) => (
               <option key={s} value={s}>

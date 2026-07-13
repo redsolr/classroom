@@ -3,12 +3,12 @@
 import * as React from "react";
 import Link from "next/link";
 import { AuthField, AuthFooterLink, AuthSubmit } from "@/components/auth/auth-ui";
+import { useAuthForm } from "@/components/auth/use-auth-form";
 import { sendPasswordReset } from "./actions";
 
 export function ForgotPasswordForm() {
+  const { error, isPending, submit } = useAuthForm();
   const [sent, setSent] = React.useState(false);
-  const [error, setError] = React.useState("");
-  const [isPending, startTransition] = React.useTransition();
 
   if (sent) {
     return (
@@ -35,17 +35,9 @@ export function ForgotPasswordForm() {
         We&rsquo;ll email you a reset link.
       </p>
       <form
-        action={(fd) => {
-          setError("");
-          startTransition(async () => {
-            const result = await sendPasswordReset(fd);
-            if (result.error) {
-              setError(result.error);
-              return;
-            }
-            setSent(true);
-          });
-        }}
+        action={(fd) =>
+          submit(sendPasswordReset, fd, { onSuccess: () => setSent(true) })
+        }
         className="space-y-4"
       >
         <AuthField label="Email" error={error || undefined}>

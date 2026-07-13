@@ -10,6 +10,13 @@ export { getWorkOS } from "@workos-inc/authkit-nextjs";
 export const clientId = process.env.WORKOS_CLIENT_ID!;
 export const redirectUri = process.env.NEXT_PUBLIC_WORKOS_REDIRECT_URI!;
 
+/** Result shape shared by every credential auth action (login, signup,
+ *  verify): an error to display, or a pending email-verification step. */
+export type AuthActionResult = {
+  error?: string;
+  verify?: { email: string; pendingAuthenticationToken: string };
+};
+
 /**
  * Absolute URL for the current request, from forwarded headers.
  *

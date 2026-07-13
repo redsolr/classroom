@@ -1,7 +1,6 @@
 "use client";
 
-import * as React from "react";
-import { Plus, Target, Lightbulb } from "lucide-react";
+import { Lightbulb, Target } from "lucide-react";
 import type { Goal, Insight } from "@/db";
 import {
   createGoal,
@@ -15,11 +14,11 @@ import {
   insightTypeLabel,
   insightTypeTone,
 } from "@/components/ui/badge";
-import { Button, SubmitButton } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { ConfirmButton } from "@/components/ui/confirm-button";
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Field, Input, Select, Textarea } from "@/components/ui/field";
+import { FormDialog } from "@/components/ui/form-dialog";
 import { Card } from "@/components/ui/page-header";
 
 // ---------------------------------------------------------------------------
@@ -32,6 +31,41 @@ const goalStatusTone = {
   paused: "neutral",
 } as const;
 
+function AddGoalDialog({ studentId }: { studentId: string }) {
+  return (
+    <FormDialog
+      triggerLabel="Add goal"
+      title="New learning goal"
+      submitLabel="Add goal"
+      action={(fd) => createGoal(studentId, fd)}
+    >
+      <Field label="Title">
+        <Input
+          name="title"
+          required
+          autoFocus
+          placeholder="e.g. Prepare for DELF B2"
+        />
+      </Field>
+      <Field label="Description">
+        <Textarea name="description" rows={2} placeholder="Optional detail" />
+      </Field>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Priority">
+          <Select name="priority" defaultValue="medium">
+            <option value="high">High</option>
+            <option value="medium">Medium</option>
+            <option value="low">Low</option>
+          </Select>
+        </Field>
+        <Field label="Target date">
+          <Input name="targetDate" type="date" />
+        </Field>
+      </div>
+    </FormDialog>
+  );
+}
+
 export function GoalsSection({
   studentId,
   goals,
@@ -39,73 +73,28 @@ export function GoalsSection({
   studentId: string;
   goals: Goal[];
 }) {
-  const [open, setOpen] = React.useState(false);
-
-  const addDialog = (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size="sm">
-          <Plus className="size-3.5" />
-          Add goal
-        </Button>
-      </DialogTrigger>
-      <DialogContent title="New learning goal">
-        <form
-          action={async (fd) => {
-            await createGoal(studentId, fd);
-            setOpen(false);
-          }}
-          className="space-y-3"
-        >
-          <Field label="Title">
-            <Input
-              name="title"
-              required
-              autoFocus
-              placeholder="e.g. Prepare for DELF B2"
-            />
-          </Field>
-          <Field label="Description">
-            <Textarea name="description" rows={2} placeholder="Optional detail" />
-          </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Priority">
-              <Select name="priority" defaultValue="medium">
-                <option value="high">High</option>
-                <option value="medium">Medium</option>
-                <option value="low">Low</option>
-              </Select>
-            </Field>
-            <Field label="Target date">
-              <Input name="targetDate" type="date" />
-            </Field>
-          </div>
-          <div className="flex justify-end">
-            <SubmitButton>Add goal</SubmitButton>
-          </div>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-
   if (goals.length === 0) {
     return (
       <EmptyState
         icon={<Target />}
         title="No goals yet"
         description="Goals give every lesson a direction — and give the AI context for suggestions."
-        action={addDialog}
+        action={<AddGoalDialog studentId={studentId} />}
       />
     );
   }
 
   return (
     <div className="space-y-2">
-      <div className="flex justify-end">{addDialog}</div>
+      <div className="flex justify-end">
+        <AddGoalDialog studentId={studentId} />
+      </div>
       {goals.map((g) => (
         <Card key={g.id} className="flex items-start gap-3 px-4 py-3">
           <div className="min-w-0 flex-1">
-            <p className={`text-[0.9375rem] font-medium ${g.status === "completed" ? "text-fg-tertiary line-through" : ""}`}>
+            <p
+              className={`text-[0.9375rem] font-medium ${g.status === "completed" ? "text-fg-tertiary line-through" : ""}`}
+            >
               {g.title}
             </p>
             {g.description && (
@@ -153,6 +142,39 @@ export function GoalsSection({
 // Insights
 // ---------------------------------------------------------------------------
 
+function AddInsightDialog({ studentId }: { studentId: string }) {
+  return (
+    <FormDialog
+      triggerLabel="Add insight"
+      title="New insight"
+      description="A longer-term observation about how this student learns. Never shown to the student."
+      submitLabel="Add insight"
+      action={(fd) => createInsight(studentId, fd)}
+    >
+      <Field label="Type">
+        <Select name="type" defaultValue="generalObservation">
+          {Object.entries(insightTypeLabel).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </Select>
+      </Field>
+      <Field label="Title">
+        <Input
+          name="title"
+          required
+          autoFocus
+          placeholder={`e.g. Confuses "depuis" and "pendant"`}
+        />
+      </Field>
+      <Field label="Description">
+        <Textarea name="description" rows={2} placeholder="Optional detail" />
+      </Field>
+    </FormDialog>
+  );
+}
+
 export function InsightsSection({
   studentId,
   insights,
@@ -160,69 +182,22 @@ export function InsightsSection({
   studentId: string;
   insights: Insight[];
 }) {
-  const [open, setOpen] = React.useState(false);
-
-  const addDialog = (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size="sm">
-          <Plus className="size-3.5" />
-          Add insight
-        </Button>
-      </DialogTrigger>
-      <DialogContent
-        title="New insight"
-        description="A longer-term observation about how this student learns. Never shown to the student."
-      >
-        <form
-          action={async (fd) => {
-            await createInsight(studentId, fd);
-            setOpen(false);
-          }}
-          className="space-y-3"
-        >
-          <Field label="Type">
-            <Select name="type" defaultValue="generalObservation">
-              {Object.entries(insightTypeLabel).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label="Title">
-            <Input
-              name="title"
-              required
-              autoFocus
-              placeholder={`e.g. Confuses "depuis" and "pendant"`}
-            />
-          </Field>
-          <Field label="Description">
-            <Textarea name="description" rows={2} placeholder="Optional detail" />
-          </Field>
-          <div className="flex justify-end">
-            <SubmitButton>Add insight</SubmitButton>
-          </div>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-
   if (insights.length === 0) {
     return (
       <EmptyState
         icon={<Lightbulb />}
         title="No insights yet"
         description="Insights are the student's long-term memory — recurring mistakes, preferences, interests. AI processing suggests them; you can add your own."
-        action={addDialog}
+        action={<AddInsightDialog studentId={studentId} />}
       />
     );
   }
 
   return (
     <div className="space-y-2">
-      <div className="flex justify-end">{addDialog}</div>
+      <div className="flex justify-end">
+        <AddInsightDialog studentId={studentId} />
+      </div>
       {insights.map((i) => (
         <Card key={i.id} className="flex items-start gap-3 px-4 py-3">
           <div className="min-w-0 flex-1">
