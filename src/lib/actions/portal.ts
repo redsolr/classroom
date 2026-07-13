@@ -1,15 +1,24 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, eq } from "drizzle-orm";
+import { and, count, desc, eq, gte, isNotNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
+  aiMessages,
+  corrections,
   db,
+  goals,
   homework,
+  lessons,
   students,
   vocabularyItems,
   vocabularyReviews,
 } from "@/db";
+import {
+  generateCompanionReply,
+  type CompanionContext,
+  type CompanionTurn,
+} from "@/lib/ai/companion";
 import { deriveVocabularyStatus, nextSrsState } from "@/lib/srs";
 
 const submitSchema = z.object({
@@ -58,6 +67,144 @@ export async function submitHomeworkViaPortal(
     throw new Error("Homework not found or already submitted");
 
   revalidatePath(`/p/${token}`);
+}
+
+// ---------------------------------------------------------------------------
+// AI study companion — grounded in the SHARED layer only (never insights,
+// private notes, or raw lesson input). Conversations are stored: they are
+// part of the learner's accumulating context.
+// ---------------------------------------------------------------------------
+
+const DAILY_MESSAGE_CAP = 30;
+const HISTORY_TURNS = 12;
+
+const companionMessageSchema = z.object({
+  message: z.string().trim().min(1).max(2000),
+});
+
+export async function sendCompanionMessage(
+  portalToken: string,
+  formData: FormData,
+) {
+  const token = z.string().min(10).parse(portalToken);
+  const parsed = companionMessageSchema.parse(Object.fromEntries(formData));
+
+  const student = await db.query.students.findFirst({
+    where: eq(students.portalToken, token),
+  });
+  if (!student) throw new Error("Portal not found");
+
+  // Simple brake: cap the student's messages per rolling day so a public
+  // token can never run up an unbounded LLM bill.
+  const [{ value: messagesToday }] = await db
+    .select({ value: count() })
+    .from(aiMessages)
+    .where(
+      and(
+        eq(aiMessages.studentId, student.id),
+        eq(aiMessages.role, "user"),
+        gte(aiMessages.createdAt, sql`now() - interval '24 hours'`),
+      ),
+    );
+
+  await db.insert(aiMessages).values({
+    teacherId: student.teacherId,
+    studentId: student.id,
+    role: "user",
+    content: parsed.message,
+  });
+
+  let reply: string;
+  if (messagesToday >= DAILY_MESSAGE_CAP) {
+    reply =
+      "You've done a LOT of practice today — I love it, but that's my limit for one day. Rest your brain and come back tomorrow! 🌙";
+  } else {
+    const [
+      activeGoals,
+      recentCorrections,
+      vocabulary,
+      openHomework,
+      recentSharedLessons,
+      history,
+    ] = await Promise.all([
+      db
+        .select()
+        .from(goals)
+        .where(
+          and(eq(goals.studentId, student.id), eq(goals.status, "active")),
+        ),
+      db
+        .select()
+        .from(corrections)
+        .where(eq(corrections.studentId, student.id))
+        .orderBy(desc(corrections.createdAt))
+        .limit(10),
+      db
+        .select()
+        .from(vocabularyItems)
+        .where(eq(vocabularyItems.studentId, student.id))
+        .orderBy(desc(vocabularyItems.createdAt))
+        .limit(20),
+      db
+        .select()
+        .from(homework)
+        .where(
+          and(eq(homework.studentId, student.id), eq(homework.status, "assigned")),
+        ),
+      db
+        .select({
+          startedAt: lessons.startedAt,
+          studentVisibleSummary: lessons.studentVisibleSummary,
+        })
+        .from(lessons)
+        .where(
+          and(
+            eq(lessons.studentId, student.id),
+            isNotNull(lessons.recapSharedAt),
+            isNotNull(lessons.studentVisibleSummary),
+          ),
+        )
+        .orderBy(desc(lessons.startedAt))
+        .limit(2),
+      db
+        .select({ role: aiMessages.role, content: aiMessages.content })
+        .from(aiMessages)
+        .where(eq(aiMessages.studentId, student.id))
+        .orderBy(desc(aiMessages.createdAt))
+        .limit(HISTORY_TURNS),
+    ]);
+
+    const context: CompanionContext = {
+      student,
+      goals: activeGoals,
+      recentCorrections,
+      vocabulary,
+      openHomework,
+      recentSharedLessons,
+    };
+    // History came newest-first and includes the just-inserted user
+    // message — flip it and drop the final user turn (passed separately).
+    const turns: CompanionTurn[] = history
+      .reverse()
+      .filter((_, i, arr) => i < arr.length - 1);
+
+    try {
+      reply = await generateCompanionReply(context, turns, parsed.message);
+    } catch (error) {
+      console.error("sendCompanionMessage: companion reply failed", error);
+      reply =
+        "Sorry — I had trouble thinking just now. Please try again in a moment.";
+    }
+  }
+
+  await db.insert(aiMessages).values({
+    teacherId: student.teacherId,
+    studentId: student.id,
+    role: "assistant",
+    content: reply,
+  });
+
+  revalidatePath(`/p/${token}/chat`);
 }
 
 const gradeSchema = z.enum(["again", "hard", "good", "easy"]);

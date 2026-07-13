@@ -320,6 +320,29 @@ test("durability: paste-import students, filter by source, export the record", a
   expect(await res.text()).toContain("stakeholder");
 });
 
+test("study companion: portal AI chat is grounded in the student's record", async ({
+  page,
+}) => {
+  await page.goto("/students");
+  await page.getByRole("link", { name: studentName }).click();
+  await page.waitForURL(/\/students\/[0-9a-f-]{36}/);
+  const href = await page
+    .getByRole("link", { name: /Student portal/ })
+    .getAttribute("href");
+
+  await page.goto(`${href}/chat`);
+  await page
+    .getByPlaceholder("Say something…")
+    .fill("Can we practice a little?");
+  await page.getByRole("button", { name: "Send" }).click();
+
+  await expect(page.getByText("Can we practice a little?")).toBeVisible();
+  // The (mock) companion answers from the student's own shared record:
+  // their vocabulary and their teacher's correction — not generic chat.
+  await expect(page.getByText(/stakeholder/).first()).toBeVisible();
+  await expect(page.getByText(/she goes/).first()).toBeVisible();
+});
+
 test("an invalid recap token is a 404, not a data leak", async ({ page }) => {
   const response = await page.goto(`/r/definitely-not-a-real-token-${runId}`);
   expect(response?.status()).toBe(404);

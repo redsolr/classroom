@@ -8,6 +8,7 @@ import {
   BookMarked,
   ClipboardList,
   GraduationCap,
+  MessageCircle,
   Sparkles,
   Target,
   TrendingUp,
@@ -155,8 +156,8 @@ export default async function PortalPage({
         </div>
       </section>
 
-      {vocabulary.length > 0 && (
-        <section className="mb-8">
+      <section className="mb-8 space-y-3">
+        {vocabulary.length > 0 && (
           <Link
             href={`/p/${token}/practice`}
             className="flex items-center gap-3 rounded-lg border-l-2 border-l-accent bg-surface px-4 py-3.5 shadow-card transition-colors hover:bg-surface-hover"
@@ -174,8 +175,23 @@ export default async function PortalPage({
             </span>
             <ArrowRight className="size-3.5 shrink-0 text-fg-tertiary" />
           </Link>
-        </section>
-      )}
+        )}
+        <Link
+          href={`/p/${token}/chat`}
+          className="flex items-center gap-3 rounded-lg border-l-2 border-l-accent bg-surface px-4 py-3.5 shadow-card transition-colors hover:bg-surface-hover"
+        >
+          <MessageCircle className="size-4.5 shrink-0 text-accent" />
+          <span className="min-w-0 flex-1">
+            <span className="block text-[0.9375rem] font-medium">
+              Chat with your study companion
+            </span>
+            <span className="block text-[0.8125rem] text-fg-tertiary">
+              An AI that knows your words, corrections, and goals
+            </span>
+          </span>
+          <ArrowRight className="size-3.5 shrink-0 text-fg-tertiary" />
+        </Link>
+      </section>
 
       <section className="mb-8">
         <h2 className="mb-3 flex items-center gap-2 text-[0.9375rem] font-semibold text-fg-secondary">

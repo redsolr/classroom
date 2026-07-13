@@ -92,6 +92,11 @@ export const reviewGradeEnum = pgEnum("review_grade", [
   "easy",
 ]);
 
+export const aiMessageRoleEnum = pgEnum("ai_message_role", [
+  "user",
+  "assistant",
+]);
+
 export const insightTypeEnum = pgEnum("insight_type", [
   "recurringMistake",
   "learningPreference",
@@ -439,6 +444,31 @@ export const insights = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// AI companion messages — the student's practice conversations. Part of
+// the learner's accumulating context (student-owned layer); grounded in
+// SHARED records only, never teacher-private content.
+// ---------------------------------------------------------------------------
+
+export const aiMessages = pgTable(
+  "ai_messages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    teacherId: uuid("teacher_id")
+      .notNull()
+      .references(() => teachers.id, { onDelete: "cascade" }),
+    studentId: uuid("student_id")
+      .notNull()
+      .references(() => students.id, { onDelete: "cascade" }),
+    role: aiMessageRoleEnum("role").notNull(),
+    content: text("content").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index("ai_messages_student_created_idx").on(t.studentId, t.createdAt)],
+);
+
+// ---------------------------------------------------------------------------
 // Row types
 // ---------------------------------------------------------------------------
 
@@ -450,5 +480,6 @@ export type LessonTopic = typeof lessonTopics.$inferSelect;
 export type Correction = typeof corrections.$inferSelect;
 export type VocabularyItem = typeof vocabularyItems.$inferSelect;
 export type VocabularyReview = typeof vocabularyReviews.$inferSelect;
+export type AiMessage = typeof aiMessages.$inferSelect;
 export type Homework = typeof homework.$inferSelect;
 export type Insight = typeof insights.$inferSelect;
