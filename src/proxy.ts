@@ -67,6 +67,9 @@ export default process.env.MOCK_AUTH === "true"
           // Public student recap — the token in the path is the sole
           // authorization; the page exposes only approved content.
           "/r/:path*",
+          // Persistent student portal — same token-in-path model,
+          // revocable per student (regenerate/disable).
+          "/p/:path*",
         ],
       },
     });

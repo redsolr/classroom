@@ -183,23 +183,68 @@ test("scheduling: future lesson → Up next → mark attended → notes", async 
   await page.waitForURL(/\/students\/[0-9a-f-]{36}/);
 
   // A future date & time creates a *scheduled* lesson, not a draft record.
+  const scheduledTitle = `Scheduled E2E ${runId}`;
   await page.getByRole("tab", { name: /^Lessons/ }).click();
   await page.getByRole("button", { name: "New lesson" }).click();
-  await page.getByLabel("Title").fill("Scheduled E2E lesson");
+  await page.getByLabel("Title").fill(scheduledTitle);
   await page.getByLabel("Date & time").fill("2030-01-01T14:00");
   await page.getByRole("button", { name: "Create lesson" }).click();
   await page.waitForURL(/\/lessons\/[0-9a-f-]{36}/);
+  const lessonUrl = page.url();
   await expect(page.getByText(/Scheduled for/)).toBeVisible();
 
   // It surfaces in the dashboard "Up next" feed…
   await page.goto("/dashboard");
-  await expect(page.getByText("Scheduled E2E lesson")).toBeVisible();
+  await expect(page.getByText(scheduledTitle).first()).toBeVisible();
 
   // …and marking it attended opens the normal notes flow.
-  await page.getByText("Scheduled E2E lesson").click();
-  await page.waitForURL(/\/lessons\/[0-9a-f-]{36}/);
+  await page.goto(lessonUrl);
   await page.getByRole("button", { name: "Mark attended" }).click();
   await expect(page.getByPlaceholder(/Paste rough notes/)).toBeVisible();
+});
+
+test("student portal: enable → homework check-off → teacher sees submission", async ({
+  page,
+}) => {
+  await page.goto("/students");
+  await page.getByRole("link", { name: studentName }).click();
+  await page.waitForURL(/\/students\/[0-9a-f-]{36}/);
+
+  // Enable the portal from the student actions menu.
+  await page.getByRole("button", { name: "Student actions" }).click();
+  await page.getByText("Enable student portal").click();
+
+  // The header now shows the live portal link; open it as the student.
+  const portalLink = page.getByRole("link", { name: /Student portal/ });
+  await expect(portalLink).toBeVisible();
+  const href = await portalLink.getAttribute("href");
+  expect(href).toBeTruthy();
+
+  await page.goto(href!);
+  await expect(
+    page.getByRole("heading", { name: new RegExp(`Hi ${studentName}`) }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("write 5 sentences using past tense").first(),
+  ).toBeVisible();
+  await expect(page.getByText("stakeholder").first()).toBeVisible();
+
+  // Private lesson notes never reach the portal.
+  await expect(page.getByText(privateSecret)).toHaveCount(0);
+
+  // Check off the homework — it becomes `submitted`, never auto-completed.
+  await page
+    .getByPlaceholder(/Write your answer here/)
+    .fill("I finished my sentences: I went, I saw, I did.");
+  await page.getByRole("button", { name: "Send to teacher" }).click();
+  await expect(page.getByText("Nothing to do right now")).toBeVisible();
+  await expect(page.getByText("submitted").first()).toBeVisible();
+
+  // The teacher sees the submission on the student's homework record.
+  await page.goto("/students");
+  await page.getByRole("link", { name: studentName }).click();
+  await page.getByRole("tab", { name: /^Homework/ }).click();
+  await expect(page.getByText("submitted").first()).toBeVisible();
 });
 
 test("an invalid recap token is a 404, not a data leak", async ({ page }) => {

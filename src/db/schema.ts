@@ -142,6 +142,9 @@ export const students = pgTable(
     platform: text("platform"),
     lessonFrequency: text("lesson_frequency"),
     generalNotes: text("general_notes"),
+    // Persistent portal access — presence of a token means the portal is
+    // live; regenerating revokes the old link, null disables it.
+    portalToken: text("portal_token"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -149,7 +152,10 @@ export const students = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (t) => [index("students_teacher_id_idx").on(t.teacherId)],
+  (t) => [
+    index("students_teacher_id_idx").on(t.teacherId),
+    uniqueIndex("students_portal_token_idx").on(t.portalToken),
+  ],
 );
 
 // ---------------------------------------------------------------------------
@@ -341,6 +347,8 @@ export const homework = pgTable(
     dueAt: timestamp("due_at", { withTimezone: true }),
     status: homeworkStatusEnum("status").notNull().default("assigned"),
     teacherFeedback: text("teacher_feedback"),
+    submissionText: text("submission_text"),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

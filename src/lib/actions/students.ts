@@ -1,5 +1,6 @@
 "use server";
 
+import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { and, eq } from "drizzle-orm";
@@ -94,6 +95,38 @@ export async function deleteStudent(studentId: string) {
     .where(and(eq(students.id, studentId), eq(students.teacherId, teacher.id)));
   revalidatePath("/students");
   redirect("/students");
+}
+
+// ---------------------------------------------------------------------------
+// Student portal — a revocable token is the student's whole access.
+// Rotating invalidates the old link; disabling removes access entirely.
+// ---------------------------------------------------------------------------
+
+export async function rotateStudentPortal(studentId: string) {
+  const teacher = await requireTeacher();
+  await assertStudentOwned(teacher.id, studentId);
+
+  await db
+    .update(students)
+    .set({
+      portalToken: randomBytes(18).toString("base64url"),
+      updatedAt: new Date(),
+    })
+    .where(and(eq(students.id, studentId), eq(students.teacherId, teacher.id)));
+
+  revalidatePath(`/students/${studentId}`);
+}
+
+export async function disableStudentPortal(studentId: string) {
+  const teacher = await requireTeacher();
+  await assertStudentOwned(teacher.id, studentId);
+
+  await db
+    .update(students)
+    .set({ portalToken: null, updatedAt: new Date() })
+    .where(and(eq(students.id, studentId), eq(students.teacherId, teacher.id)));
+
+  revalidatePath(`/students/${studentId}`);
 }
 
 // ---------------------------------------------------------------------------

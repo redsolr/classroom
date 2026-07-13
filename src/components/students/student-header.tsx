@@ -2,9 +2,23 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ClipboardList, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import {
+  Ban,
+  ClipboardList,
+  ExternalLink,
+  Link2,
+  MoreHorizontal,
+  Pencil,
+  RefreshCcw,
+  Trash2,
+} from "lucide-react";
 import type { Student } from "@/db";
-import { deleteStudent, updateStudent } from "@/lib/actions/students";
+import {
+  deleteStudent,
+  disableStudentPortal,
+  rotateStudentPortal,
+  updateStudent,
+} from "@/lib/actions/students";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge, studentStatusTone } from "@/components/ui/badge";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -37,6 +51,20 @@ export function StudentHeader({ student }: { student: Student }) {
           {student.targetLevel ? ` → ${student.targetLevel}` : ""}
           {student.platform ? ` · ${student.platform}` : ""}
           {student.lessonFrequency ? ` · ${student.lessonFrequency}` : ""}
+          {student.portalToken && (
+            <>
+              {" · "}
+              <a
+                href={`/p/${student.portalToken}`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 text-accent-text hover:underline"
+              >
+                Student portal
+                <ExternalLink className="size-3" />
+              </a>
+            </>
+          )}
         </p>
       </div>
 
@@ -49,7 +77,10 @@ export function StudentHeader({ student }: { student: Student }) {
       </Link>
 
       <Dropdown>
-        <DropdownTrigger className="rounded-md p-1.5 text-fg-tertiary transition-colors hover:bg-surface-hover hover:text-fg focus:outline-none">
+        <DropdownTrigger
+          aria-label="Student actions"
+          className="rounded-md p-1.5 text-fg-tertiary transition-colors hover:bg-surface-hover hover:text-fg focus:outline-none"
+        >
           <MoreHorizontal className="size-4.5" />
         </DropdownTrigger>
         <DropdownContent>
@@ -57,6 +88,43 @@ export function StudentHeader({ student }: { student: Student }) {
             <Pencil className="size-4 text-fg-tertiary" />
             Edit student
           </DropdownItem>
+          <DropdownSeparator />
+          {!student.portalToken ? (
+            <DropdownItem
+              onSelect={() => void rotateStudentPortal(student.id)}
+            >
+              <Link2 className="size-4 text-fg-tertiary" />
+              Enable student portal
+            </DropdownItem>
+          ) : (
+            <>
+              <DropdownItem
+                onSelect={() =>
+                  void navigator.clipboard.writeText(
+                    new URL(
+                      `/p/${student.portalToken}`,
+                      window.location.origin,
+                    ).toString(),
+                  )
+                }
+              >
+                <Link2 className="size-4 text-fg-tertiary" />
+                Copy portal link
+              </DropdownItem>
+              <DropdownItem
+                onSelect={() => void rotateStudentPortal(student.id)}
+              >
+                <RefreshCcw className="size-4 text-fg-tertiary" />
+                Regenerate portal link
+              </DropdownItem>
+              <DropdownItem
+                onSelect={() => void disableStudentPortal(student.id)}
+              >
+                <Ban className="size-4 text-fg-tertiary" />
+                Disable portal
+              </DropdownItem>
+            </>
+          )}
           <DropdownSeparator />
           {!confirmDelete ? (
             <DropdownItem
