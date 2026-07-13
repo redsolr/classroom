@@ -1,11 +1,6 @@
 "use client";
 
-import * as React from "react";
-import {
-  loadStoredMode,
-  setThemeMode,
-  type ThemeMode,
-} from "@/lib/theme";
+import { useTheme, type ThemeMode } from "@/stores/use-theme";
 import { Card, CardHeader } from "@/components/ui/page-header";
 
 /**
@@ -90,17 +85,8 @@ function ThemeCard({
 }
 
 export function AppearanceSection() {
-  const [mode, setMode] = React.useState<ThemeMode | null>(null);
-
-  // Hydrate the stored preference after mount (SSR renders no selection).
-  React.useEffect(() => {
-    setMode(loadStoredMode());
-  }, []);
-
-  function choose(next: ThemeMode) {
-    setMode(next);
-    setThemeMode(next);
-  }
+  // Store state — hydrated from localStorage by ThemeInit on mount.
+  const { mode, setMode } = useTheme();
 
   return (
     <Card className="max-w-2xl">
@@ -116,7 +102,7 @@ export function AppearanceSection() {
               key={m}
               mode={m}
               active={mode === m}
-              onClick={() => choose(m)}
+              onClick={() => setMode(m)}
             />
           ))}
         </div>

@@ -84,14 +84,6 @@ export function applyTheme(resolved: ResolvedTheme): void {
   root.classList.add(resolved);
 }
 
-/** Persist a chosen mode and apply its resolution in one step. */
-export function setThemeMode(mode: ThemeMode): ResolvedTheme {
-  const resolved = resolveTheme(mode);
-  saveStoredMode(mode);
-  applyTheme(resolved);
-  return resolved;
-}
-
 // ─── Pre-hydration script ───────────────────────────────────────────────────
 // Injected as an inline <script> in the root layout; runs before React
 // hydrates so the page never flashes the wrong theme. Constants are baked
