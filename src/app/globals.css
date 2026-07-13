@@ -113,6 +113,236 @@ body {
   scrollbar-color: var(--border-strong) transparent;
 }
 
+/* ---------------------------------------------------------------------------
+ * Auth screens — design language ported from Jurisimus web-app.
+ *
+ * THEME ARCHITECTURE (mirrors web-app's --ctx-* contract):
+ * every `.auth-*` component class consumes ONLY the `--auth-*` variables
+ * below — no literal colors in component rules or markup. To retheme or
+ * rebrand, override the two contract blocks (`.auth-velvet` backdrop,
+ * `.auth-card` context); nothing else needs to change. Dark mode is the
+ * same mechanism: the `.auth-card` variables flip under
+ * `prefers-color-scheme: dark`.
+ * ------------------------------------------------------------------------- */
+
+/* ── Contract 1: the velvet backdrop ── */
+.auth-velvet {
+  --velvet-base: #100d2e;
+  --velvet-glow-1: #35297d;
+  --velvet-glow-2: #1c1650;
+  --velvet-glow-3: #4a3fae;
+  --velvet-glow-4: #241c63;
+  --velvet-glow-5: #3a2f9d;
+  --velvet-sweep-mid: #282066;
+  --velvet-sweep-deep: #181242;
+  --velvet-sweep-hi: #322a85;
+  --auth-on-velvet: rgba(255, 255, 255, 0.92);
+  --auth-on-velvet-muted: rgba(255, 255, 255, 0.5);
+  --auth-on-velvet-chip: rgba(255, 255, 255, 0.15);
+
+  background-color: var(--velvet-base);
+  background-image:
+    radial-gradient(ellipse at 20% 50%, var(--velvet-glow-1) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, var(--velvet-glow-2) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 80%, var(--velvet-glow-3) 0%, transparent 50%),
+    radial-gradient(ellipse at 30% 10%, var(--velvet-glow-4) 0%, transparent 60%),
+    radial-gradient(ellipse at 70% 70%, var(--velvet-glow-5) 0%, transparent 50%),
+    linear-gradient(
+      135deg,
+      var(--velvet-base) 0%,
+      var(--velvet-sweep-mid) 25%,
+      var(--velvet-sweep-deep) 50%,
+      var(--velvet-sweep-hi) 75%,
+      var(--velvet-base) 100%
+    );
+  background-size:
+    200% 200%, 200% 200%, 200% 200%, 200% 200%, 200% 200%, 100% 100%;
+  background-attachment: fixed;
+  animation: velvet-shift 20s ease infinite;
+}
+
+.auth-velvet::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  background-size: 256px 256px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+@keyframes velvet-shift {
+  0% { background-position: 0% 50%, 100% 0%, 50% 100%, 0% 0%, 100% 100%, 0% 0%; }
+  33% { background-position: 50% 0%, 0% 50%, 100% 50%, 100% 50%, 0% 50%, 0% 0%; }
+  66% { background-position: 100% 100%, 50% 100%, 0% 0%, 50% 100%, 50% 0%, 0% 0%; }
+  100% { background-position: 0% 50%, 100% 0%, 50% 100%, 0% 0%, 100% 100%, 0% 0%; }
+}
+
+/* ── Contract 2: the card context (light by default, flips in dark) ── */
+.auth-card {
+  --auth-card-bg: #ffffff;
+  --auth-text-primary: #1a1a1a;
+  --auth-text-body: #4a5568;
+  --auth-text-muted: #a0aec0;
+  --auth-bg-soft: #f7fafc;
+  --auth-bg-hover: #f1f5f9;
+  --auth-border: #e2e8f0;
+  --auth-input-bg: #ffffff;
+  --auth-error: #e53e3e;
+  --auth-accent: #5e5ce6;
+  --auth-accent-text: #5e5ce6;
+  --auth-accent-ring: rgba(94, 92, 230, 0.12);
+  --auth-accent-gradient: linear-gradient(135deg, #7b79ff 0%, #5e5ce6 50%, #4b49c9 100%);
+  --auth-accent-shadow: rgba(94, 92, 230, 0.35);
+  --auth-toggle-off: #cbd5e0;
+  --auth-card-shadow: 0 20px 60px rgba(6, 4, 32, 0.45);
+
+  background: var(--auth-card-bg);
+  color: var(--auth-text-body);
+  box-shadow: var(--auth-card-shadow);
+}
+
+@media (prefers-color-scheme: dark) {
+  .auth-card {
+    --auth-card-bg: #17171b;
+    --auth-text-primary: #ededf0;
+    --auth-text-body: #9d9da8;
+    --auth-text-muted: #6d6d78;
+    --auth-bg-soft: #1e1e24;
+    --auth-bg-hover: #24242b;
+    --auth-border: #2e2e36;
+    --auth-input-bg: #1c1c21;
+    --auth-error: #f87171;
+    --auth-accent: #7b79ff;
+    --auth-accent-text: #a5a3ff;
+    --auth-accent-ring: rgba(123, 121, 255, 0.18);
+    --auth-accent-shadow: rgba(75, 73, 201, 0.5);
+    --auth-toggle-off: #3a3a44;
+    --auth-card-shadow: 0 20px 60px rgba(0, 0, 0, 0.6), 0 0 0 1px #26262d;
+  }
+}
+
+/* ── Components — consume the contract only ── */
+
+.auth-card-title {
+  color: var(--auth-text-primary);
+  font-size: 1.625rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.auth-card-subtitle {
+  color: var(--auth-text-body);
+  font-size: 0.875rem;
+}
+
+.auth-label {
+  display: block;
+  color: var(--auth-text-primary);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  margin-bottom: 0.375rem;
+}
+
+.auth-input {
+  width: 100%;
+  color: var(--auth-text-primary);
+  background: var(--auth-input-bg);
+  border: 1px solid var(--auth-border);
+  border-radius: 0.5rem;
+  padding: 0.625rem 1rem;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  outline: none;
+}
+.auth-input::placeholder {
+  color: var(--auth-text-muted);
+}
+.auth-input:focus {
+  border-color: var(--auth-accent);
+  box-shadow: 0 0 0 2px var(--auth-accent-ring);
+}
+.auth-input-error {
+  border-color: var(--auth-error);
+}
+
+.auth-submit {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  padding: 0.7rem 1rem;
+  border-radius: 9999px;
+  background-image: var(--auth-accent-gradient);
+  box-shadow: 0 4px 14px var(--auth-accent-shadow);
+  transition: filter 0.15s, box-shadow 0.15s;
+}
+.auth-submit:hover {
+  filter: brightness(1.07);
+  box-shadow: 0 6px 18px var(--auth-accent-shadow);
+}
+.auth-submit:disabled {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.auth-social {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.625rem;
+  color: var(--auth-text-primary);
+  background: var(--auth-input-bg);
+  border: 1px solid var(--auth-border);
+  border-radius: 0.5rem;
+  padding: 0.625rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: background 0.15s;
+}
+.auth-social:hover {
+  background: var(--auth-bg-hover);
+}
+
+.auth-link {
+  color: var(--auth-accent-text);
+}
+.auth-link:hover {
+  text-decoration: underline;
+}
+
+.auth-strong {
+  color: var(--auth-text-primary);
+  font-weight: 600;
+}
+
+.auth-icon-btn {
+  color: var(--auth-text-muted);
+  transition: color 0.15s;
+}
+.auth-icon-btn:hover {
+  color: var(--auth-text-body);
+}
+
+.auth-error-text {
+  color: var(--auth-error);
+  font-size: 0.8125rem;
+  margin-top: 0.375rem;
+}
+
+.auth-footer-strip {
+  background: var(--auth-bg-soft);
+  border-radius: 0.625rem;
+  padding: 0.75rem 1rem;
+  text-align: center;
+  color: var(--auth-text-body);
+  font-size: 0.85rem;
+}
+
 /* Radix dialog/dropdown entrance */
 @keyframes overlay-in {
   from {

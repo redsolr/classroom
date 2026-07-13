@@ -2,8 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { Field, Input } from "@/components/ui/field";
+import { AuthField, AuthSubmit } from "@/components/auth/auth-ui";
 import { verifyEmailCode } from "@/app/(auth)/verify-email/actions";
 
 /** Code-entry step shown when WorkOS requires email verification. */
@@ -15,19 +14,20 @@ export function VerifyEmailForm({
   pendingAuthenticationToken: string;
 }) {
   const router = useRouter();
-  const [error, setError] = React.useState<string | null>(null);
-  const [pending, startTransition] = React.useTransition();
+  const [error, setError] = React.useState("");
+  const [isPending, startTransition] = React.useTransition();
 
   return (
-    <div>
-      <h1 className="text-[1.05rem] font-semibold">Check your email</h1>
-      <p className="mb-5 mt-1 text-[0.8rem] leading-relaxed text-fg-secondary">
-        We sent a 6-digit code to <span className="font-medium text-fg">{email}</span>.
-        Enter it below to verify your address.
+    <>
+      <h1 className="auth-card-title">Check your email</h1>
+      <p className="auth-card-subtitle mb-6 mt-1.5 leading-relaxed">
+        We sent a 6-digit code to{" "}
+        <span className="auth-strong">{email}</span>. Enter it below to verify
+        your address.
       </p>
       <form
         action={(fd) => {
-          setError(null);
+          setError("");
           startTransition(async () => {
             const result = await verifyEmailCode(
               pendingAuthenticationToken,
@@ -41,28 +41,24 @@ export function VerifyEmailForm({
             router.refresh();
           });
         }}
-        className="space-y-3"
+        className="space-y-4"
       >
-        <Field label="Verification code">
-          <Input
+        <AuthField label="Verification code" error={error || undefined}>
+          <input
             name="code"
             required
             inputMode="numeric"
             autoComplete="one-time-code"
             placeholder="123456"
-            className="text-center font-mono tracking-[0.3em]"
+            className={`auth-input text-center font-mono tracking-[0.3em] ${error ? "auth-input-error" : ""}`}
           />
-        </Field>
-        {error && <p className="text-[0.8rem] text-danger">{error}</p>}
-        <Button
-          type="submit"
-          variant="primary"
-          loading={pending}
-          className="w-full"
-        >
-          Verify and continue
-        </Button>
+        </AuthField>
+        <AuthSubmit
+          label="Verify and continue"
+          pendingLabel="Verifying..."
+          isPending={isPending}
+        />
       </form>
-    </div>
+    </>
   );
 }
