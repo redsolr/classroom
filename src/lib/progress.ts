@@ -57,7 +57,9 @@ export function buildProgress(profile: StudentProfile): StudentProgress {
     );
   }
   // profile.lessons is newest-first; window then flip to chronological.
+  // Scheduled plans and cancellations never happened — no trend rows.
   const correctionsPerLesson = profile.lessons
+    .filter((l) => l.status !== "scheduled" && l.status !== "cancelled")
     .slice(0, LESSON_WINDOW)
     .map((l) => ({
       lessonId: l.id,

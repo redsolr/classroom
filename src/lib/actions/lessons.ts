@@ -37,20 +37,134 @@ export async function createLesson(formData: FormData) {
   const parsed = createLessonSchema.parse(Object.fromEntries(formData));
   await assertStudentOwned(teacher.id, parsed.studentId);
 
+  const startedAt = new Date(parsed.startedAt);
+
   const [created] = await db
     .insert(lessons)
     .values({
       teacherId: teacher.id,
       studentId: parsed.studentId,
       title: parsed.title || null,
-      startedAt: new Date(parsed.startedAt),
+      startedAt,
+      // A future time is a plan, not a record — it starts as `scheduled`
+      // and becomes `draft` when the teacher marks it attended.
+      status: startedAt.getTime() > Date.now() ? "scheduled" : "draft",
       durationMinutes: parsed.durationMinutes ?? null,
       sourceType: parsed.sourceType,
     })
     .returning({ id: lessons.id });
 
   revalidatePath("/lessons");
+  revalidatePath("/dashboard");
   redirect(`/lessons/${created.id}`);
+}
+
+// ---------------------------------------------------------------------------
+// Scheduling — attendance transitions for `scheduled` lessons.
+// Lesson `status` tracks the record pipeline; `attendanceOutcome` records
+// what happened to the appointment. Rescheduling is scheduling history
+// (`rescheduledFromLessonId`), never an attendance outcome.
+// ---------------------------------------------------------------------------
+
+async function assertScheduled(teacherId: string, lessonId: string) {
+  const row = await db.query.lessons.findFirst({
+    where: and(eq(lessons.id, lessonId), eq(lessons.teacherId, teacherId)),
+    columns: { id: true, studentId: true, status: true },
+  });
+  if (!row) throw new Error("Lesson not found");
+  if (row.status !== "scheduled")
+    throw new Error("Lesson is not in the scheduled state");
+  return row;
+}
+
+export async function markLessonAttended(lessonId: string) {
+  const teacher = await requireTeacher();
+  const { studentId } = await assertScheduled(teacher.id, lessonId);
+
+  await db
+    .update(lessons)
+    .set({
+      status: "draft",
+      attendanceOutcome: "attended",
+      updatedAt: new Date(),
+    })
+    .where(and(eq(lessons.id, lessonId), eq(lessons.teacherId, teacher.id)));
+
+  revalidatePath(`/lessons/${lessonId}`);
+  revalidatePath(`/students/${studentId}`);
+  revalidatePath("/dashboard");
+}
+
+export async function markLessonNoShow(lessonId: string) {
+  const teacher = await requireTeacher();
+  const { studentId } = await assertScheduled(teacher.id, lessonId);
+
+  await db
+    .update(lessons)
+    .set({
+      status: "cancelled",
+      attendanceOutcome: "student_no_show",
+      updatedAt: new Date(),
+    })
+    .where(and(eq(lessons.id, lessonId), eq(lessons.teacherId, teacher.id)));
+
+  revalidatePath(`/lessons/${lessonId}`);
+  revalidatePath(`/students/${studentId}`);
+  revalidatePath("/dashboard");
+}
+
+export async function cancelLesson(lessonId: string) {
+  const teacher = await requireTeacher();
+  const { studentId } = await assertScheduled(teacher.id, lessonId);
+
+  await db
+    .update(lessons)
+    .set({ status: "cancelled", updatedAt: new Date() })
+    .where(and(eq(lessons.id, lessonId), eq(lessons.teacherId, teacher.id)));
+
+  revalidatePath(`/lessons/${lessonId}`);
+  revalidatePath(`/students/${studentId}`);
+  revalidatePath("/dashboard");
+}
+
+const rescheduleSchema = z.object({ startedAt: z.string().trim().min(1) });
+
+export async function rescheduleLesson(lessonId: string, formData: FormData) {
+  const teacher = await requireTeacher();
+  const { studentId } = await assertScheduled(teacher.id, lessonId);
+  const parsed = rescheduleSchema.parse(Object.fromEntries(formData));
+
+  const original = await db.query.lessons.findFirst({
+    where: and(eq(lessons.id, lessonId), eq(lessons.teacherId, teacher.id)),
+  });
+  if (!original) throw new Error("Lesson not found");
+
+  const newId = await db.transaction(async (tx) => {
+    await tx
+      .update(lessons)
+      .set({ status: "cancelled", updatedAt: new Date() })
+      .where(and(eq(lessons.id, lessonId), eq(lessons.teacherId, teacher.id)));
+
+    const [created] = await tx
+      .insert(lessons)
+      .values({
+        teacherId: teacher.id,
+        studentId,
+        title: original.title,
+        startedAt: new Date(parsed.startedAt),
+        status: "scheduled",
+        durationMinutes: original.durationMinutes,
+        sourceType: original.sourceType,
+        rescheduledFromLessonId: lessonId,
+      })
+      .returning({ id: lessons.id });
+    return created.id;
+  });
+
+  revalidatePath("/lessons");
+  revalidatePath(`/students/${studentId}`);
+  revalidatePath("/dashboard");
+  redirect(`/lessons/${newId}`);
 }
 
 const lessonFieldsSchema = z.object({

@@ -53,6 +53,55 @@ export default async function DashboardPage() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader
+            title="Up next"
+            actions={
+              <Link
+                href="/lessons"
+                className="text-[0.8125rem] text-accent-text hover:underline"
+              >
+                All lessons
+              </Link>
+            }
+          />
+          <div className="px-4 py-3">
+            {data.upcomingLessons.length === 0 ? (
+              <p className="text-[0.875rem] text-fg-tertiary">
+                Nothing scheduled — pick a future time in “New lesson” to plan
+                ahead.
+              </p>
+            ) : (
+              <ul className="divide-y divide-border">
+                {data.upcomingLessons.map((l) => (
+                  <li key={l.id} className="flex items-center gap-2.5 py-2">
+                    <Avatar name={l.studentName} size="sm" />
+                    <Link
+                      href={`/lessons/${l.id}`}
+                      className="min-w-0 flex-1 rounded-md transition-colors hover:text-accent-text"
+                    >
+                      <span className="block truncate text-[0.9375rem] font-medium">
+                        {l.title ?? `Lesson with ${l.studentName}`}
+                      </span>
+                      <span className="block text-[0.78rem] text-fg-tertiary">
+                        {format(new Date(l.startedAt), "EEE, MMM d · HH:mm")}
+                        {` · ${formatDistanceToNow(new Date(l.startedAt), { addSuffix: true })}`}
+                      </span>
+                    </Link>
+                    <Link
+                      href={`/students/${l.studentId}/prep`}
+                      className="inline-flex h-7 items-center gap-1 rounded-md border border-border-strong bg-surface px-2 text-[0.8125rem] font-medium shadow-sm transition-colors hover:bg-surface-hover"
+                    >
+                      <ClipboardList className="size-3.5 text-fg-tertiary" />
+                      Prep
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </Card>
+
+        <Card>
+          <CardHeader
             title="Prep your next lessons"
             actions={
               <Link

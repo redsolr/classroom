@@ -1,4 +1,17 @@
-import { and, count, desc, eq, inArray, isNull, lt, max, or, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  inArray,
+  isNull,
+  lt,
+  max,
+  notInArray,
+  or,
+  sql,
+} from "drizzle-orm";
 import {
   corrections,
   db,
@@ -12,6 +25,14 @@ import {
   type Lesson,
   type Student,
 } from "@/db";
+
+/**
+ * Lessons that actually happened (or are being written up) — scheduled
+ * plans and cancellations never count toward "last lesson" / trends.
+ */
+function happenedLesson() {
+  return notInArray(lessons.status, ["scheduled", "cancelled"]);
+}
 
 // ---------------------------------------------------------------------------
 // Students
@@ -31,7 +52,7 @@ export async function listStudents(teacherId: string): Promise<StudentListRow[]>
       lastLessonAt: max(lessons.startedAt).as("last_lesson_at"),
     })
     .from(lessons)
-    .where(eq(lessons.teacherId, teacherId))
+    .where(and(eq(lessons.teacherId, teacherId), happenedLesson()))
     .groupBy(lessons.studentId)
     .as("lesson_agg");
 
@@ -249,7 +270,11 @@ export async function getPrepSheet(teacherId: string, studentId: string) {
       .select()
       .from(lessons)
       .where(
-        and(eq(lessons.teacherId, teacherId), eq(lessons.studentId, studentId)),
+        and(
+          eq(lessons.teacherId, teacherId),
+          eq(lessons.studentId, studentId),
+          happenedLesson(),
+        ),
       )
       .orderBy(desc(lessons.startedAt))
       .limit(3),
@@ -318,17 +343,28 @@ export async function getPrepSheet(teacherId: string, studentId: string) {
   ]);
 
   const lastLesson = recentLessons[0] ?? null;
-  const lastLessonTopics = lastLesson
-    ? await db
-        .select()
-        .from(lessonTopics)
-        .where(eq(lessonTopics.lessonId, lastLesson.id))
-        .orderBy(lessonTopics.createdAt)
-    : [];
+  const [lastLessonTopics, nextScheduled] = await Promise.all([
+    lastLesson
+      ? db
+          .select()
+          .from(lessonTopics)
+          .where(eq(lessonTopics.lessonId, lastLesson.id))
+          .orderBy(lessonTopics.createdAt)
+      : Promise.resolve([]),
+    db.query.lessons.findFirst({
+      where: and(
+        eq(lessons.teacherId, teacherId),
+        eq(lessons.studentId, studentId),
+        eq(lessons.status, "scheduled"),
+      ),
+      orderBy: asc(lessons.startedAt),
+    }),
+  ]);
 
   return {
     student,
     lastLesson,
+    nextScheduled: nextScheduled ?? null,
     lastLessonTopics,
     nextFocus:
       recentLessons.find((l) => l.nextLessonFocus)?.nextLessonFocus ?? null,
@@ -349,13 +385,28 @@ export type PrepSheet = NonNullable<Awaited<ReturnType<typeof getPrepSheet>>>;
 export async function getDashboardData(teacherId: string) {
   const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
 
-  const [recentLessons, pendingReview, openHomework, staleStudents, studentCount] =
-    await Promise.all([
+  const [
+    upcomingLessons,
+    recentLessons,
+    pendingReview,
+    openHomework,
+    staleStudents,
+    studentCount,
+  ] = await Promise.all([
       db
         .select({ lesson: lessons, studentName: students.name })
         .from(lessons)
         .innerJoin(students, eq(students.id, lessons.studentId))
-        .where(eq(lessons.teacherId, teacherId))
+        .where(
+          and(eq(lessons.teacherId, teacherId), eq(lessons.status, "scheduled")),
+        )
+        .orderBy(asc(lessons.startedAt))
+        .limit(8),
+      db
+        .select({ lesson: lessons, studentName: students.name })
+        .from(lessons)
+        .innerJoin(students, eq(students.id, lessons.studentId))
+        .where(and(eq(lessons.teacherId, teacherId), happenedLesson()))
         .orderBy(desc(lessons.startedAt))
         .limit(6),
       db
@@ -390,7 +441,11 @@ export async function getDashboardData(teacherId: string) {
         .from(students)
         .leftJoin(
           lessons,
-          and(eq(lessons.studentId, students.id), eq(lessons.teacherId, teacherId)),
+          and(
+            eq(lessons.studentId, students.id),
+            eq(lessons.teacherId, teacherId),
+            happenedLesson(),
+          ),
         )
         .where(
           and(eq(students.teacherId, teacherId), eq(students.status, "active")),
@@ -415,6 +470,10 @@ export async function getDashboardData(teacherId: string) {
     ]);
 
   return {
+    upcomingLessons: upcomingLessons.map((r) => ({
+      ...r.lesson,
+      studentName: r.studentName,
+    })),
     recentLessons: recentLessons.map((r) => ({ ...r.lesson, studentName: r.studentName })),
     pendingReview: pendingReview.map((r) => ({ ...r.lesson, studentName: r.studentName })),
     openHomework: openHomework.map((r) => ({ ...r.hw, studentName: r.studentName })),

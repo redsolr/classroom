@@ -10,6 +10,7 @@ import {
   timestamp,
   uniqueIndex,
   uuid,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 
 // ---------------------------------------------------------------------------
@@ -40,6 +41,15 @@ export const lessonStatusEnum = pgEnum("lesson_status", [
   "processed",
   "reviewed",
   "shared",
+  "scheduled",
+  "cancelled",
+]);
+
+export const attendanceOutcomeEnum = pgEnum("attendance_outcome", [
+  "attended",
+  "student_no_show",
+  "teacher_no_show",
+  "late_cancel",
 ]);
 
 export const lessonSourceTypeEnum = pgEnum("lesson_source_type", [
@@ -191,6 +201,11 @@ export const lessons = pgTable(
     endedAt: timestamp("ended_at", { withTimezone: true }),
     durationMinutes: integer("duration_minutes"),
     status: lessonStatusEnum("status").notNull().default("draft"),
+    attendanceOutcome: attendanceOutcomeEnum("attendance_outcome"),
+    rescheduledFromLessonId: uuid("rescheduled_from_lesson_id").references(
+      (): AnyPgColumn => lessons.id,
+      { onDelete: "set null" },
+    ),
     sourceType: lessonSourceTypeEnum("source_type").notNull().default("notes"),
     rawInput: text("raw_input"),
     teacherPrivateNotes: text("teacher_private_notes"),

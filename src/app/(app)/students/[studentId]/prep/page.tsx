@@ -128,6 +128,12 @@ export default async function PrepSheetPage({
                     { addSuffix: true },
                   )}`
                 : " · no lessons yet"}
+              {sheet.nextScheduled
+                ? ` · next ${format(
+                    new Date(sheet.nextScheduled.startedAt),
+                    "EEE, MMM d · HH:mm",
+                  )}`
+                : ""}
             </p>
           </div>
         </div>

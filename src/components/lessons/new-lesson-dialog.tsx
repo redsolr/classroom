@@ -66,7 +66,7 @@ export function NewLessonDialog({
             <Input name="title" placeholder="Untitled lesson" />
           </Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Date & time">
+            <Field label="Date & time" hint="A future time schedules the lesson">
               <Input
                 name="startedAt"
                 type="datetime-local"

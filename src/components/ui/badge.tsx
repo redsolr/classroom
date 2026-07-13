@@ -60,6 +60,15 @@ export const lessonStatusTone: Record<string, Tone> = {
   processed: "info",
   reviewed: "accent",
   shared: "success",
+  scheduled: "info",
+  cancelled: "neutral",
+};
+
+export const attendanceOutcomeLabel: Record<string, string> = {
+  attended: "Attended",
+  student_no_show: "Student no-show",
+  teacher_no_show: "Teacher no-show",
+  late_cancel: "Late cancel",
 };
 
 export const homeworkStatusTone: Record<string, Tone> = {
