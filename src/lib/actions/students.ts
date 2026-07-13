@@ -98,6 +98,52 @@ export async function deleteStudent(studentId: string) {
 }
 
 // ---------------------------------------------------------------------------
+// Bulk import — paste from a spreadsheet or CSV, one student per line:
+// name [, target language [, level [, source]]]. Comma or tab separated.
+// ---------------------------------------------------------------------------
+
+const importSchema = z.object({
+  list: z.string().min(1),
+  defaultLanguage: z.string().trim().min(1, "Default language is required"),
+});
+
+export async function importStudents(
+  formData: FormData,
+): Promise<{ created: number; skipped: number }> {
+  const teacher = await requireTeacher();
+  const parsed = importSchema.parse(Object.fromEntries(formData));
+
+  const lines = parsed.list
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  const rows: (typeof students.$inferInsert)[] = [];
+  let skipped = 0;
+  for (const line of lines) {
+    const [name, language, level, source] = line
+      .split(/\t|,/)
+      .map((part) => part.trim());
+    if (!name) {
+      skipped += 1;
+      continue;
+    }
+    rows.push({
+      teacherId: teacher.id,
+      name,
+      targetLanguage: language || parsed.defaultLanguage,
+      currentLevel: level || null,
+      platform: source || null,
+    });
+  }
+
+  if (rows.length > 0) await db.insert(students).values(rows);
+
+  revalidatePath("/students");
+  return { created: rows.length, skipped };
+}
+
+// ---------------------------------------------------------------------------
 // Student portal — a revocable token is the student's whole access.
 // Rotating invalidates the old link; disabling removes access entirely.
 // ---------------------------------------------------------------------------

@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   Ban,
   ClipboardList,
+  Download,
   ExternalLink,
   Link2,
   MoreHorizontal,
@@ -87,6 +88,12 @@ export function StudentHeader({ student }: { student: Student }) {
           <DropdownItem onSelect={() => setEditOpen(true)}>
             <Pencil className="size-4 text-fg-tertiary" />
             Edit student
+          </DropdownItem>
+          <DropdownItem asChild>
+            <a href={`/students/${student.id}/export`} download>
+              <Download className="size-4 text-fg-tertiary" />
+              Export record (JSON)
+            </a>
           </DropdownItem>
           <DropdownSeparator />
           {!student.portalToken ? (

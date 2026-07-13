@@ -274,6 +274,52 @@ test("practice: grade a due card → vocabulary pipeline advances", async ({
   await expect(page.getByText("1 in review")).toBeVisible();
 });
 
+test("durability: paste-import students, filter by source, export the record", async ({
+  page,
+}) => {
+  // Paste-import two students (comma- and tab-separated lines).
+  await page.goto("/students");
+  await page.getByRole("button", { name: "Import" }).click();
+  await page
+    .getByPlaceholder(/Maria García/)
+    .fill(
+      `Import Maki ${runId}, Japanese, N3, italki\nImport Pedro ${runId}\tSpanish\tB1\tPreply`,
+    );
+  await page.getByRole("button", { name: "Import students" }).click();
+  await expect(page.getByText("Imported 2 students")).toBeVisible();
+  await page.getByRole("button", { name: "Done" }).click();
+  await expect(
+    page.getByRole("link", { name: `Import Maki ${runId}` }),
+  ).toBeVisible();
+
+  // The source filter shows the cross-platform roster (workflow 5).
+  await page.getByRole("button", { name: "italki", exact: true }).click();
+  await expect(
+    page.getByRole("link", { name: `Import Maki ${runId}` }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: `Import Pedro ${runId}` }),
+  ).toBeHidden();
+  await page.getByRole("button", { name: "all sources", exact: true }).click();
+
+  // Full-record JSON export from the student actions menu.
+  await page.getByRole("link", { name: studentName }).click();
+  await page.waitForURL(/\/students\/[0-9a-f-]{36}/);
+  await page.getByRole("button", { name: "Student actions" }).click();
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByText("Export record (JSON)").click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toContain("classroom-e2e-student");
+
+  // The student's Anki-ready CSV is served on their portal token.
+  const href = await page
+    .getByRole("link", { name: /Student portal/ })
+    .getAttribute("href");
+  const res = await page.request.get(`${href}/vocabulary.csv`);
+  expect(res.status()).toBe(200);
+  expect(await res.text()).toContain("stakeholder");
+});
+
 test("an invalid recap token is a 404, not a data leak", async ({ page }) => {
   const response = await page.goto(`/r/definitely-not-a-real-token-${runId}`);
   expect(response?.status()).toBe(404);

@@ -242,9 +242,18 @@ export default async function PortalPage({
 
       {vocabulary.length > 0 && (
         <section className="mb-8">
-          <h2 className="mb-3 flex items-center gap-2 text-[0.9375rem] font-semibold text-fg-secondary">
-            <BookMarked className="size-4 text-accent" />
-            Your vocabulary
+          <h2 className="mb-3 flex items-center justify-between gap-2 text-[0.9375rem] font-semibold text-fg-secondary">
+            <span className="flex items-center gap-2">
+              <BookMarked className="size-4 text-accent" />
+              Your vocabulary
+            </span>
+            <a
+              href={`/p/${token}/vocabulary.csv`}
+              download
+              className="text-[0.8125rem] font-medium text-accent-text hover:underline"
+            >
+              Download CSV (Anki-ready)
+            </a>
           </h2>
           <ul className="space-y-2">
             {vocabulary.map((v) => (
@@ -323,7 +332,8 @@ export default async function PortalPage({
       )}
 
       <footer className="border-t border-border pt-4 text-center text-[0.78rem] text-fg-tertiary">
-        Shared privately with you via Class-room
+        Shared privately with you via Class-room · Your learning history
+        doesn&rsquo;t expire here
       </footer>
     </div>
   );
