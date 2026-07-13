@@ -66,9 +66,9 @@ function InputPanel({
           placeholder={
             "Paste rough notes, chat messages, or a transcript…\n\nExamples the mock parser understands:\n  she go -> she goes\n  vocab: nevertheless\n  hw: write 5 sentences with past tense\n  topic: job interviews"
           }
-          className="font-mono text-[0.8rem]"
+          className="font-mono text-[0.875rem]"
         />
-        {error && <p className="text-[0.8rem] text-danger">{error}</p>}
+        {error && <p className="text-[0.875rem] text-danger">{error}</p>}
         <div className="flex items-center justify-between">
           <Button
             size="sm"
@@ -163,7 +163,7 @@ function TopicsPanel({ detail }: { detail: LessonDetail }) {
             {topics.map((t) => (
               <span
                 key={t.id}
-                className="inline-flex items-center gap-1 rounded-full border border-border bg-surface-hover px-2.5 py-0.5 text-[0.78rem]"
+                className="inline-flex items-center gap-1 rounded-full border border-border bg-surface-hover px-2.5 py-0.5 text-[0.8125rem]"
               >
                 {t.title}
                 <ConfirmButton
@@ -202,7 +202,7 @@ function LessonCorrectionsPanel({ detail }: { detail: LessonDetail }) {
         {corrections.map((c) => (
           <div key={c.id} className="flex items-start gap-2">
             <div className="min-w-0 flex-1">
-              <p className="flex flex-wrap items-center gap-1.5 text-[0.85rem]">
+              <p className="flex flex-wrap items-center gap-1.5 text-[0.9375rem]">
                 <span className="text-danger line-through decoration-danger/50">
                   {c.originalText}
                 </span>
@@ -213,7 +213,7 @@ function LessonCorrectionsPanel({ detail }: { detail: LessonDetail }) {
                 <Badge>{correctionCategoryLabel[c.category]}</Badge>
               </p>
               {c.explanation && (
-                <p className="text-[0.75rem] text-fg-tertiary">{c.explanation}</p>
+                <p className="text-[0.8125rem] text-fg-tertiary">{c.explanation}</p>
               )}
             </div>
             <ConfirmButton
@@ -256,7 +256,7 @@ function LessonVocabularyPanel({ detail }: { detail: LessonDetail }) {
       <div className="space-y-2 px-4 py-3">
         {vocabulary.map((v) => (
           <div key={v.id} className="flex items-center gap-2">
-            <div className="min-w-0 flex-1 text-[0.85rem]">
+            <div className="min-w-0 flex-1 text-[0.9375rem]">
               <span className="font-medium">{v.term}</span>
               {v.meaning && (
                 <span className="text-fg-secondary"> — {v.meaning}</span>
@@ -295,7 +295,7 @@ function LessonHomeworkPanel({ detail }: { detail: LessonDetail }) {
       <div className="space-y-2 px-4 py-3">
         {homework.map((h) => (
           <div key={h.id} className="flex items-center gap-2">
-            <div className="min-w-0 flex-1 text-[0.85rem]">
+            <div className="min-w-0 flex-1 text-[0.9375rem]">
               <span className="font-medium">{h.title}</span>
               <Badge className="ml-2">{h.status}</Badge>
             </div>

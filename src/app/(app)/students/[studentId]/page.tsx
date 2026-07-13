@@ -41,10 +41,10 @@ function Overview({ profile }: { profile: StudentProfile }) {
         <div className="flex items-start gap-3 px-4 py-3.5">
           <Compass className="mt-0.5 size-4.5 shrink-0 text-accent" />
           <div>
-            <p className="text-[0.8rem] font-semibold text-fg-secondary">
+            <p className="text-[0.875rem] font-semibold text-fg-secondary">
               Suggested focus for the next lesson
             </p>
-            <p className="mt-1 text-[0.88rem] leading-relaxed">
+            <p className="mt-1 text-[0.9375rem] leading-relaxed">
               {nextFocus ??
                 "No suggestion yet — process a lesson and one will appear here."}
             </p>
@@ -56,13 +56,13 @@ function Overview({ profile }: { profile: StudentProfile }) {
         <CardHeader title={`Goals (${activeGoals.length} active)`} />
         <div className="px-4 py-3">
           {activeGoals.length === 0 ? (
-            <p className="text-[0.8rem] text-fg-tertiary">No active goals.</p>
+            <p className="text-[0.875rem] text-fg-tertiary">No active goals.</p>
           ) : (
             <ul className="space-y-1.5">
               {activeGoals.slice(0, 4).map((g) => (
-                <li key={g.id} className="text-[0.85rem]">
+                <li key={g.id} className="text-[0.9375rem]">
                   {g.title}
-                  <span className="ml-2 text-[0.72rem] text-fg-tertiary">
+                  <span className="ml-2 text-[0.78rem] text-fg-tertiary">
                     {g.priority}
                   </span>
                 </li>
@@ -76,13 +76,13 @@ function Overview({ profile }: { profile: StudentProfile }) {
         <CardHeader title={`Recurring issues (${recurring.length})`} />
         <div className="px-4 py-3">
           {recurring.length === 0 ? (
-            <p className="text-[0.8rem] text-fg-tertiary">
+            <p className="text-[0.875rem] text-fg-tertiary">
               Nothing recurring spotted yet.
             </p>
           ) : (
             <ul className="space-y-1.5">
               {recurring.slice(0, 4).map((i) => (
-                <li key={i.id} className="text-[0.85rem]">
+                <li key={i.id} className="text-[0.9375rem]">
                   {i.title}
                 </li>
               ))}
@@ -95,14 +95,14 @@ function Overview({ profile }: { profile: StudentProfile }) {
         <CardHeader title={`Outstanding homework (${openHomework.length})`} />
         <div className="px-4 py-3">
           {openHomework.length === 0 ? (
-            <p className="text-[0.8rem] text-fg-tertiary">All caught up.</p>
+            <p className="text-[0.875rem] text-fg-tertiary">All caught up.</p>
           ) : (
             <ul className="space-y-1.5">
               {openHomework.slice(0, 4).map((h) => (
-                <li key={h.id} className="flex items-center gap-2 text-[0.85rem]">
+                <li key={h.id} className="flex items-center gap-2 text-[0.9375rem]">
                   {h.title}
                   {h.dueAt && (
-                    <span className="text-[0.72rem] text-fg-tertiary">
+                    <span className="text-[0.78rem] text-fg-tertiary">
                       due {format(new Date(h.dueAt), "MMM d")}
                     </span>
                   )}
@@ -117,7 +117,7 @@ function Overview({ profile }: { profile: StudentProfile }) {
         <CardHeader title="Latest vocabulary" />
         <div className="px-4 py-3">
           {vocabulary.length === 0 ? (
-            <p className="text-[0.8rem] text-fg-tertiary">No vocabulary yet.</p>
+            <p className="text-[0.875rem] text-fg-tertiary">No vocabulary yet.</p>
           ) : (
             <div className="flex flex-wrap gap-1.5">
               {vocabulary.slice(0, 12).map((v) => (
@@ -135,7 +135,7 @@ function Overview({ profile }: { profile: StudentProfile }) {
           title="Recent lessons"
           actions={
             latestLesson && (
-              <span className="text-[0.75rem] text-fg-tertiary">
+              <span className="text-[0.8125rem] text-fg-tertiary">
                 last{" "}
                 {formatDistanceToNow(new Date(latestLesson.startedAt), {
                   addSuffix: true,
@@ -146,7 +146,7 @@ function Overview({ profile }: { profile: StudentProfile }) {
         />
         <div className="px-4 py-3">
           {lessons.length === 0 ? (
-            <p className="text-[0.8rem] text-fg-tertiary">
+            <p className="text-[0.875rem] text-fg-tertiary">
               No lessons yet — create the first one to start {student.name}
               &rsquo;s record.
             </p>
@@ -159,10 +159,10 @@ function Overview({ profile }: { profile: StudentProfile }) {
                     className="-mx-2 flex items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-surface-hover"
                   >
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[0.85rem] font-medium">
+                      <span className="block truncate text-[0.9375rem] font-medium">
                         {l.title ?? "Untitled lesson"}
                       </span>
-                      <span className="block text-[0.75rem] text-fg-tertiary">
+                      <span className="block text-[0.8125rem] text-fg-tertiary">
                         {format(new Date(l.startedAt), "EEE, MMM d yyyy · HH:mm")}
                       </span>
                     </span>
@@ -204,15 +204,15 @@ function LessonsTab({ profile }: { profile: StudentProfile }) {
                 className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-surface-hover"
               >
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[0.88rem] font-medium">
+                  <span className="block truncate text-[0.9375rem] font-medium">
                     {l.title ?? "Untitled lesson"}
                   </span>
-                  <span className="block text-[0.75rem] text-fg-tertiary">
+                  <span className="block text-[0.8125rem] text-fg-tertiary">
                     {format(new Date(l.startedAt), "EEE, MMM d yyyy · HH:mm")}
                     {l.durationMinutes ? ` · ${l.durationMinutes} min` : ""}
                   </span>
                   {l.summary && (
-                    <span className="mt-0.5 block truncate text-[0.8rem] text-fg-secondary">
+                    <span className="mt-0.5 block truncate text-[0.875rem] text-fg-secondary">
                       {l.summary}
                     </span>
                   )}

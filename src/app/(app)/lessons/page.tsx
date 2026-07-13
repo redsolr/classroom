@@ -50,10 +50,10 @@ export default async function LessonsPage() {
                 >
                   <Avatar name={l.studentName} />
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[0.88rem] font-medium">
+                    <span className="block truncate text-[0.9375rem] font-medium">
                       {l.title ?? `Lesson with ${l.studentName}`}
                     </span>
-                    <span className="block text-[0.75rem] text-fg-tertiary">
+                    <span className="block text-[0.8125rem] text-fg-tertiary">
                       {l.studentName} ·{" "}
                       {format(new Date(l.startedAt), "EEE, MMM d yyyy · HH:mm")}
                       {l.durationMinutes ? ` · ${l.durationMinutes} min` : ""}

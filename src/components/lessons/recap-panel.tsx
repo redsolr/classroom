@@ -93,7 +93,7 @@ export function RecapPanel({ detail }: { detail: LessonDetail }) {
         }
         actions={
           shared ? (
-            <span className="text-[0.75rem] text-success">
+            <span className="text-[0.8125rem] text-success">
               Shared{" "}
               {lesson.recapSharedAt &&
                 format(new Date(lesson.recapSharedAt), "MMM d, HH:mm")}
@@ -102,7 +102,7 @@ export function RecapPanel({ detail }: { detail: LessonDetail }) {
         }
       />
       <div className="space-y-3 px-4 py-3">
-        <p className="text-[0.78rem] text-fg-secondary">
+        <p className="text-[0.8125rem] text-fg-secondary">
           A clean summary for the student. Only approved corrections,
           vocabulary and homework from this lesson are included — private
           notes and insights never appear.
@@ -153,7 +153,7 @@ export function RecapPanel({ detail }: { detail: LessonDetail }) {
             href={publicUrl}
             target="_blank"
             rel="noreferrer"
-            className="flex items-center gap-1.5 text-[0.8rem] text-accent-text hover:underline"
+            className="flex items-center gap-1.5 text-[0.875rem] text-accent-text hover:underline"
           >
             <Link2 className="size-3.5" />
             {publicUrl}

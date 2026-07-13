@@ -49,7 +49,7 @@ export function ConfirmButton({
         });
       }}
       className={cn(
-        "inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[0.72rem] font-medium transition-colors",
+        "inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[0.78rem] font-medium transition-colors",
         armed
           ? "bg-danger-soft text-danger"
           : "text-fg-tertiary hover:bg-surface-hover hover:text-danger",

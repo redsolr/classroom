@@ -22,9 +22,9 @@ export function EmptyState({
       )}
     >
       {icon && <div className="mb-3 text-fg-tertiary [&_svg]:size-6">{icon}</div>}
-      <p className="text-[0.9rem] font-medium">{title}</p>
+      <p className="text-[0.9375rem] font-medium">{title}</p>
       {description && (
-        <p className="mt-1 max-w-sm text-[0.8rem] text-fg-secondary">
+        <p className="mt-1 max-w-sm text-[0.875rem] text-fg-secondary">
           {description}
         </p>
       )}

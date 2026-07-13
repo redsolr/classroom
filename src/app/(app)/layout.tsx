@@ -15,7 +15,7 @@ export default async function AppLayout({
         teacherEmail={teacher.email}
       />
       <main className="min-w-0 flex-1">
-        <div className="mx-auto max-w-5xl px-8 py-8">{children}</div>
+        <div className="mx-auto max-w-6xl px-10 py-10">{children}</div>
       </main>
     </div>
   );

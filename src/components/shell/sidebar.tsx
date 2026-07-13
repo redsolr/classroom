@@ -36,10 +36,10 @@ export function Sidebar({
   const pathname = usePathname();
 
   return (
-    <aside className="sticky top-0 flex h-screen w-56 shrink-0 flex-col border-r border-border bg-surface px-3 py-4">
+    <aside className="sticky top-0 flex h-screen w-64 shrink-0 flex-col border-r border-border bg-surface px-3 py-5">
       <Link
         href="/dashboard"
-        className="mb-6 flex items-center gap-2 px-2 text-[0.95rem] font-semibold tracking-tight"
+        className="mb-6 flex items-center gap-2 px-2 text-[1rem] font-semibold tracking-tight"
       >
         <span className="flex size-6 items-center justify-center rounded-md bg-accent text-white">
           <GraduationCap className="size-4" />
@@ -56,7 +56,7 @@ export function Sidebar({
               key={item.href}
               href={item.href}
               className={cn(
-                "flex items-center gap-2.5 rounded-md px-2 py-1.5 text-[0.85rem] font-medium transition-colors",
+                "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[0.9375rem] font-medium transition-colors",
                 active
                   ? "bg-accent-soft text-accent-text"
                   : "text-fg-secondary hover:bg-surface-hover hover:text-fg",
@@ -74,10 +74,10 @@ export function Sidebar({
           <DropdownTrigger className="flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-left transition-colors hover:bg-surface-hover focus:outline-none">
             <Avatar name={teacherName} />
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-[0.83rem] font-medium">
+              <span className="block truncate text-[0.875rem] font-medium">
                 {teacherName}
               </span>
-              <span className="block truncate text-[0.72rem] text-fg-tertiary">
+              <span className="block truncate text-[0.78rem] text-fg-tertiary">
                 {teacherEmail}
               </span>
             </span>

@@ -15,19 +15,33 @@ export function AuthField({
   rightLabel,
   error,
   children,
+  htmlFor,
 }: {
   label: string;
   rightLabel?: React.ReactNode;
   error?: string;
   children: React.ReactNode;
+  /** Control id when the child isn't a direct input (e.g. PasswordInput). */
+  htmlFor?: string;
 }) {
+  const autoId = React.useId();
+  // Associate label ↔ control: direct input children get an auto id.
+  let controlId = htmlFor;
+  let child = children;
+  if (!controlId && React.isValidElement(children)) {
+    const el = children as React.ReactElement<{ id?: string }>;
+    controlId = el.props.id ?? autoId;
+    child = React.cloneElement(el, { id: controlId });
+  }
   return (
     <div>
       <span className="flex items-baseline justify-between">
-        <label className="auth-label">{label}</label>
+        <label htmlFor={controlId} className="auth-label">
+          {label}
+        </label>
         {rightLabel}
       </span>
-      {children}
+      {child}
       {error && <p className="auth-error-text">{error}</p>}
     </div>
   );
@@ -47,10 +61,12 @@ export function PasswordInput({
   label?: string;
 }) {
   const [visible, setVisible] = React.useState(false);
+  const inputId = React.useId();
   return (
-    <AuthField label={label} rightLabel={rightLabel} error={error}>
+    <AuthField label={label} rightLabel={rightLabel} error={error} htmlFor={inputId}>
       <span className="relative block">
         <input
+          id={inputId}
           name={name}
           type={visible ? "text" : "password"}
           required

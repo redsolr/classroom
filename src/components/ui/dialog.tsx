@@ -32,11 +32,11 @@ export function DialogContent({
       >
         <div className="flex items-start justify-between border-b border-border px-5 py-4">
           <div>
-            <DialogPrimitive.Title className="text-[0.95rem] font-semibold">
+            <DialogPrimitive.Title className="text-[1rem] font-semibold">
               {title}
             </DialogPrimitive.Title>
             {description ? (
-              <DialogPrimitive.Description className="mt-0.5 text-[0.8rem] text-fg-secondary">
+              <DialogPrimitive.Description className="mt-0.5 text-[0.875rem] text-fg-secondary">
                 {description}
               </DialogPrimitive.Description>
             ) : (

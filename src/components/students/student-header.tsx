@@ -24,13 +24,13 @@ export function StudentHeader({ student }: { student: Student }) {
     <div className="mb-6 flex items-start gap-4">
       <Avatar name={student.name} size="lg" />
       <div className="min-w-0 flex-1">
-        <h1 className="flex items-center gap-2.5 text-[1.25rem] font-semibold tracking-tight">
+        <h1 className="flex items-center gap-2.5 text-[1.5rem] font-semibold tracking-tight">
           {student.name}
           <Badge tone={studentStatusTone[student.status]}>
             {student.status}
           </Badge>
         </h1>
-        <p className="mt-0.5 text-[0.85rem] text-fg-secondary">
+        <p className="mt-0.5 text-[0.9375rem] text-fg-secondary">
           {student.targetLanguage}
           {student.currentLevel ? ` · ${student.currentLevel}` : ""}
           {student.targetLevel ? ` → ${student.targetLevel}` : ""}

@@ -76,30 +76,30 @@ export default async function RecapPage({
   return (
     <div className="mx-auto max-w-xl px-6 py-10">
       <header className="mb-8">
-        <p className="mb-3 inline-flex items-center gap-1.5 text-[0.75rem] font-medium text-fg-tertiary">
+        <p className="mb-3 inline-flex items-center gap-1.5 text-[0.8125rem] font-medium text-fg-tertiary">
           <span className="flex size-5 items-center justify-center rounded bg-accent text-white">
             <GraduationCap className="size-3" />
           </span>
           Lesson recap
         </p>
-        <h1 className="text-[1.4rem] font-semibold tracking-tight">
+        <h1 className="text-[1.625rem] font-semibold tracking-tight">
           Hi {studentName} 👋
         </h1>
-        <p className="mt-1 text-[0.85rem] text-fg-secondary">
+        <p className="mt-1 text-[0.9375rem] text-fg-secondary">
           {format(new Date(lesson.startedAt), "EEEE, MMMM d yyyy")}
           {teacherName ? ` · with ${teacherName}` : ""}
         </p>
       </header>
 
       <section className="mb-8">
-        <p className="whitespace-pre-wrap text-[0.95rem] leading-relaxed">
+        <p className="whitespace-pre-wrap text-[1rem] leading-relaxed">
           {lesson.studentVisibleSummary}
         </p>
       </section>
 
       {lessonCorrections.length > 0 && (
         <section className="mb-8">
-          <h2 className="mb-3 flex items-center gap-2 text-[0.85rem] font-semibold text-fg-secondary">
+          <h2 className="mb-3 flex items-center gap-2 text-[0.9375rem] font-semibold text-fg-secondary">
             <SpellCheck2 className="size-4 text-accent" />
             Corrections to review
           </h2>
@@ -109,7 +109,7 @@ export default async function RecapPage({
                 key={c.id}
                 className="rounded-lg bg-surface px-4 py-3 shadow-card"
               >
-                <p className="flex flex-wrap items-center gap-2 text-[0.9rem]">
+                <p className="flex flex-wrap items-center gap-2 text-[0.9375rem]">
                   <span className="text-danger line-through decoration-danger/50">
                     {c.originalText}
                   </span>
@@ -119,7 +119,7 @@ export default async function RecapPage({
                   </span>
                 </p>
                 {c.explanation && (
-                  <p className="mt-1 text-[0.8rem] text-fg-secondary">
+                  <p className="mt-1 text-[0.875rem] text-fg-secondary">
                     {c.explanation}
                   </p>
                 )}
@@ -131,7 +131,7 @@ export default async function RecapPage({
 
       {lessonVocabulary.length > 0 && (
         <section className="mb-8">
-          <h2 className="mb-3 flex items-center gap-2 text-[0.85rem] font-semibold text-fg-secondary">
+          <h2 className="mb-3 flex items-center gap-2 text-[0.9375rem] font-semibold text-fg-secondary">
             <BookMarked className="size-4 text-accent" />
             New vocabulary
           </h2>
@@ -141,14 +141,14 @@ export default async function RecapPage({
                 key={v.id}
                 className="rounded-lg bg-surface px-4 py-3 shadow-card"
               >
-                <p className="text-[0.9rem] font-medium">{v.term}</p>
+                <p className="text-[0.9375rem] font-medium">{v.term}</p>
                 {(v.meaning || v.translation) && (
-                  <p className="text-[0.8rem] text-fg-secondary">
+                  <p className="text-[0.875rem] text-fg-secondary">
                     {[v.meaning, v.translation].filter(Boolean).join(" · ")}
                   </p>
                 )}
                 {v.example && (
-                  <p className="mt-0.5 text-[0.8rem] italic text-fg-tertiary">
+                  <p className="mt-0.5 text-[0.875rem] italic text-fg-tertiary">
                     “{v.example}”
                   </p>
                 )}
@@ -160,7 +160,7 @@ export default async function RecapPage({
 
       {lessonHomework.length > 0 && (
         <section className="mb-8">
-          <h2 className="mb-3 flex items-center gap-2 text-[0.85rem] font-semibold text-fg-secondary">
+          <h2 className="mb-3 flex items-center gap-2 text-[0.9375rem] font-semibold text-fg-secondary">
             <ClipboardList className="size-4 text-accent" />
             Your homework
           </h2>
@@ -170,14 +170,14 @@ export default async function RecapPage({
                 key={h.id}
                 className="rounded-lg bg-surface px-4 py-3 shadow-card"
               >
-                <p className="text-[0.9rem] font-medium">{h.title}</p>
+                <p className="text-[0.9375rem] font-medium">{h.title}</p>
                 {h.description && (
-                  <p className="mt-0.5 text-[0.8rem] text-fg-secondary">
+                  <p className="mt-0.5 text-[0.875rem] text-fg-secondary">
                     {h.description}
                   </p>
                 )}
                 {h.dueAt && (
-                  <p className="mt-0.5 text-[0.75rem] text-fg-tertiary">
+                  <p className="mt-0.5 text-[0.8125rem] text-fg-tertiary">
                     Due {format(new Date(h.dueAt), "MMMM d")}
                   </p>
                 )}
@@ -189,16 +189,16 @@ export default async function RecapPage({
 
       {lesson.recapMessage && (
         <section className="mb-8 rounded-lg border-l-2 border-l-accent bg-surface px-4 py-3 shadow-card">
-          <p className="text-[0.9rem] leading-relaxed">{lesson.recapMessage}</p>
+          <p className="text-[0.9375rem] leading-relaxed">{lesson.recapMessage}</p>
           {teacherName && (
-            <p className="mt-1.5 text-[0.8rem] text-fg-secondary">
+            <p className="mt-1.5 text-[0.875rem] text-fg-secondary">
               — {teacherName}
             </p>
           )}
         </section>
       )}
 
-      <footer className="border-t border-border pt-4 text-center text-[0.72rem] text-fg-tertiary">
+      <footer className="border-t border-border pt-4 text-center text-[0.78rem] text-fg-tertiary">
         Shared privately with you via Class-room
       </footer>
     </div>

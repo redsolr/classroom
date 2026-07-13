@@ -16,7 +16,7 @@ export function NotesSection({
       action={updateStudentNotes.bind(null, studentId)}
       className="space-y-3"
     >
-      <p className="text-[0.8rem] text-fg-secondary">
+      <p className="text-[0.875rem] text-fg-secondary">
         Private teacher notes — never included in recaps or anything the
         student sees.
       </p>

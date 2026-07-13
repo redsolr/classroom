@@ -34,7 +34,7 @@ export default async function DashboardPage() {
           ) : (
             <Link
               href="/students"
-              className="inline-flex h-8 items-center gap-2 rounded-md bg-accent px-3 text-[0.85rem] font-medium text-white shadow-sm transition-colors hover:bg-accent-hover"
+              className="inline-flex h-8 items-center gap-2 rounded-md bg-accent px-3 text-[0.9375rem] font-medium text-white shadow-sm transition-colors hover:bg-accent-hover"
             >
               Add your first student
             </Link>
@@ -49,7 +49,7 @@ export default async function DashboardPage() {
             actions={
               <Link
                 href="/lessons"
-                className="text-[0.75rem] text-accent-text hover:underline"
+                className="text-[0.8125rem] text-accent-text hover:underline"
               >
                 All lessons
               </Link>
@@ -57,7 +57,7 @@ export default async function DashboardPage() {
           />
           <div className="px-4 py-3">
             {data.pendingReview.length === 0 ? (
-              <p className="text-[0.8rem] text-fg-tertiary">
+              <p className="text-[0.875rem] text-fg-tertiary">
                 Nothing waiting — every lesson is finished properly. 🎉
               </p>
             ) : (
@@ -70,10 +70,10 @@ export default async function DashboardPage() {
                     >
                       <Avatar name={l.studentName} size="sm" />
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[0.85rem] font-medium">
+                        <span className="block truncate text-[0.9375rem] font-medium">
                           {l.title ?? `Lesson with ${l.studentName}`}
                         </span>
-                        <span className="block text-[0.72rem] text-fg-tertiary">
+                        <span className="block text-[0.78rem] text-fg-tertiary">
                           {format(new Date(l.startedAt), "MMM d · HH:mm")}
                         </span>
                       </span>
@@ -90,7 +90,7 @@ export default async function DashboardPage() {
           <CardHeader title="Outstanding homework" />
           <div className="px-4 py-3">
             {data.openHomework.length === 0 ? (
-              <p className="text-[0.8rem] text-fg-tertiary">
+              <p className="text-[0.875rem] text-fg-tertiary">
                 No open homework across your students.
               </p>
             ) : (
@@ -99,10 +99,10 @@ export default async function DashboardPage() {
                   <li key={h.id} className="flex items-center gap-2.5 py-2">
                     <Avatar name={h.studentName} size="sm" />
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[0.85rem]">
+                      <span className="block truncate text-[0.9375rem]">
                         {h.title}
                       </span>
-                      <span className="block text-[0.72rem] text-fg-tertiary">
+                      <span className="block text-[0.78rem] text-fg-tertiary">
                         {h.studentName}
                         {h.dueAt
                           ? ` · due ${format(new Date(h.dueAt), "MMM d")}`
@@ -121,7 +121,7 @@ export default async function DashboardPage() {
           <CardHeader title="Recent lessons" />
           <div className="px-4 py-3">
             {data.recentLessons.length === 0 ? (
-              <p className="text-[0.8rem] text-fg-tertiary">
+              <p className="text-[0.875rem] text-fg-tertiary">
                 No lessons yet — create one from a student profile.
               </p>
             ) : (
@@ -134,10 +134,10 @@ export default async function DashboardPage() {
                     >
                       <Avatar name={l.studentName} size="sm" />
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[0.85rem]">
+                        <span className="block truncate text-[0.9375rem]">
                           {l.title ?? `Lesson with ${l.studentName}`}
                         </span>
-                        <span className="block text-[0.72rem] text-fg-tertiary">
+                        <span className="block text-[0.78rem] text-fg-tertiary">
                           {formatDistanceToNow(new Date(l.startedAt), {
                             addSuffix: true,
                           })}
@@ -158,7 +158,7 @@ export default async function DashboardPage() {
             actions={
               <Link
                 href="/students"
-                className="text-[0.75rem] text-accent-text hover:underline"
+                className="text-[0.8125rem] text-accent-text hover:underline"
               >
                 All students
               </Link>
@@ -166,7 +166,7 @@ export default async function DashboardPage() {
           />
           <div className="px-4 py-3">
             {data.staleStudents.length === 0 ? (
-              <p className="text-[0.8rem] text-fg-tertiary">
+              <p className="text-[0.875rem] text-fg-tertiary">
                 All active students had a lesson in the last two weeks.
               </p>
             ) : (
@@ -179,10 +179,10 @@ export default async function DashboardPage() {
                     >
                       <Avatar name={s.name} size="sm" />
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[0.85rem] font-medium">
+                        <span className="block truncate text-[0.9375rem] font-medium">
                           {s.name}
                         </span>
-                        <span className="block text-[0.72rem] text-fg-tertiary">
+                        <span className="block text-[0.78rem] text-fg-tertiary">
                           {s.lastLessonAt
                             ? `last lesson ${formatDistanceToNow(new Date(s.lastLessonAt), { addSuffix: true })}`
                             : "no lessons yet"}

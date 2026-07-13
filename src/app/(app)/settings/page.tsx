@@ -4,6 +4,7 @@ import { updateTeacherProfile } from "@/lib/actions/teacher";
 import { SubmitButton } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/field";
 import { Card, CardHeader, PageHeader } from "@/components/ui/page-header";
+import { AppearanceSection } from "@/components/settings/appearance-section";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -12,8 +13,11 @@ export default async function SettingsPage() {
 
   return (
     <div>
-      <PageHeader title="Settings" subtitle="Your teacher profile" />
-      <Card className="max-w-xl">
+      <PageHeader title="Settings" subtitle="Your profile and preferences" />
+      <div className="mb-4">
+        <AppearanceSection />
+      </div>
+      <Card className="max-w-2xl">
         <CardHeader title="Profile" />
         <form action={updateTeacherProfile} className="space-y-4 px-4 py-4">
           <Field label="Name">

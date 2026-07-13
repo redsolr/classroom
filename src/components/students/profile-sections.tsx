@@ -105,11 +105,11 @@ export function GoalsSection({
       {goals.map((g) => (
         <Card key={g.id} className="flex items-start gap-3 px-4 py-3">
           <div className="min-w-0 flex-1">
-            <p className={`text-[0.88rem] font-medium ${g.status === "completed" ? "text-fg-tertiary line-through" : ""}`}>
+            <p className={`text-[0.9375rem] font-medium ${g.status === "completed" ? "text-fg-tertiary line-through" : ""}`}>
               {g.title}
             </p>
             {g.description && (
-              <p className="mt-0.5 text-[0.8rem] text-fg-secondary">
+              <p className="mt-0.5 text-[0.875rem] text-fg-secondary">
                 {g.description}
               </p>
             )}
@@ -117,7 +117,7 @@ export function GoalsSection({
               <Badge tone={goalStatusTone[g.status]}>{g.status}</Badge>
               <Badge>{g.priority} priority</Badge>
               {g.targetDate && (
-                <span className="text-[0.72rem] text-fg-tertiary">
+                <span className="text-[0.78rem] text-fg-tertiary">
                   target {new Date(g.targetDate).toLocaleDateString()}
                 </span>
               )}
@@ -226,9 +226,9 @@ export function InsightsSection({
       {insights.map((i) => (
         <Card key={i.id} className="flex items-start gap-3 px-4 py-3">
           <div className="min-w-0 flex-1">
-            <p className="text-[0.88rem] font-medium">{i.title}</p>
+            <p className="text-[0.9375rem] font-medium">{i.title}</p>
             {i.description && (
-              <p className="mt-0.5 text-[0.8rem] text-fg-secondary">
+              <p className="mt-0.5 text-[0.875rem] text-fg-secondary">
                 {i.description}
               </p>
             )}

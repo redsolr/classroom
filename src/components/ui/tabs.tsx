@@ -29,7 +29,7 @@ export function TabsTrigger({
   return (
     <TabsPrimitive.Trigger
       className={cn(
-        "-mb-px border-b-2 border-transparent px-0.5 pb-2 text-[0.85rem] font-medium text-fg-secondary transition-colors",
+        "-mb-px border-b-2 border-transparent px-0.5 pb-2 text-[0.9375rem] font-medium text-fg-secondary transition-colors",
         "hover:text-fg data-[state=active]:border-accent data-[state=active]:text-fg",
         className,
       )}

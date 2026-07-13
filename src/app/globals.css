@@ -33,8 +33,19 @@
     0 0 0 1px var(--border), 0 8px 24px rgba(20, 20, 30, 0.12);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
+/* Theme is attribute-driven (see src/lib/theme.ts): light is the DEFAULT —
+ * class-room's users are teachers, not developers. Dark applies only when
+ * the pre-hydration script / ThemeInit stamps data-theme="dark" (chosen
+ * directly or resolved from the "system" preference). */
+:root {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+:root[data-theme="dark"] {
     --bg: #0e0e11;
     --surface: #17171b;
     --surface-hover: #1e1e24;
@@ -58,7 +69,6 @@
     --info-soft: #0e2a3a;
     --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 0 0 1px var(--border);
     --shadow-overlay: 0 0 0 1px var(--border-strong), 0 8px 32px rgba(0, 0, 0, 0.5);
-  }
 }
 
 @theme inline {
@@ -89,14 +99,14 @@
 }
 
 html {
-  font-size: 15px;
+  font-size: 16px;
 }
 
 body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-  font-size: 0.9rem;
+  font-size: 0.9375rem;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   font-feature-settings: "cv11", "ss01";
@@ -202,8 +212,7 @@ body {
   box-shadow: var(--auth-card-shadow);
 }
 
-@media (prefers-color-scheme: dark) {
-  .auth-card {
+:root[data-theme="dark"] .auth-card {
     --auth-card-bg: #17171b;
     --auth-text-primary: #ededf0;
     --auth-text-body: #9d9da8;
@@ -219,7 +228,6 @@ body {
     --auth-accent-shadow: rgba(75, 73, 201, 0.5);
     --auth-toggle-off: #3a3a44;
     --auth-card-shadow: 0 20px 60px rgba(0, 0, 0, 0.6), 0 0 0 1px #26262d;
-  }
 }
 
 /* ── Components — consume the contract only ── */

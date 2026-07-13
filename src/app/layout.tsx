@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import { THEME_PRE_HYDRATION_SCRIPT } from "@/lib/theme";
+import { ThemeInit } from "@/components/theme/theme-init";
 import "./globals.css";
 
 const inter = Inter({
@@ -20,8 +22,16 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={inter.variable}>
-      <body>{children}</body>
+    // suppressHydrationWarning: the pre-hydration script stamps data-theme
+    // + a theme class on <html> before React hydrates.
+    <html lang="en" className={inter.variable} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_PRE_HYDRATION_SCRIPT }} />
+      </head>
+      <body>
+        <ThemeInit />
+        {children}
+      </body>
     </html>
   );
 }

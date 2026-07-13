@@ -39,7 +39,7 @@ export function LessonHeader({ detail }: { detail: LessonDetail }) {
     <div className="mb-6">
       <Link
         href={`/students/${student.id}`}
-        className="mb-3 inline-flex items-center gap-1.5 text-[0.8rem] text-fg-secondary transition-colors hover:text-fg"
+        className="mb-3 inline-flex items-center gap-1.5 text-[0.875rem] text-fg-secondary transition-colors hover:text-fg"
       >
         <ArrowLeft className="size-3.5" />
         <Avatar name={student.name} size="sm" />
@@ -56,9 +56,9 @@ export function LessonHeader({ detail }: { detail: LessonDetail }) {
               if (e.key === "Enter") (e.target as HTMLInputElement).blur();
             }}
             placeholder="Untitled lesson"
-            className="w-full bg-transparent text-[1.25rem] font-semibold tracking-tight outline-none placeholder:text-fg-tertiary"
+            className="w-full bg-transparent text-[1.5rem] font-semibold tracking-tight outline-none placeholder:text-fg-tertiary"
           />
-          <p className="mt-0.5 text-[0.85rem] text-fg-secondary">
+          <p className="mt-0.5 text-[0.9375rem] text-fg-secondary">
             {format(new Date(lesson.startedAt), "EEEE, MMMM d yyyy · HH:mm")}
             {lesson.durationMinutes ? ` · ${lesson.durationMinutes} min` : ""}
           </p>

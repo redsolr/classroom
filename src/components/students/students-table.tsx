@@ -78,7 +78,7 @@ export function StudentsTable({ students }: { students: StudentListRow[] }) {
             <button
               key={f}
               onClick={() => setStatus(f)}
-              className={`rounded-md px-2 py-1 text-[0.78rem] font-medium capitalize transition-colors ${
+              className={`rounded-md px-2 py-1 text-[0.8125rem] font-medium capitalize transition-colors ${
                 status === f
                   ? "bg-accent-soft text-accent-text"
                   : "text-fg-secondary hover:bg-surface-hover"
@@ -92,9 +92,9 @@ export function StudentsTable({ students }: { students: StudentListRow[] }) {
       </div>
 
       <div className="overflow-x-auto rounded-xl bg-surface shadow-card">
-        <table className="w-full text-[0.85rem]">
+        <table className="w-full text-[0.9375rem]">
           <thead>
-            <tr className="border-b border-border text-left text-[0.75rem] font-medium text-fg-tertiary">
+            <tr className="border-b border-border text-left text-[0.8125rem] font-medium text-fg-tertiary">
               <th className="px-4 py-2.5 font-medium">Student</th>
               <th className="px-4 py-2.5 font-medium">Status</th>
               <th className="px-4 py-2.5 font-medium">Level</th>
@@ -121,7 +121,7 @@ export function StudentsTable({ students }: { students: StudentListRow[] }) {
                       >
                         {s.name}
                       </Link>
-                      <span className="block text-[0.72rem] text-fg-tertiary">
+                      <span className="block text-[0.78rem] text-fg-tertiary">
                         {s.targetLanguage}
                         {s.platform ? ` · ${s.platform}` : ""}
                       </span>

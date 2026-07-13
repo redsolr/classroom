@@ -13,7 +13,7 @@ export function Input({
 }: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
-      className={cn(controlBase, "h-8 text-[0.85rem]", className)}
+      className={cn(controlBase, "h-9 text-[0.9375rem]", className)}
       {...props}
     />
   );
@@ -25,7 +25,7 @@ export function Textarea({
 }: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return (
     <textarea
-      className={cn(controlBase, "py-2 text-[0.85rem] leading-relaxed", className)}
+      className={cn(controlBase, "py-2 text-[0.9375rem] leading-relaxed", className)}
       {...props}
     />
   );
@@ -38,7 +38,7 @@ export function Select({
 }: React.SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <select
-      className={cn(controlBase, "h-8 text-[0.85rem] pr-8", className)}
+      className={cn(controlBase, "h-9 text-[0.9375rem] pr-8", className)}
       {...props}
     >
       {children}
@@ -54,7 +54,7 @@ export function Label({
   return (
     <label
       className={cn(
-        "block text-[0.8rem] font-medium text-fg-secondary mb-1.5",
+        "block text-[0.875rem] font-medium text-fg-secondary mb-1.5",
         className,
       )}
       {...props}
@@ -79,11 +79,11 @@ export function Field({
   // plumbing — screen readers and getByLabel() both resolve it.
   return (
     <label className={cn("block", className)}>
-      <span className="mb-1.5 block text-[0.8rem] font-medium text-fg-secondary">
+      <span className="mb-1.5 block text-[0.875rem] font-medium text-fg-secondary">
         {label}
       </span>
       {children}
-      {hint && <span className="mt-1 block text-[0.75rem] text-fg-tertiary">{hint}</span>}
+      {hint && <span className="mt-1 block text-[0.8125rem] text-fg-tertiary">{hint}</span>}
     </label>
   );
 }

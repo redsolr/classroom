@@ -105,7 +105,7 @@ export function CorrectionsSection({
       {corrections.map((c) => (
         <Card key={c.id} className="flex items-start gap-3 px-4 py-3">
           <div className="min-w-0 flex-1">
-            <p className="flex flex-wrap items-center gap-2 text-[0.88rem]">
+            <p className="flex flex-wrap items-center gap-2 text-[0.9375rem]">
               <span className="text-danger line-through decoration-danger/50">
                 {c.originalText}
               </span>
@@ -113,7 +113,7 @@ export function CorrectionsSection({
               <span className="font-medium text-success">{c.correctedText}</span>
             </p>
             {c.explanation && (
-              <p className="mt-0.5 text-[0.8rem] text-fg-secondary">
+              <p className="mt-0.5 text-[0.875rem] text-fg-secondary">
                 {c.explanation}
               </p>
             )}
@@ -202,14 +202,14 @@ export function VocabularySection({
           {vocabulary.map((v) => (
             <li key={v.id} className="flex items-center gap-3 px-4 py-2.5">
               <div className="min-w-0 flex-1">
-                <p className="text-[0.88rem] font-medium">{v.term}</p>
+                <p className="text-[0.9375rem] font-medium">{v.term}</p>
                 {(v.meaning || v.translation) && (
-                  <p className="text-[0.78rem] text-fg-secondary">
+                  <p className="text-[0.8125rem] text-fg-secondary">
                     {[v.meaning, v.translation].filter(Boolean).join(" · ")}
                   </p>
                 )}
                 {v.example && (
-                  <p className="text-[0.78rem] italic text-fg-tertiary">
+                  <p className="text-[0.8125rem] italic text-fg-tertiary">
                     “{v.example}”
                   </p>
                 )}
@@ -223,7 +223,7 @@ export function VocabularySection({
                     e.target.value as (typeof VOCAB_STATUSES)[number],
                   )
                 }
-                className="h-7 w-28 text-[0.75rem]"
+                className="h-7 w-28 text-[0.8125rem]"
               >
                 {VOCAB_STATUSES.map((s) => (
                   <option key={s} value={s}>
@@ -319,25 +319,25 @@ export function HomeworkSection({
       {homework.map((h) => (
         <Card key={h.id} className="flex items-start gap-3 px-4 py-3">
           <div className="min-w-0 flex-1">
-            <p className={`text-[0.88rem] font-medium ${["completed", "skipped"].includes(h.status) ? "text-fg-tertiary line-through" : ""}`}>
+            <p className={`text-[0.9375rem] font-medium ${["completed", "skipped"].includes(h.status) ? "text-fg-tertiary line-through" : ""}`}>
               {h.title}
             </p>
             {h.description && (
-              <p className="mt-0.5 text-[0.8rem] text-fg-secondary">
+              <p className="mt-0.5 text-[0.875rem] text-fg-secondary">
                 {h.description}
               </p>
             )}
             <div className="mt-1.5 flex items-center gap-2">
               <Badge tone={homeworkStatusTone[h.status]}>{h.status}</Badge>
               {h.dueAt && (
-                <span className="text-[0.72rem] text-fg-tertiary">
+                <span className="text-[0.78rem] text-fg-tertiary">
                   due {new Date(h.dueAt).toLocaleDateString()}
                 </span>
               )}
               {h.lessonId && (
                 <Link
                   href={`/lessons/${h.lessonId}`}
-                  className="text-[0.72rem] text-accent-text hover:underline"
+                  className="text-[0.78rem] text-accent-text hover:underline"
                 >
                   from lesson
                 </Link>
@@ -353,7 +353,7 @@ export function HomeworkSection({
                 e.target.value as (typeof HOMEWORK_STATUSES)[number],
               )
             }
-            className="h-7 w-28 shrink-0 text-[0.75rem]"
+            className="h-7 w-28 shrink-0 text-[0.8125rem]"
           >
             {HOMEWORK_STATUSES.map((s) => (
               <option key={s} value={s}>

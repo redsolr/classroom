@@ -46,7 +46,7 @@ function IncludeToggle({
 
 function SectionTitle({ children, count }: { children: React.ReactNode; count: number }) {
   return (
-    <p className="mb-2 mt-4 text-[0.78rem] font-semibold text-fg-secondary first:mt-0">
+    <p className="mb-2 mt-4 text-[0.8125rem] font-semibold text-fg-secondary first:mt-0">
       {children}
       <span className="ml-1.5 text-fg-tertiary">{count}</span>
     </p>
@@ -114,7 +114,7 @@ export function DraftReview({
   return (
     <Card className="border-l-2 border-l-accent">
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
-        <h2 className="flex items-center gap-2 text-[0.85rem] font-semibold">
+        <h2 className="flex items-center gap-2 text-[0.9375rem] font-semibold">
           <Sparkles className="size-4 text-accent" />
           AI draft — review before saving
         </h2>
@@ -129,7 +129,7 @@ export function DraftReview({
       </div>
 
       <div className="px-4 py-3">
-        <p className="mb-3 text-[0.78rem] text-fg-secondary">
+        <p className="mb-3 text-[0.8125rem] text-fg-secondary">
           Nothing is saved to {""}the student&rsquo;s record until you approve
           it. Uncheck anything wrong, edit anything imprecise.
         </p>
@@ -211,7 +211,7 @@ export function DraftReview({
                       <Badge>{correctionCategoryLabel[c.category]}</Badge>
                       {c.uncertain && <Badge tone="warning">uncertain</Badge>}
                       {c.explanation && (
-                        <span className="truncate text-[0.75rem] text-fg-tertiary">
+                        <span className="truncate text-[0.8125rem] text-fg-tertiary">
                           {c.explanation}
                         </span>
                       )}
@@ -330,10 +330,10 @@ export function DraftReview({
           onChange={(e) => setNextFocus(e.target.value)}
         />
 
-        {error && <p className="mt-3 text-[0.8rem] text-danger">{error}</p>}
+        {error && <p className="mt-3 text-[0.875rem] text-danger">{error}</p>}
 
         <div className="mt-4 flex items-center justify-between border-t border-border pt-3">
-          <span className="text-[0.78rem] text-fg-tertiary">
+          <span className="text-[0.8125rem] text-fg-tertiary">
             {includedCount} item{includedCount === 1 ? "" : "s"} will be saved
           </span>
           <Button variant="primary" loading={pending} onClick={save}>
