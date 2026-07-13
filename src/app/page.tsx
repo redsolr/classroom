@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowRight, BookOpenText, GraduationCap, Sparkles, Users } from "lucide-react";
 import { getTeacher } from "@/lib/auth";
@@ -16,12 +15,14 @@ export default async function LandingPage() {
           </span>
           Class-room
         </span>
-        <Link
+        {/* Plain <a>, not <Link>: /login 307s to the WorkOS hosted screen,
+            and client-side RSC prefetch of an external redirect trips CORS. */}
+        <a
           href="/login"
           className="rounded-md border border-border-strong bg-surface px-3 py-1.5 text-[0.85rem] font-medium shadow-sm transition-colors hover:bg-surface-hover"
         >
           Sign in
-        </Link>
+        </a>
       </header>
 
       <main className="flex flex-1 flex-col items-center justify-center px-6 pb-24 text-center">
@@ -39,13 +40,13 @@ export default async function LandingPage() {
           corrections, vocabulary, homework and a professional student recap —
           and keeps a living memory of every learner.
         </p>
-        <Link
+        <a
           href="/login"
           className="mt-8 inline-flex items-center gap-2 rounded-md bg-accent px-5 py-2.5 text-[0.9rem] font-medium text-white shadow-sm transition-colors hover:bg-accent-hover"
         >
           Get started
           <ArrowRight className="size-4" />
-        </Link>
+        </a>
 
         <div className="mt-20 grid max-w-3xl grid-cols-1 gap-4 text-left sm:grid-cols-3">
           {[
