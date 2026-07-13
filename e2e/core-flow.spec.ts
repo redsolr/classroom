@@ -137,6 +137,25 @@ test("prep sheet assembles the approved record for the next lesson", async ({
   ).toBeVisible();
 });
 
+test("timeline shows the student's whole history in one stream", async ({
+  page,
+}) => {
+  await page.goto("/students");
+  await page.getByRole("link", { name: studentName }).click();
+  await page.waitForURL(/\/students\/[0-9a-f-]{36}/);
+
+  await page.getByRole("tab", { name: "Timeline" }).click();
+
+  // One stream: the lesson, its extracted records, and the shared recap.
+  await expect(page.getByText("Recap shared").first()).toBeVisible();
+  await expect(page.getByText("1 correction added").first()).toBeVisible();
+  await expect(
+    page.getByText("1 vocabulary item added").first(),
+  ).toBeVisible();
+  await expect(page.getByText("Homework assigned").first()).toBeVisible();
+  await expect(page.getByText("she go → she goes").first()).toBeVisible();
+});
+
 test("an invalid recap token is a 404, not a data leak", async ({ page }) => {
   const response = await page.goto(`/r/definitely-not-a-real-token-${runId}`);
   expect(response?.status()).toBe(404);

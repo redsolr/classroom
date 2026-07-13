@@ -1,7 +1,7 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-type Tone =
+export type Tone =
   | "neutral"
   | "accent"
   | "success"
@@ -47,6 +47,12 @@ export const studentStatusTone: Record<string, Tone> = {
   trial: "info",
   paused: "warning",
   inactive: "neutral",
+};
+
+export const goalStatusTone: Record<string, Tone> = {
+  active: "info",
+  completed: "success",
+  paused: "neutral",
 };
 
 export const lessonStatusTone: Record<string, Tone> = {
