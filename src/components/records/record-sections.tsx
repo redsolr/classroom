@@ -1,0 +1,371 @@
+"use client";
+
+import * as React from "react";
+import Link from "next/link";
+import { ArrowRight, BookMarked, ClipboardList, Plus, SpellCheck2 } from "lucide-react";
+import type { Correction, Homework, VocabularyItem } from "@/db";
+import {
+  addCorrection,
+  addHomework,
+  addVocabulary,
+  deleteCorrection,
+  deleteHomework,
+  deleteVocabulary,
+  setHomeworkStatus,
+  setVocabularyStatus,
+} from "@/lib/actions/records";
+import {
+  Badge,
+  correctionCategoryLabel,
+  homeworkStatusTone,
+  vocabularyStatusTone,
+} from "@/components/ui/badge";
+import { Button, SubmitButton } from "@/components/ui/button";
+import { ConfirmButton } from "@/components/ui/confirm-button";
+import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Field, Input, Select, Textarea } from "@/components/ui/field";
+import { Card } from "@/components/ui/page-header";
+
+/**
+ * Correction / vocabulary / homework lists with add + delete + status
+ * controls. Used on the student profile (lessonId = null) and could be
+ * scoped to a lesson. `lessonLinks` optionally maps lessonId → date label.
+ */
+
+// ---------------------------------------------------------------------------
+// Corrections
+// ---------------------------------------------------------------------------
+
+export function CorrectionsSection({
+  studentId,
+  corrections,
+}: {
+  studentId: string;
+  corrections: Correction[];
+}) {
+  const [open, setOpen] = React.useState(false);
+
+  const addDialog = (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm">
+          <Plus className="size-3.5" />
+          Add correction
+        </Button>
+      </DialogTrigger>
+      <DialogContent title="New correction">
+        <form
+          action={async (fd) => {
+            await addCorrection(studentId, null, fd);
+            setOpen(false);
+          }}
+          className="space-y-3"
+        >
+          <Field label="Category">
+            <Select name="category" defaultValue="grammar">
+              {Object.entries(correctionCategoryLabel).map(([v, l]) => (
+                <option key={v} value={v}>
+                  {l}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="What the student said">
+            <Input name="originalText" required autoFocus />
+          </Field>
+          <Field label="Corrected form">
+            <Input name="correctedText" required />
+          </Field>
+          <Field label="Explanation">
+            <Textarea name="explanation" rows={2} placeholder="Optional" />
+          </Field>
+          <div className="flex justify-end">
+            <SubmitButton>Add correction</SubmitButton>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+
+  if (corrections.length === 0) {
+    return (
+      <EmptyState
+        icon={<SpellCheck2 />}
+        title="No corrections yet"
+        description="Corrections captured from lessons build the student's error history."
+        action={addDialog}
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex justify-end">{addDialog}</div>
+      {corrections.map((c) => (
+        <Card key={c.id} className="flex items-start gap-3 px-4 py-3">
+          <div className="min-w-0 flex-1">
+            <p className="flex flex-wrap items-center gap-2 text-[0.88rem]">
+              <span className="text-danger line-through decoration-danger/50">
+                {c.originalText}
+              </span>
+              <ArrowRight className="size-3.5 shrink-0 text-fg-tertiary" />
+              <span className="font-medium text-success">{c.correctedText}</span>
+            </p>
+            {c.explanation && (
+              <p className="mt-0.5 text-[0.8rem] text-fg-secondary">
+                {c.explanation}
+              </p>
+            )}
+            <div className="mt-1.5">
+              <Badge>{correctionCategoryLabel[c.category]}</Badge>
+            </div>
+          </div>
+          <ConfirmButton
+            action={() => deleteCorrection(c.id, studentId, c.lessonId)}
+          />
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Vocabulary
+// ---------------------------------------------------------------------------
+
+const VOCAB_STATUSES = ["new", "learning", "reviewing", "mastered"] as const;
+
+export function VocabularySection({
+  studentId,
+  vocabulary,
+}: {
+  studentId: string;
+  vocabulary: VocabularyItem[];
+}) {
+  const [open, setOpen] = React.useState(false);
+
+  const addDialog = (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm">
+          <Plus className="size-3.5" />
+          Add vocabulary
+        </Button>
+      </DialogTrigger>
+      <DialogContent title="New vocabulary item">
+        <form
+          action={async (fd) => {
+            await addVocabulary(studentId, null, fd);
+            setOpen(false);
+          }}
+          className="space-y-3"
+        >
+          <Field label="Term">
+            <Input name="term" required autoFocus />
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Meaning">
+              <Input name="meaning" placeholder="Optional" />
+            </Field>
+            <Field label="Translation">
+              <Input name="translation" placeholder="Optional" />
+            </Field>
+          </div>
+          <Field label="Example sentence">
+            <Input name="example" placeholder="Optional" />
+          </Field>
+          <div className="flex justify-end">
+            <SubmitButton>Add vocabulary</SubmitButton>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+
+  if (vocabulary.length === 0) {
+    return (
+      <EmptyState
+        icon={<BookMarked />}
+        title="No vocabulary yet"
+        description="Words and phrases introduced in lessons collect here for review."
+        action={addDialog}
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex justify-end">{addDialog}</div>
+      <Card>
+        <ul className="divide-y divide-border">
+          {vocabulary.map((v) => (
+            <li key={v.id} className="flex items-center gap-3 px-4 py-2.5">
+              <div className="min-w-0 flex-1">
+                <p className="text-[0.88rem] font-medium">{v.term}</p>
+                {(v.meaning || v.translation) && (
+                  <p className="text-[0.78rem] text-fg-secondary">
+                    {[v.meaning, v.translation].filter(Boolean).join(" · ")}
+                  </p>
+                )}
+                {v.example && (
+                  <p className="text-[0.78rem] italic text-fg-tertiary">
+                    “{v.example}”
+                  </p>
+                )}
+              </div>
+              <Select
+                value={v.status}
+                onChange={(e) =>
+                  void setVocabularyStatus(
+                    v.id,
+                    studentId,
+                    e.target.value as (typeof VOCAB_STATUSES)[number],
+                  )
+                }
+                className="h-7 w-28 text-[0.75rem]"
+              >
+                {VOCAB_STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </Select>
+              <Badge tone={vocabularyStatusTone[v.status]}>{v.status}</Badge>
+              <ConfirmButton
+                action={() => deleteVocabulary(v.id, studentId, v.lessonId)}
+              />
+            </li>
+          ))}
+        </ul>
+      </Card>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Homework
+// ---------------------------------------------------------------------------
+
+const HOMEWORK_STATUSES = [
+  "assigned",
+  "submitted",
+  "reviewed",
+  "completed",
+  "skipped",
+] as const;
+
+export function HomeworkSection({
+  studentId,
+  homework,
+}: {
+  studentId: string;
+  homework: Homework[];
+}) {
+  const [open, setOpen] = React.useState(false);
+
+  const addDialog = (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm">
+          <Plus className="size-3.5" />
+          Assign homework
+        </Button>
+      </DialogTrigger>
+      <DialogContent title="New homework">
+        <form
+          action={async (fd) => {
+            await addHomework(studentId, null, fd);
+            setOpen(false);
+          }}
+          className="space-y-3"
+        >
+          <Field label="Title">
+            <Input
+              name="title"
+              required
+              autoFocus
+              placeholder="e.g. Write 5 sentences using past tense"
+            />
+          </Field>
+          <Field label="Description">
+            <Textarea name="description" rows={2} placeholder="Optional" />
+          </Field>
+          <Field label="Due date">
+            <Input name="dueAt" type="date" />
+          </Field>
+          <div className="flex justify-end">
+            <SubmitButton>Assign</SubmitButton>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+
+  if (homework.length === 0) {
+    return (
+      <EmptyState
+        icon={<ClipboardList />}
+        title="No homework yet"
+        description="Homework assigned after lessons is tracked here until it's completed."
+        action={addDialog}
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex justify-end">{addDialog}</div>
+      {homework.map((h) => (
+        <Card key={h.id} className="flex items-start gap-3 px-4 py-3">
+          <div className="min-w-0 flex-1">
+            <p className={`text-[0.88rem] font-medium ${["completed", "skipped"].includes(h.status) ? "text-fg-tertiary line-through" : ""}`}>
+              {h.title}
+            </p>
+            {h.description && (
+              <p className="mt-0.5 text-[0.8rem] text-fg-secondary">
+                {h.description}
+              </p>
+            )}
+            <div className="mt-1.5 flex items-center gap-2">
+              <Badge tone={homeworkStatusTone[h.status]}>{h.status}</Badge>
+              {h.dueAt && (
+                <span className="text-[0.72rem] text-fg-tertiary">
+                  due {new Date(h.dueAt).toLocaleDateString()}
+                </span>
+              )}
+              {h.lessonId && (
+                <Link
+                  href={`/lessons/${h.lessonId}`}
+                  className="text-[0.72rem] text-accent-text hover:underline"
+                >
+                  from lesson
+                </Link>
+              )}
+            </div>
+          </div>
+          <Select
+            value={h.status}
+            onChange={(e) =>
+              void setHomeworkStatus(
+                h.id,
+                studentId,
+                e.target.value as (typeof HOMEWORK_STATUSES)[number],
+              )
+            }
+            className="h-7 w-28 shrink-0 text-[0.75rem]"
+          >
+            {HOMEWORK_STATUSES.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </Select>
+          <ConfirmButton
+            action={() => deleteHomework(h.id, studentId, h.lessonId)}
+          />
+        </Card>
+      ))}
+    </div>
+  );
+}
