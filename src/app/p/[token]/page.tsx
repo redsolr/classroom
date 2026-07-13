@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { and, desc, eq, isNotNull } from "drizzle-orm";
+import { and, count, desc, eq, isNotNull, isNull, lte, or, sql } from "drizzle-orm";
 import { format, formatDistanceToNow } from "date-fns";
 import {
   ArrowRight,
   BookMarked,
   ClipboardList,
   GraduationCap,
+  Sparkles,
   Target,
   TrendingUp,
 } from "lucide-react";
@@ -52,7 +53,7 @@ export default async function PortalPage({
   if (!found) notFound();
   const { student, teacherName } = found;
 
-  const [studentHomework, vocabulary, activeGoals, sharedLessons] =
+  const [studentHomework, vocabulary, activeGoals, sharedLessons, dueRows] =
     await Promise.all([
       db
         .select()
@@ -86,6 +87,18 @@ export default async function PortalPage({
           ),
         )
         .orderBy(desc(lessons.startedAt)),
+      db
+        .select({ value: count() })
+        .from(vocabularyItems)
+        .where(
+          and(
+            eq(vocabularyItems.studentId, student.id),
+            or(
+              isNull(vocabularyItems.srsDueAt),
+              lte(vocabularyItems.srsDueAt, sql`now()`),
+            ),
+          ),
+        ),
     ]);
 
   const openHomework = studentHomework.filter((h) => h.status === "assigned");
@@ -94,6 +107,7 @@ export default async function PortalPage({
   const doneHomework = studentHomework.filter((h) =>
     ["completed", "reviewed"].includes(h.status),
   ).length;
+  const dueCount = dueRows[0]?.value ?? 0;
 
   return (
     <div className="mx-auto max-w-xl px-6 py-10">
@@ -140,6 +154,28 @@ export default async function PortalPage({
           </p>
         </div>
       </section>
+
+      {vocabulary.length > 0 && (
+        <section className="mb-8">
+          <Link
+            href={`/p/${token}/practice`}
+            className="flex items-center gap-3 rounded-lg border-l-2 border-l-accent bg-surface px-4 py-3.5 shadow-card transition-colors hover:bg-surface-hover"
+          >
+            <Sparkles className="size-4.5 shrink-0 text-accent" />
+            <span className="min-w-0 flex-1">
+              <span className="block text-[0.9375rem] font-medium">
+                Practice your vocabulary
+              </span>
+              <span className="block text-[0.8125rem] text-fg-tertiary">
+                {dueCount > 0
+                  ? `${dueCount} word${dueCount === 1 ? "" : "s"} ready to review`
+                  : "All caught up — check back tomorrow"}
+              </span>
+            </span>
+            <ArrowRight className="size-3.5 shrink-0 text-fg-tertiary" />
+          </Link>
+        </section>
+      )}
 
       <section className="mb-8">
         <h2 className="mb-3 flex items-center gap-2 text-[0.9375rem] font-semibold text-fg-secondary">

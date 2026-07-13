@@ -247,6 +247,33 @@ test("student portal: enable → homework check-off → teacher sees submission"
   await expect(page.getByText("submitted").first()).toBeVisible();
 });
 
+test("practice: grade a due card → vocabulary pipeline advances", async ({
+  page,
+}) => {
+  // Reuse the live portal link from the student's header.
+  await page.goto("/students");
+  await page.getByRole("link", { name: studentName }).click();
+  await page.waitForURL(/\/students\/[0-9a-f-]{36}/);
+  const href = await page
+    .getByRole("link", { name: /Student portal/ })
+    .getAttribute("href");
+  expect(href).toBeTruthy();
+
+  // The never-reviewed word is due; grade it Good.
+  await page.goto(`${href}/practice`);
+  await expect(page.getByText("stakeholder")).toBeVisible();
+  await page.getByRole("button", { name: "Show answer" }).click();
+  await page.getByRole("button", { name: "Good", exact: true }).click();
+  await expect(page.getByText(/You reviewed 1 card/)).toBeVisible();
+
+  // The review is evidence: the teacher's pipeline moves new → learning,
+  // visible in the Progress tab ("in review" = learning + reviewing).
+  await page.goto("/students");
+  await page.getByRole("link", { name: studentName }).click();
+  await page.getByRole("tab", { name: "Progress" }).click();
+  await expect(page.getByText("1 in review")).toBeVisible();
+});
+
 test("an invalid recap token is a 404, not a data leak", async ({ page }) => {
   const response = await page.goto(`/r/definitely-not-a-real-token-${runId}`);
   expect(response?.status()).toBe(404);

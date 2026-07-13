@@ -85,6 +85,13 @@ export const homeworkStatusEnum = pgEnum("homework_status", [
   "skipped",
 ]);
 
+export const reviewGradeEnum = pgEnum("review_grade", [
+  "again",
+  "hard",
+  "good",
+  "easy",
+]);
+
 export const insightTypeEnum = pgEnum("insight_type", [
   "recurringMistake",
   "learningPreference",
@@ -315,6 +322,13 @@ export const vocabularyItems = pgTable(
     example: text("example"),
     language: text("language"),
     status: vocabularyStatusEnum("status").notNull().default("new"),
+    // Spaced-repetition state (SM-2-lite). A null srsDueAt means the card
+    // has never been reviewed — it is always due.
+    srsReps: integer("srs_reps").notNull().default(0),
+    srsEaseFactor: real("srs_ease_factor").notNull().default(2.5),
+    srsIntervalDays: real("srs_interval_days").notNull().default(0),
+    srsDueAt: timestamp("srs_due_at", { withTimezone: true }),
+    lastReviewedAt: timestamp("last_reviewed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -322,6 +336,36 @@ export const vocabularyItems = pgTable(
   (t) => [
     index("vocabulary_items_student_id_idx").on(t.studentId),
     index("vocabulary_items_lesson_id_idx").on(t.lessonId),
+  ],
+);
+
+// ---------------------------------------------------------------------------
+// Vocabulary reviews — the student's practice log (evidence for the
+// pipeline; one row per graded card).
+// ---------------------------------------------------------------------------
+
+export const vocabularyReviews = pgTable(
+  "vocabulary_reviews",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    teacherId: uuid("teacher_id")
+      .notNull()
+      .references(() => teachers.id, { onDelete: "cascade" }),
+    studentId: uuid("student_id")
+      .notNull()
+      .references(() => students.id, { onDelete: "cascade" }),
+    vocabularyItemId: uuid("vocabulary_item_id")
+      .notNull()
+      .references(() => vocabularyItems.id, { onDelete: "cascade" }),
+    grade: reviewGradeEnum("grade").notNull(),
+    intervalDays: real("interval_days").notNull(),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("vocabulary_reviews_student_id_idx").on(t.studentId),
+    index("vocabulary_reviews_item_id_idx").on(t.vocabularyItemId),
   ],
 );
 
@@ -405,5 +449,6 @@ export type Lesson = typeof lessons.$inferSelect;
 export type LessonTopic = typeof lessonTopics.$inferSelect;
 export type Correction = typeof corrections.$inferSelect;
 export type VocabularyItem = typeof vocabularyItems.$inferSelect;
+export type VocabularyReview = typeof vocabularyReviews.$inferSelect;
 export type Homework = typeof homework.$inferSelect;
 export type Insight = typeof insights.$inferSelect;
