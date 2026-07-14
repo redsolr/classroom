@@ -375,6 +375,14 @@ test("schedule: agenda lists the appointment, row opens student context", async 
   ).toBeVisible();
 });
 
+test("teacher accounts are kept out of the student area", async ({ page }) => {
+  await page.goto("/student");
+  await page.waitForURL("**/schedule");
+  await expect(
+    page.getByRole("heading", { name: "Schedule", exact: true }),
+  ).toBeVisible();
+});
+
 test("an invalid recap token is a 404, not a data leak", async ({ page }) => {
   const response = await page.goto(`/r/definitely-not-a-real-token-${runId}`);
   expect(response?.status()).toBe(404);

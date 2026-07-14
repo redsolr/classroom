@@ -144,6 +144,9 @@ export const students = pgTable(
       .references(() => teachers.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     email: text("email"),
+    // Set when the learner claims their account: a WorkOS login whose
+    // email matches `email` links here and gets the student experience.
+    workosUserId: text("workos_user_id"),
     avatarColor: text("avatar_color"),
     nativeLanguage: text("native_language"),
     targetLanguage: text("target_language").notNull(),
@@ -167,6 +170,7 @@ export const students = pgTable(
   (t) => [
     index("students_teacher_id_idx").on(t.teacherId),
     uniqueIndex("students_portal_token_idx").on(t.portalToken),
+    index("students_workos_user_id_idx").on(t.workosUserId),
   ],
 );
 

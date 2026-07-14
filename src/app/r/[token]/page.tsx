@@ -188,7 +188,7 @@ export default async function RecapPage({
       )}
 
       {lesson.recapMessage && (
-        <section className="mb-8 rounded-lg border-l-2 border-l-accent bg-surface px-4 py-3 shadow-card">
+        <section className="mb-8 rounded-lg bg-surface px-4 py-3 shadow-card">
           <p className="text-[0.9375rem] leading-relaxed">{lesson.recapMessage}</p>
           {teacherName && (
             <p className="mt-1.5 text-[0.875rem] text-fg-secondary">

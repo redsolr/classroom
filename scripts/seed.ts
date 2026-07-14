@@ -97,7 +97,9 @@ async function main() {
     .values({
       teacherId: teacher.id,
       name: "Marie Dubois",
-      email: "marie@example.com",
+      // Real inbox so the student login can be demoed end-to-end: sign in
+      // with this Google account and it claims Marie's student record.
+      email: "officialfindeverything@gmail.com",
       nativeLanguage: "French",
       targetLanguage: "English",
       currentLevel: "B1",
@@ -521,6 +523,9 @@ async function main() {
     "  students Marie (italki, portal+SRS+AI chat), Kenji (Preply, trial), Ana (Zoom, no-show), Somchai (in person), David (referral, inactive)",
   );
   console.log("  portal   /p/demo-marie-portal-token");
+  console.log(
+    "  student  sign in with officialfindeverything@gmail.com to claim Marie's account",
+  );
   console.log(
     teacher.workosUserId === "mock_teacher_dev"
       ? "Run `npm run dev:mock` and you'll land in this data."

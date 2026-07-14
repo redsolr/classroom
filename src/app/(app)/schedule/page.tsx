@@ -131,7 +131,7 @@ async function DetailPanel({
       {lesson.status === "scheduled" ? (
         <ScheduledLessonPanel detail={detail} />
       ) : (
-        <Card className="border-l-2 border-l-accent">
+        <Card>
           <div className="flex items-start gap-3 px-4 py-3.5">
             <NotebookPen className="mt-0.5 size-4.5 shrink-0 text-accent" />
             <div>
@@ -151,7 +151,7 @@ async function DetailPanel({
         </Card>
       )}
 
-      <Card className="border-l-2 border-l-accent">
+      <Card>
         <div className="flex items-start gap-3 px-4 py-3.5">
           <Compass className="mt-0.5 size-4.5 shrink-0 text-accent" />
           <div>

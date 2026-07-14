@@ -112,7 +112,7 @@ export function DraftReview({
       .filter((i) => i._included).length;
 
   return (
-    <Card className="border-l-2 border-l-accent">
+    <Card>
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <h2 className="flex items-center gap-2 text-[0.9375rem] font-semibold">
           <Sparkles className="size-4 text-accent" />

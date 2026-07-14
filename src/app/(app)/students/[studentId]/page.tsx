@@ -39,7 +39,7 @@ function Overview({ profile }: { profile: StudentProfile }) {
 
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-      <Card className="lg:col-span-2 border-l-2 border-l-accent">
+      <Card className="lg:col-span-2">
         <div className="flex items-start gap-3 px-4 py-3.5">
           <Compass className="mt-0.5 size-4.5 shrink-0 text-accent" />
           <div>

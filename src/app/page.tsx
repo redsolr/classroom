@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowRight, BookOpenText, GraduationCap, Sparkles, Users } from "lucide-react";
-import { getTeacher } from "@/lib/auth";
+import { getAccount } from "@/lib/auth";
 
 export default async function LandingPage() {
-  const teacher = await getTeacher();
-  if (teacher) redirect("/schedule");
+  const account = await getAccount();
+  if (account) redirect(account.kind === "student" ? "/student" : "/schedule");
 
   return (
     <div className="flex min-h-screen flex-col">

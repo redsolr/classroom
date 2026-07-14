@@ -33,7 +33,7 @@ export function ScheduledLessonPanel({ detail }: { detail: LessonDetail }) {
   const [confirmCancel, setConfirmCancel] = React.useState(false);
 
   return (
-    <Card className="border-l-2 border-l-accent">
+    <Card>
       <div className="flex items-start gap-3 px-4 py-4">
         <CalendarClock className="mt-0.5 size-4.5 shrink-0 text-accent" />
         <div className="min-w-0 flex-1">
