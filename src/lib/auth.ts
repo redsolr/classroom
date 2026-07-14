@@ -1,10 +1,38 @@
 import { cache } from "react";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { withAuth } from "@workos-inc/authkit-nextjs";
 import { db, teachers, type Teacher } from "@/db";
 
 const MOCK_AUTH = process.env.MOCK_AUTH === "true";
+
+const SESSION_COOKIE = process.env.WORKOS_COOKIE_NAME ?? "wos-session";
+
+/**
+ * Where to send a request whose access token failed to resolve. If a
+ * session cookie still exists this is almost always a refresh race (the
+ * token expired between the proxy's refresh and this render — classic on
+ * link prefetches), NOT a logout: bounce through /auth/refresh, which is
+ * allowed to write cookies, instead of dumping a signed-in teacher on
+ * /login.
+ */
+async function unauthenticatedRedirect(): Promise<never> {
+  const cookieStore = await cookies();
+  if (!cookieStore.has(SESSION_COOKIE)) redirect("/login");
+
+  const url = (await headers()).get("x-url");
+  let next = "/schedule";
+  if (url) {
+    try {
+      const parsed = new URL(url);
+      next = parsed.pathname + parsed.search;
+    } catch {
+      // unparsable header — keep the default
+    }
+  }
+  redirect(`/auth/refresh?next=${encodeURIComponent(next)}`);
+}
 
 const MOCK_TEACHER = {
   workosUserId: "mock_teacher_dev",
@@ -50,7 +78,7 @@ export const requireTeacher = cache(async (): Promise<Teacher> => {
     return findOrCreateTeacher({ ...MOCK_TEACHER });
   }
   const { user } = await withAuth();
-  if (!user) redirect("/login");
+  if (!user) return unauthenticatedRedirect();
   const name =
     [user.firstName, user.lastName].filter(Boolean).join(" ") || null;
   return findOrCreateTeacher({

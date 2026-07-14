@@ -56,6 +56,7 @@ export async function createLesson(formData: FormData) {
 
   revalidatePath("/lessons");
   revalidatePath("/dashboard");
+  revalidatePath("/schedule");
   redirect(`/lessons/${created.id}`);
 }
 
@@ -93,6 +94,7 @@ export async function markLessonAttended(lessonId: string) {
   revalidatePath(`/lessons/${lessonId}`);
   revalidatePath(`/students/${studentId}`);
   revalidatePath("/dashboard");
+  revalidatePath("/schedule");
 }
 
 export async function markLessonNoShow(lessonId: string) {
@@ -111,6 +113,7 @@ export async function markLessonNoShow(lessonId: string) {
   revalidatePath(`/lessons/${lessonId}`);
   revalidatePath(`/students/${studentId}`);
   revalidatePath("/dashboard");
+  revalidatePath("/schedule");
 }
 
 export async function cancelLesson(lessonId: string) {
@@ -125,6 +128,7 @@ export async function cancelLesson(lessonId: string) {
   revalidatePath(`/lessons/${lessonId}`);
   revalidatePath(`/students/${studentId}`);
   revalidatePath("/dashboard");
+  revalidatePath("/schedule");
 }
 
 const rescheduleSchema = z.object({ startedAt: z.string().trim().min(1) });
@@ -164,6 +168,7 @@ export async function rescheduleLesson(lessonId: string, formData: FormData) {
   revalidatePath("/lessons");
   revalidatePath(`/students/${studentId}`);
   revalidatePath("/dashboard");
+  revalidatePath("/schedule");
   redirect(`/lessons/${newId}`);
 }
 
@@ -330,6 +335,7 @@ export async function applyLessonDraft(lessonId: string, draftJson: string) {
   revalidatePath(`/students/${studentId}`);
   revalidatePath("/lessons");
   revalidatePath("/dashboard");
+  revalidatePath("/schedule");
 }
 
 /** Discard a pending AI draft without saving anything. */

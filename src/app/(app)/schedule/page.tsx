@@ -166,6 +166,47 @@ async function DetailPanel({
         </div>
       </Card>
 
+      {sheet?.lastLesson && (
+        <Card>
+          <CardHeader
+            title="Last lesson — where you left off"
+            actions={
+              <Link
+                href={`/lessons/${sheet.lastLesson.id}`}
+                className="inline-flex items-center gap-1 text-[0.8125rem] text-accent-text hover:underline"
+              >
+                Open
+                <ArrowRight className="size-3.5" />
+              </Link>
+            }
+          />
+          <div className="px-4 py-3">
+            <p className="text-[0.9375rem] font-medium">
+              {sheet.lastLesson.title ?? "Untitled lesson"}
+              <span className="ml-2 text-[0.8125rem] font-normal text-fg-tertiary">
+                {formatDistanceToNow(new Date(sheet.lastLesson.startedAt), {
+                  addSuffix: true,
+                })}
+              </span>
+            </p>
+            {sheet.lastLesson.summary && (
+              <p className="mt-1 text-[0.9375rem] leading-relaxed text-fg-secondary">
+                {sheet.lastLesson.summary}
+              </p>
+            )}
+            {sheet.lastLessonTopics.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {sheet.lastLessonTopics.map((t) => (
+                  <Badge key={t.id} tone="accent">
+                    {t.title}
+                  </Badge>
+                ))}
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
+
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <Card>
           <CardHeader
@@ -288,37 +329,6 @@ async function DetailPanel({
         </Card>
       </div>
 
-      {sheet?.lastLesson && (
-        <Card>
-          <CardHeader
-            title="Last lesson"
-            actions={
-              <Link
-                href={`/lessons/${sheet.lastLesson.id}`}
-                className="inline-flex items-center gap-1 text-[0.8125rem] text-accent-text hover:underline"
-              >
-                Open
-                <ArrowRight className="size-3.5" />
-              </Link>
-            }
-          />
-          <div className="px-4 py-3">
-            <p className="text-[0.9375rem] font-medium">
-              {sheet.lastLesson.title ?? "Untitled lesson"}
-              <span className="ml-2 text-[0.8125rem] font-normal text-fg-tertiary">
-                {formatDistanceToNow(new Date(sheet.lastLesson.startedAt), {
-                  addSuffix: true,
-                })}
-              </span>
-            </p>
-            {sheet.lastLesson.summary && (
-              <p className="mt-1 text-[0.9375rem] leading-relaxed text-fg-secondary">
-                {sheet.lastLesson.summary}
-              </p>
-            )}
-          </div>
-        </Card>
-      )}
     </div>
   );
 }

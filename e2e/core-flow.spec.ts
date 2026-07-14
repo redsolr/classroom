@@ -11,13 +11,13 @@ const runId = Date.now().toString(36);
 const studentName = `E2E Student ${runId}`;
 const privateSecret = `private-note-secret-${runId}`;
 
-test("signed-in teacher is routed from landing to dashboard", async ({
+test("signed-in teacher is routed from landing to the schedule", async ({
   page,
 }) => {
   await page.goto("/");
-  await page.waitForURL("**/dashboard");
+  await page.waitForURL("**/schedule");
   await expect(
-    page.getByRole("heading", { name: /Welcome back/ }),
+    page.getByRole("heading", { name: "Schedule", exact: true }),
   ).toBeVisible();
 });
 
@@ -346,13 +346,13 @@ test("study companion: portal AI chat is grounded in the student's record", asyn
 test("schedule: agenda lists the appointment, row opens student context", async ({
   page,
 }) => {
-  // Book an appointment for the e2e student.
+  // Book the appointment from the schedule itself, picking the student
+  // through the type-to-filter combobox.
   const agendaTitle = `Agenda E2E ${runId}`;
-  await page.goto("/students");
-  await page.getByRole("link", { name: studentName }).click();
-  await page.waitForURL(/\/students\/[0-9a-f-]{36}/);
-  await page.getByRole("tab", { name: /^Lessons/ }).click();
-  await page.getByRole("button", { name: "New lesson" }).click();
+  await page.goto("/schedule");
+  await page.getByRole("button", { name: "Schedule lesson" }).click();
+  await page.getByPlaceholder("Search students…").fill(studentName);
+  await page.getByRole("option", { name: studentName }).click();
   await page.getByLabel("Title").fill(agendaTitle);
   await page.getByLabel("Date & time").fill("2031-06-01T09:00");
   await page.getByRole("button", { name: "Create lesson" }).click();

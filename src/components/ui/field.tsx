@@ -10,7 +10,7 @@ const controlBase =
 export function Input({
   className,
   ...props
-}: React.InputHTMLAttributes<HTMLInputElement>) {
+}: React.ComponentProps<"input">) {
   return (
     <input
       className={cn(controlBase, "h-9 text-[0.9375rem]", className)}

@@ -7,6 +7,6 @@ export const metadata: Metadata = { title: "Sign in" };
 
 export default async function LoginPage() {
   const teacher = await getTeacher();
-  if (teacher) redirect("/dashboard");
+  if (teacher) redirect("/schedule");
   return <LoginForm />;
 }

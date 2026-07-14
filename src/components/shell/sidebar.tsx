@@ -22,8 +22,8 @@ import {
 } from "@/components/ui/dropdown";
 
 const nav = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/schedule", label: "Schedule", icon: CalendarClock },
+  { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
   { href: "/students", label: "Students", icon: Users },
   { href: "/lessons", label: "Lessons", icon: BookOpenText },
 ];
@@ -40,7 +40,7 @@ export function Sidebar({
   return (
     <aside className="sticky top-0 flex h-screen w-64 shrink-0 flex-col border-r border-border bg-surface px-3 py-5">
       <Link
-        href="/dashboard"
+        href="/schedule"
         className="mb-6 flex items-center gap-2 px-2 text-[1rem] font-semibold tracking-tight"
       >
         <span className="flex size-6 items-center justify-center rounded-md bg-accent text-white">

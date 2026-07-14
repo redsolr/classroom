@@ -7,6 +7,6 @@ export const metadata: Metadata = { title: "Sign up" };
 
 export default async function SignupPage() {
   const teacher = await getTeacher();
-  if (teacher) redirect("/dashboard");
+  if (teacher) redirect("/schedule");
   return <SignupForm />;
 }

@@ -6,6 +6,7 @@ import { createLesson } from "@/lib/actions/lessons";
 import { Button, SubmitButton } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { Field, Input, Select } from "@/components/ui/field";
+import { StudentCombobox } from "@/components/students/student-combobox";
 
 function toLocalDatetimeValue(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -50,16 +51,7 @@ export function NewLessonDialog({
             <input type="hidden" name="studentId" value={studentId} />
           ) : (
             <Field label="Student">
-              <Select name="studentId" required defaultValue="">
-                <option value="" disabled>
-                  Select a student…
-                </option>
-                {(students ?? []).map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </Select>
+              <StudentCombobox students={students ?? []} />
             </Field>
           )}
           <Field label="Title" hint="Optional — e.g. “Job interview practice”">

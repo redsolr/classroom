@@ -5,7 +5,7 @@ import { getTeacher } from "@/lib/auth";
 
 export default async function LandingPage() {
   const teacher = await getTeacher();
-  if (teacher) redirect("/dashboard");
+  if (teacher) redirect("/schedule");
 
   return (
     <div className="flex min-h-screen flex-col">

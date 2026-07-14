@@ -70,6 +70,8 @@ export default process.env.MOCK_AUTH === "true"
           // Persistent student portal — same token-in-path model,
           // revocable per student (regenerate/disable).
           "/p/:path*",
+          // Session-refresh bounce (see src/app/auth/refresh/route.ts).
+          "/auth/refresh",
         ],
       },
     });
