@@ -4,6 +4,7 @@ import {
   count,
   desc,
   eq,
+  gte,
   inArray,
   isNull,
   lt,
@@ -415,6 +416,25 @@ export async function getScheduleData(teacherId: string) {
       studentName: r.studentName,
     })),
   };
+}
+
+/** One week of a teacher's lessons (cancelled excluded), for the calendar. */
+export async function getWeekLessons(teacherId: string, weekStart: Date) {
+  const weekEnd = new Date(weekStart.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const rows = await db
+    .select({ lesson: lessons, studentName: students.name })
+    .from(lessons)
+    .innerJoin(students, eq(students.id, lessons.studentId))
+    .where(
+      and(
+        eq(lessons.teacherId, teacherId),
+        gte(lessons.startedAt, weekStart),
+        lt(lessons.startedAt, weekEnd),
+        notInArray(lessons.status, ["cancelled"]),
+      ),
+    )
+    .orderBy(asc(lessons.startedAt));
+  return rows.map((r) => ({ ...r.lesson, studentName: r.studentName }));
 }
 
 // ---------------------------------------------------------------------------

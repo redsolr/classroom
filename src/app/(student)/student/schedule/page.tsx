@@ -1,20 +1,29 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { and, asc, desc, eq, notInArray } from "drizzle-orm";
+import { and, asc, desc, eq, gte, lt, notInArray } from "drizzle-orm";
 import { format, formatDistanceToNow } from "date-fns";
 import { ArrowRight, CalendarClock } from "lucide-react";
 import { db, lessons } from "@/db";
 import { requireStudent } from "@/lib/auth";
+import { nowIso, resolveWeekStart } from "@/lib/week";
 import { Badge, lessonStatusTone } from "@/components/ui/badge";
 import { Card, CardHeader, PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
+import { WeekCalendar } from "@/components/schedule/week-calendar";
 
 export const metadata: Metadata = { title: "My schedule" };
 
-export default async function StudentSchedulePage() {
+export default async function StudentSchedulePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ week?: string }>;
+}) {
+  const { week } = await searchParams;
   const student = await requireStudent();
+  const weekStart = resolveWeekStart(week);
+  const weekEnd = new Date(weekStart.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-  const [upcoming, past] = await Promise.all([
+  const [upcoming, past, weekLessons] = await Promise.all([
     db
       .select()
       .from(lessons)
@@ -33,10 +42,22 @@ export default async function StudentSchedulePage() {
       )
       .orderBy(desc(lessons.startedAt))
       .limit(20),
+    db
+      .select()
+      .from(lessons)
+      .where(
+        and(
+          eq(lessons.studentId, student.id),
+          gte(lessons.startedAt, weekStart),
+          lt(lessons.startedAt, weekEnd),
+          notInArray(lessons.status, ["cancelled"]),
+        ),
+      )
+      .orderBy(asc(lessons.startedAt)),
   ]);
 
   return (
-    <div className="mx-auto max-w-xl">
+    <div className="mx-auto max-w-4xl">
       <PageHeader
         title="My schedule"
         subtitle={
@@ -45,6 +66,51 @@ export default async function StudentSchedulePage() {
             : `${upcoming.length} upcoming lesson${upcoming.length === 1 ? "" : "s"}`
         }
       />
+
+      <div className="mb-6">
+        <div className="mb-3 flex items-center justify-between">
+          <p className="text-[0.9375rem] font-medium">
+            {format(weekStart, "MMM d")} –{" "}
+            {format(
+              new Date(weekStart.getTime() + 6 * 24 * 60 * 60 * 1000),
+              "MMM d, yyyy",
+            )}
+          </p>
+          <div className="flex items-center gap-1.5">
+            <Link
+              href={`/student/schedule?week=${format(new Date(weekStart.getTime() - 7 * 24 * 60 * 60 * 1000), "yyyy-MM-dd")}`}
+              className="rounded-md border border-border-strong bg-surface px-2.5 py-1 text-[0.8125rem] font-medium shadow-sm transition-colors hover:bg-surface-hover"
+            >
+              ← Prev
+            </Link>
+            <Link
+              href="/student/schedule"
+              className="rounded-md border border-border-strong bg-surface px-2.5 py-1 text-[0.8125rem] font-medium shadow-sm transition-colors hover:bg-surface-hover"
+            >
+              This week
+            </Link>
+            <Link
+              href={`/student/schedule?week=${format(new Date(weekStart.getTime() + 7 * 24 * 60 * 60 * 1000), "yyyy-MM-dd")}`}
+              className="rounded-md border border-border-strong bg-surface px-2.5 py-1 text-[0.8125rem] font-medium shadow-sm transition-colors hover:bg-surface-hover"
+            >
+              Next →
+            </Link>
+          </div>
+        </div>
+        <WeekCalendar
+          lessons={weekLessons.map((l) => ({
+            id: l.id,
+            title: l.title,
+            studentName: l.title ?? "Lesson",
+            startedAt: l.startedAt.toISOString(),
+            durationMinutes: l.durationMinutes,
+            status: l.status,
+          }))}
+          weekStartIso={weekStart.toISOString()}
+          todayIso={nowIso()}
+          readOnly
+        />
+      </div>
 
       {upcoming.length === 0 && past.length === 0 ? (
         <EmptyState

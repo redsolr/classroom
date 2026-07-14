@@ -16,35 +16,51 @@ function toLocalDatetimeValue(d: Date): string {
 /**
  * "New lesson" dialog. When `students` is provided, shows a student picker;
  * when `studentId` is fixed (student profile), it's a hidden field.
+ *
+ * Uncontrolled by default (renders its own trigger button). Pass `open` +
+ * `onOpenChange` (and optionally `initialStart`) to control it externally —
+ * the week calendar opens it prefilled with a clicked slot.
  */
 export function NewLessonDialog({
   studentId,
   students,
   triggerLabel = "New lesson",
+  open: controlledOpen,
+  onOpenChange,
+  initialStart,
 }: {
   studentId?: string;
   students?: { id: string; name: string }[];
   triggerLabel?: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  initialStart?: string;
 }) {
-  const [open, setOpen] = React.useState(false);
+  const controlled = controlledOpen !== undefined;
+  const [uncontrolledOpen, setUncontrolledOpen] = React.useState(false);
   const [defaultStart, setDefaultStart] = React.useState("");
 
+  const open = controlled ? controlledOpen : uncontrolledOpen;
+  const start = initialStart ?? defaultStart;
+
+  function handleOpenChange(next: boolean) {
+    // Compute the default lesson time at open (not at render) so the
+    // server-rendered markup stays hydration-stable.
+    if (next && !initialStart) setDefaultStart(toLocalDatetimeValue(new Date()));
+    if (controlled) onOpenChange?.(next);
+    else setUncontrolledOpen(next);
+  }
+
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        // Compute the default lesson time at open (not at render) so the
-        // server-rendered markup stays hydration-stable.
-        if (next) setDefaultStart(toLocalDatetimeValue(new Date()));
-        setOpen(next);
-      }}
-    >
-      <DialogTrigger asChild>
-        <Button variant="primary">
-          <Plus className="size-3.5" />
-          {triggerLabel}
-        </Button>
-      </DialogTrigger>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      {!controlled && (
+        <DialogTrigger asChild>
+          <Button variant="primary">
+            <Plus className="size-3.5" />
+            {triggerLabel}
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent title="New lesson">
         <form action={createLesson} className="space-y-3">
           {studentId ? (
@@ -63,8 +79,8 @@ export function NewLessonDialog({
                 name="startedAt"
                 type="datetime-local"
                 required
-                defaultValue={defaultStart}
-                key={defaultStart}
+                defaultValue={start}
+                key={start}
               />
             </Field>
             <Field label="Duration (min)">
