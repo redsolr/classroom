@@ -6,10 +6,12 @@ import { ArrowRight, CalendarClock } from "lucide-react";
 import { db, lessons } from "@/db";
 import { requireStudent } from "@/lib/auth";
 import { nowIso, resolveWeekStart } from "@/lib/week";
+import { NOT_HAPPENED_STATUSES } from "@/lib/lesson-status";
 import { Badge, lessonStatusTone } from "@/components/ui/badge";
 import { Card, CardHeader, PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { WeekCalendar } from "@/components/schedule/week-calendar";
+import { WeekNav } from "@/components/schedule/week-nav";
 
 export const metadata: Metadata = { title: "My schedule" };
 
@@ -37,7 +39,7 @@ export default async function StudentSchedulePage({
       .where(
         and(
           eq(lessons.studentId, student.id),
-          notInArray(lessons.status, ["scheduled", "cancelled"]),
+          notInArray(lessons.status, [...NOT_HAPPENED_STATUSES]),
         ),
       )
       .orderBy(desc(lessons.startedAt))
@@ -68,35 +70,7 @@ export default async function StudentSchedulePage({
       />
 
       <div className="mb-6">
-        <div className="mb-3 flex items-center justify-between">
-          <p className="text-[0.9375rem] font-medium">
-            {format(weekStart, "MMM d")} –{" "}
-            {format(
-              new Date(weekStart.getTime() + 6 * 24 * 60 * 60 * 1000),
-              "MMM d, yyyy",
-            )}
-          </p>
-          <div className="flex items-center gap-1.5">
-            <Link
-              href={`/student/schedule?week=${format(new Date(weekStart.getTime() - 7 * 24 * 60 * 60 * 1000), "yyyy-MM-dd")}`}
-              className="rounded-md border border-border-strong bg-surface px-2.5 py-1 text-[0.8125rem] font-medium shadow-sm transition-colors hover:bg-surface-hover"
-            >
-              ← Prev
-            </Link>
-            <Link
-              href="/student/schedule"
-              className="rounded-md border border-border-strong bg-surface px-2.5 py-1 text-[0.8125rem] font-medium shadow-sm transition-colors hover:bg-surface-hover"
-            >
-              This week
-            </Link>
-            <Link
-              href={`/student/schedule?week=${format(new Date(weekStart.getTime() + 7 * 24 * 60 * 60 * 1000), "yyyy-MM-dd")}`}
-              className="rounded-md border border-border-strong bg-surface px-2.5 py-1 text-[0.8125rem] font-medium shadow-sm transition-colors hover:bg-surface-hover"
-            >
-              Next →
-            </Link>
-          </div>
-        </div>
+        <WeekNav baseHref="/student/schedule" weekStart={weekStart} />
         <WeekCalendar
           lessons={weekLessons.map((l) => ({
             id: l.id,

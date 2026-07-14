@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import {
   Ban,
   ClipboardList,
@@ -23,6 +22,7 @@ import {
 import { Avatar } from "@/components/ui/avatar";
 import { Badge, studentStatusTone } from "@/components/ui/badge";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { LinkButton } from "@/components/ui/link-button";
 import {
   Dropdown,
   DropdownContent,
@@ -69,13 +69,10 @@ export function StudentHeader({ student }: { student: Student }) {
         </p>
       </div>
 
-      <Link
-        href={`/students/${student.id}/prep`}
-        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border-strong bg-surface px-3 text-[0.875rem] font-medium shadow-sm transition-colors hover:bg-surface-hover"
-      >
+      <LinkButton href={`/students/${student.id}/prep`}>
         <ClipboardList className="size-4 text-fg-tertiary" />
         Prep sheet
-      </Link>
+      </LinkButton>
 
       <Dropdown>
         <DropdownTrigger

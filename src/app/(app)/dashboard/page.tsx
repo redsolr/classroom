@@ -7,6 +7,7 @@ import { getDashboardData, listStudents } from "@/lib/queries";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge, homeworkStatusTone, lessonStatusTone } from "@/components/ui/badge";
 import { Card, CardHeader, PageHeader } from "@/components/ui/page-header";
+import { LinkButton } from "@/components/ui/link-button";
 import { NewLessonDialog } from "@/components/lessons/new-lesson-dialog";
 
 export const metadata: Metadata = { title: "Dashboard" };
@@ -86,13 +87,10 @@ export default async function DashboardPage() {
                         {` · ${formatDistanceToNow(new Date(l.startedAt), { addSuffix: true })}`}
                       </span>
                     </Link>
-                    <Link
-                      href={`/students/${l.studentId}/prep`}
-                      className="inline-flex h-7 items-center gap-1 rounded-md border border-border-strong bg-surface px-2 text-[0.8125rem] font-medium shadow-sm transition-colors hover:bg-surface-hover"
-                    >
+                    <LinkButton size="sm" href={`/students/${l.studentId}/prep`}>
                       <ClipboardList className="size-3.5 text-fg-tertiary" />
                       Prep
-                    </Link>
+                    </LinkButton>
                   </li>
                 ))}
               </ul>

@@ -7,11 +7,7 @@ import { Button, SubmitButton } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { Field, Input, Select } from "@/components/ui/field";
 import { StudentCombobox } from "@/components/students/student-combobox";
-
-function toLocalDatetimeValue(d: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
+import { toLocalDatetimeValue } from "@/lib/datetime";
 
 /**
  * "New lesson" dialog. When `students` is provided, shows a student picker;

@@ -6,6 +6,7 @@ import { addDays, format, isSameDay } from "date-fns";
 import { NewLessonDialog } from "@/components/lessons/new-lesson-dialog";
 import { Card } from "@/components/ui/page-header";
 import { cn } from "@/lib/utils";
+import { toLocalDatetimeValue } from "@/lib/datetime";
 
 export type CalendarLesson = {
   id: string;
@@ -19,11 +20,6 @@ export type CalendarLesson = {
 
 const FIRST_HOUR = 7;
 const LAST_HOUR = 21; // exclusive
-
-function toLocalDatetimeValue(d: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
 
 /** Clamp a lesson into the visible hour band so nothing silently vanishes. */
 function rowHour(d: Date): number {

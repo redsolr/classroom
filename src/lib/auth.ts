@@ -1,10 +1,10 @@
 import { cache } from "react";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { randomBytes } from "node:crypto";
 import { and, eq, isNull } from "drizzle-orm";
 import { withAuth } from "@workos-inc/authkit-nextjs";
 import { db, students, teachers, type Student, type Teacher } from "@/db";
+import { generateAccessToken } from "@/lib/tokens";
 
 const MOCK_AUTH = process.env.MOCK_AUTH === "true";
 
@@ -93,7 +93,7 @@ async function resolveStudentAccount(user: {
     const [withToken] = await db
       .update(students)
       .set({
-        portalToken: randomBytes(18).toString("base64url"),
+        portalToken: generateAccessToken(),
         updatedAt: new Date(),
       })
       .where(eq(students.id, claimed.id))
@@ -110,7 +110,7 @@ async function resolveStudentAccount(user: {
     .update(students)
     .set({
       workosUserId: user.id,
-      portalToken: claimable.portalToken ?? randomBytes(18).toString("base64url"),
+      portalToken: claimable.portalToken ?? generateAccessToken(),
       updatedAt: new Date(),
     })
     .where(eq(students.id, claimable.id))

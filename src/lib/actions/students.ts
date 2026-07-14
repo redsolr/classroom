@@ -1,6 +1,5 @@
 "use server";
 
-import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { and, eq } from "drizzle-orm";
@@ -8,6 +7,7 @@ import { z } from "zod";
 import { db, goals, insights, students } from "@/db";
 import { requireTeacher } from "@/lib/auth";
 import { assertStudentOwned } from "@/lib/guards";
+import { generateAccessToken } from "@/lib/tokens";
 
 const studentSchema = z.object({
   name: z.string().trim().min(1, "Name is required"),
@@ -155,7 +155,7 @@ export async function rotateStudentPortal(studentId: string) {
   await db
     .update(students)
     .set({
-      portalToken: randomBytes(18).toString("base64url"),
+      portalToken: generateAccessToken(),
       updatedAt: new Date(),
     })
     .where(and(eq(students.id, studentId), eq(students.teacherId, teacher.id)));

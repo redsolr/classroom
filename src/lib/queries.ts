@@ -13,6 +13,7 @@ import {
   or,
   sql,
 } from "drizzle-orm";
+import { NOT_HAPPENED_STATUSES } from "@/lib/lesson-status";
 import {
   corrections,
   db,
@@ -32,7 +33,7 @@ import {
  * plans and cancellations never count toward "last lesson" / trends.
  */
 function happenedLesson() {
-  return notInArray(lessons.status, ["scheduled", "cancelled"]);
+  return notInArray(lessons.status, [...NOT_HAPPENED_STATUSES]);
 }
 
 // ---------------------------------------------------------------------------

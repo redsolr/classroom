@@ -25,6 +25,16 @@ const submitSchema = z.object({
   submissionText: z.string().trim().max(5000).optional(),
 });
 
+/** The portal token is the sole authorization — resolve it or throw. */
+async function requirePortalStudent(portalToken: string) {
+  const token = z.string().min(10).parse(portalToken);
+  const student = await db.query.students.findFirst({
+    where: eq(students.portalToken, token),
+  });
+  if (!student) throw new Error("Portal not found");
+  return { token, student };
+}
+
 /**
  * Student homework check-off. The portal token is the sole authorization —
  * it resolves to exactly one student, and the update is scoped to that
@@ -36,15 +46,9 @@ export async function submitHomeworkViaPortal(
   homeworkId: string,
   formData: FormData,
 ) {
-  const token = z.string().min(10).parse(portalToken);
   const hwId = z.string().uuid().parse(homeworkId);
   const parsed = submitSchema.parse(Object.fromEntries(formData));
-
-  const student = await db.query.students.findFirst({
-    where: eq(students.portalToken, token),
-    columns: { id: true },
-  });
-  if (!student) throw new Error("Portal not found");
+  const { token, student } = await requirePortalStudent(portalToken);
 
   const updated = await db
     .update(homework)
@@ -86,13 +90,8 @@ export async function sendCompanionMessage(
   portalToken: string,
   formData: FormData,
 ) {
-  const token = z.string().min(10).parse(portalToken);
   const parsed = companionMessageSchema.parse(Object.fromEntries(formData));
-
-  const student = await db.query.students.findFirst({
-    where: eq(students.portalToken, token),
-  });
-  if (!student) throw new Error("Portal not found");
+  const { token, student } = await requirePortalStudent(portalToken);
 
   // Simple brake: cap the student's messages per rolling day so a public
   // token can never run up an unbounded LLM bill.
@@ -219,15 +218,9 @@ export async function reviewVocabularyViaPortal(
   vocabularyItemId: string,
   grade: "again" | "hard" | "good" | "easy",
 ) {
-  const token = z.string().min(10).parse(portalToken);
   const itemId = z.string().uuid().parse(vocabularyItemId);
   const parsedGrade = gradeSchema.parse(grade);
-
-  const student = await db.query.students.findFirst({
-    where: eq(students.portalToken, token),
-    columns: { id: true, teacherId: true },
-  });
-  if (!student) throw new Error("Portal not found");
+  const { token, student } = await requirePortalStudent(portalToken);
 
   const item = await db.query.vocabularyItems.findFirst({
     where: and(

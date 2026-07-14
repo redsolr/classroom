@@ -3,6 +3,7 @@ import { and, asc, count, eq, inArray, max, min, notInArray } from "drizzle-orm"
 import { format, formatDistanceToNow } from "date-fns";
 import { db, homework, lessons, teachers } from "@/db";
 import { requireStudent } from "@/lib/auth";
+import { NOT_HAPPENED_STATUSES } from "@/lib/lesson-status";
 import { Avatar } from "@/components/ui/avatar";
 import { Card, PageHeader } from "@/components/ui/page-header";
 
@@ -26,7 +27,7 @@ export default async function StudentTeacherPage() {
         .where(
           and(
             eq(lessons.studentId, student.id),
-            notInArray(lessons.status, ["scheduled", "cancelled"]),
+            notInArray(lessons.status, [...NOT_HAPPENED_STATUSES]),
           ),
         ),
       db.query.lessons.findFirst({

@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import { format } from "date-fns";
 import {
   CalendarClock,
@@ -19,13 +18,10 @@ import {
 } from "@/lib/actions/lessons";
 import { Button, SubmitButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/page-header";
+import { LinkButton } from "@/components/ui/link-button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Field, Input } from "@/components/ui/field";
-
-function toLocalDatetimeValue(d: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
+import { toLocalDatetimeValue } from "@/lib/datetime";
 
 export function ScheduledLessonPanel({ detail }: { detail: LessonDetail }) {
   const { lesson, student } = detail;
@@ -55,13 +51,10 @@ export function ScheduledLessonPanel({ detail }: { detail: LessonDetail }) {
               <CheckCheck className="size-3.5" />
               Mark attended
             </Button>
-            <Link
-              href={`/students/${student.id}/prep`}
-              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border-strong bg-surface px-3 text-[0.875rem] font-medium shadow-sm transition-colors hover:bg-surface-hover"
-            >
+            <LinkButton href={`/students/${student.id}/prep`}>
               <ClipboardList className="size-3.5 text-fg-tertiary" />
               Prep sheet
-            </Link>
+            </LinkButton>
             <Button size="sm" onClick={() => setRescheduleOpen(true)}>
               <CalendarClock className="size-3.5" />
               Reschedule

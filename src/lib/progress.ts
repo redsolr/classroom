@@ -1,5 +1,6 @@
 import { format } from "date-fns";
 import type { StudentProfile } from "@/lib/queries";
+import { isHappenedLesson } from "@/lib/lesson-status";
 
 export type VocabularyPipeline = {
   new: number;
@@ -59,7 +60,7 @@ export function buildProgress(profile: StudentProfile): StudentProgress {
   // profile.lessons is newest-first; window then flip to chronological.
   // Scheduled plans and cancellations never happened — no trend rows.
   const correctionsPerLesson = profile.lessons
-    .filter((l) => l.status !== "scheduled" && l.status !== "cancelled")
+    .filter((l) => isHappenedLesson(l.status))
     .slice(0, LESSON_WINDOW)
     .map((l) => ({
       lessonId: l.id,

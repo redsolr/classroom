@@ -1,6 +1,5 @@
 "use server";
 
-import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { and, eq } from "drizzle-orm";
@@ -17,6 +16,8 @@ import {
 import { requireTeacher } from "@/lib/auth";
 import { assertLessonOwned, assertStudentOwned } from "@/lib/guards";
 import { lessonDraftSchema } from "@/lib/ai/draft-schema";
+import { toLocalDateValue } from "@/lib/datetime";
+import { generateAccessToken } from "@/lib/tokens";
 
 const createLessonSchema = z.object({
   studentId: z.string().uuid(),
@@ -34,11 +35,6 @@ const createLessonSchema = z.object({
   // highlighted) instead of opening the lesson page.
   stay: z.enum(["calendar"]).optional(),
 });
-
-function toLocalDateValue(d: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
 
 export async function createLesson(formData: FormData) {
   const teacher = await requireTeacher();
@@ -386,7 +382,7 @@ export async function shareRecap(lessonId: string, formData: FormData) {
   });
 
   const token =
-    lessonRow?.recapToken ?? randomBytes(18).toString("base64url");
+    lessonRow?.recapToken ?? generateAccessToken();
 
   await db
     .update(lessons)
