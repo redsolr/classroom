@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "predev": "node scripts/ensure-dev-port.mjs",
     "dev": "next dev --turbopack -p 3020",
+    "predev:mock": "node scripts/ensure-dev-port.mjs",
     "dev:mock": "cross-env MOCK_AUTH=true next dev --turbopack -p 3020",
     "build": "next build",
     "start": "next start -p 3020",
