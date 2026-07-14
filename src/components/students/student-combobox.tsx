@@ -75,8 +75,10 @@ export function StudentCombobox({
                   type="button"
                   role="option"
                   aria-selected={selected?.id === s.id}
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => {
+                  // Select on mousedown — it fires before the input's blur,
+                  // so the click can never race the list closing.
+                  onMouseDown={(e) => {
+                    e.preventDefault();
                     setSelected(s);
                     setQuery("");
                     setOpen(false);

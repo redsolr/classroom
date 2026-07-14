@@ -41,12 +41,15 @@ export function WeekCalendar({
   weekStartIso,
   todayIso,
   readOnly = false,
+  createdId,
 }: {
   lessons: CalendarLesson[];
   students?: { id: string; name: string }[];
   weekStartIso: string;
   todayIso: string;
   readOnly?: boolean;
+  /** Freshly created booking — its chip plays a one-time pop. */
+  createdId?: string;
 }) {
   const [slot, setSlot] = React.useState<string | null>(null);
 
@@ -100,54 +103,57 @@ export function WeekCalendar({
               const cellLessons = byCell.get(key) ?? [];
               const slotDate = new Date(day);
               slotDate.setHours(hour, 0, 0, 0);
-              const cell = (
+
+              const chips = cellLessons.map((lesson) => {
+                const chip = (
+                  <span
+                    className={cn(
+                      "block truncate rounded px-1.5 py-0.5 text-left text-[0.7rem] font-medium",
+                      lesson.status === "scheduled"
+                        ? "bg-accent-soft text-accent-text"
+                        : "bg-surface-hover text-fg-secondary",
+                      lesson.id === createdId && "chip-created",
+                    )}
+                    title={`${format(new Date(lesson.startedAt), "HH:mm")} · ${lesson.studentName}${lesson.title ? ` · ${lesson.title}` : ""}`}
+                  >
+                    {format(new Date(lesson.startedAt), "HH:mm")}{" "}
+                    {lesson.studentName}
+                  </span>
+                );
+                return readOnly ? (
+                  <React.Fragment key={lesson.id}>{chip}</React.Fragment>
+                ) : (
+                  <Link
+                    key={lesson.id}
+                    href={`/schedule?lesson=${lesson.id}`}
+                    className="block"
+                  >
+                    {chip}
+                  </Link>
+                );
+              });
+
+              // Chips and the book-this-slot button are SIBLINGS — never
+              // nested interactives (a chip click must not also arm the
+              // slot, and vice versa). The button fills the empty space.
+              return (
                 <div
+                  key={key}
                   className={cn(
-                    "min-h-11 space-y-0.5 border-l border-border p-0.5",
+                    "flex min-h-11 flex-col border-l border-border p-0.5",
                     isSameDay(day, today) && "bg-accent-soft/30",
                   )}
                 >
-                  {cellLessons.map((lesson) => {
-                    const chip = (
-                      <span
-                        className={cn(
-                          "block truncate rounded px-1.5 py-0.5 text-left text-[0.7rem] font-medium",
-                          lesson.status === "scheduled"
-                            ? "bg-accent-soft text-accent-text"
-                            : "bg-surface-hover text-fg-secondary",
-                        )}
-                        title={`${format(new Date(lesson.startedAt), "HH:mm")} · ${lesson.studentName}${lesson.title ? ` · ${lesson.title}` : ""}`}
-                      >
-                        {format(new Date(lesson.startedAt), "HH:mm")}{" "}
-                        {lesson.studentName}
-                      </span>
-                    );
-                    return readOnly ? (
-                      <React.Fragment key={lesson.id}>{chip}</React.Fragment>
-                    ) : (
-                      <Link
-                        key={lesson.id}
-                        href={`/schedule?lesson=${lesson.id}`}
-                        className="block"
-                      >
-                        {chip}
-                      </Link>
-                    );
-                  })}
+                  {chips.length > 0 && <div className="space-y-0.5">{chips}</div>}
+                  {!readOnly && (
+                    <button
+                      type="button"
+                      aria-label={`Schedule ${format(day, "EEE MMM d")} at ${String(hour).padStart(2, "0")}:00`}
+                      onClick={() => setSlot(toLocalDatetimeValue(slotDate))}
+                      className="min-h-4 w-full flex-1 cursor-pointer rounded transition-colors hover:bg-surface-hover/60"
+                    />
+                  )}
                 </div>
-              );
-
-              if (readOnly) return <div key={key}>{cell}</div>;
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  aria-label={`Schedule ${format(day, "EEE MMM d")} at ${String(hour).padStart(2, "0")}:00`}
-                  onClick={() => setSlot(toLocalDatetimeValue(slotDate))}
-                  className="cursor-pointer text-left transition-colors hover:bg-surface-hover/60"
-                >
-                  {cell}
-                </button>
               );
             })}
           </div>
@@ -162,6 +168,7 @@ export function WeekCalendar({
             if (!next) setSlot(null);
           }}
           initialStart={slot ?? undefined}
+          stay="calendar"
         />
       )}
     </Card>

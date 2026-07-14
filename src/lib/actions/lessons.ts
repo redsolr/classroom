@@ -30,7 +30,15 @@ const createLessonSchema = z.object({
   sourceType: z
     .enum(["manual", "notes", "chat", "transcript", "audio"])
     .default("notes"),
+  // "calendar" keeps the teacher on the calendar (with the new booking
+  // highlighted) instead of opening the lesson page.
+  stay: z.enum(["calendar"]).optional(),
 });
+
+function toLocalDateValue(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
 
 export async function createLesson(formData: FormData) {
   const teacher = await requireTeacher();
@@ -57,6 +65,13 @@ export async function createLesson(formData: FormData) {
   revalidatePath("/lessons");
   revalidatePath("/dashboard");
   revalidatePath("/schedule");
+  revalidatePath("/calendar");
+
+  if (parsed.stay === "calendar") {
+    redirect(
+      `/calendar?week=${toLocalDateValue(startedAt)}&created=${created.id}`,
+    );
+  }
   redirect(`/lessons/${created.id}`);
 }
 

@@ -119,6 +119,34 @@ html {
   font-size: 16px;
 }
 
+/* One-time entrance for a just-created booking chip on the calendar. */
+@keyframes chip-created-pop {
+  from {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.1);
+    opacity: 1;
+  }
+  to {
+    transform: scale(1);
+  }
+}
+@keyframes chip-created-ring {
+  from {
+    box-shadow: 0 0 0 3px var(--accent);
+  }
+  to {
+    box-shadow: 0 0 0 6px transparent;
+  }
+}
+.chip-created {
+  animation:
+    chip-created-pop 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.15) both,
+    chip-created-ring 1.4s ease-out 0.35s both;
+}
+
 body {
   background: var(--bg);
   color: var(--text);

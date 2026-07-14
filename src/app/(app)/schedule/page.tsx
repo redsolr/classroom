@@ -17,11 +17,8 @@ import {
   getLessonWithRecords,
   getPrepSheet,
   getScheduleData,
-  getWeekLessons,
   listStudents,
 } from "@/lib/queries";
-import { nowIso, resolveWeekStart } from "@/lib/week";
-import { WeekCalendar } from "@/components/schedule/week-calendar";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge, homeworkStatusTone, lessonStatusTone } from "@/components/ui/badge";
 import { Card, CardHeader, PageHeader } from "@/components/ui/page-header";
@@ -339,21 +336,14 @@ async function DetailPanel({
 export default async function SchedulePage({
   searchParams,
 }: {
-  searchParams: Promise<{ lesson?: string; view?: string; week?: string }>;
+  searchParams: Promise<{ lesson?: string }>;
 }) {
-  const { lesson: selectedId, view, week } = await searchParams;
+  const { lesson: selectedId } = await searchParams;
   const teacher = await requireTeacher();
-  const calendarView = view === "calendar";
-  const weekStart = resolveWeekStart(week);
-
-  const [{ upcoming, awaitingWriteUp }, students, weekLessons] =
-    await Promise.all([
-      getScheduleData(teacher.id),
-      listStudents(teacher.id),
-      calendarView
-        ? getWeekLessons(teacher.id, weekStart)
-        : Promise.resolve([]),
-    ]);
+  const [{ upcoming, awaitingWriteUp }, students] = await Promise.all([
+    getScheduleData(teacher.id),
+    listStudents(teacher.id),
+  ]);
   const studentOptions = students.map((s) => ({ id: s.id, name: s.name }));
 
   // Group upcoming appointments by day, preserving chronological order.
@@ -381,85 +371,16 @@ export default async function SchedulePage({
             : `${upcoming.length} upcoming lesson${upcoming.length === 1 ? "" : "s"}`
         }
         actions={
-          <div className="flex items-center gap-2">
-            <div className="flex items-center rounded-md border border-border-strong bg-surface p-0.5 shadow-sm">
-              <Link
-                href="/schedule"
-                className={`rounded px-2.5 py-1 text-[0.8125rem] font-medium transition-colors ${
-                  !calendarView
-                    ? "bg-accent-soft text-accent-text"
-                    : "text-fg-secondary hover:text-fg"
-                }`}
-              >
-                Agenda
-              </Link>
-              <Link
-                href="/schedule?view=calendar"
-                className={`rounded px-2.5 py-1 text-[0.8125rem] font-medium transition-colors ${
-                  calendarView
-                    ? "bg-accent-soft text-accent-text"
-                    : "text-fg-secondary hover:text-fg"
-                }`}
-              >
-                Calendar
-              </Link>
-            </div>
-            {studentOptions.length > 0 && (
-              <NewLessonDialog
-                students={studentOptions}
-                triggerLabel="Schedule lesson"
-              />
-            )}
-          </div>
+          studentOptions.length > 0 ? (
+            <NewLessonDialog
+              students={studentOptions}
+              triggerLabel="Schedule lesson"
+            />
+          ) : undefined
         }
       />
 
-      {calendarView ? (
-        <div>
-          <div className="mb-3 flex items-center justify-between">
-            <p className="text-[0.9375rem] font-medium">
-              {format(weekStart, "MMM d")} –{" "}
-              {format(
-                new Date(weekStart.getTime() + 6 * 24 * 60 * 60 * 1000),
-                "MMM d, yyyy",
-              )}
-            </p>
-            <div className="flex items-center gap-1.5">
-              <Link
-                href={`/schedule?view=calendar&week=${format(new Date(weekStart.getTime() - 7 * 24 * 60 * 60 * 1000), "yyyy-MM-dd")}`}
-                className="rounded-md border border-border-strong bg-surface px-2.5 py-1 text-[0.8125rem] font-medium shadow-sm transition-colors hover:bg-surface-hover"
-              >
-                ← Prev
-              </Link>
-              <Link
-                href="/schedule?view=calendar"
-                className="rounded-md border border-border-strong bg-surface px-2.5 py-1 text-[0.8125rem] font-medium shadow-sm transition-colors hover:bg-surface-hover"
-              >
-                This week
-              </Link>
-              <Link
-                href={`/schedule?view=calendar&week=${format(new Date(weekStart.getTime() + 7 * 24 * 60 * 60 * 1000), "yyyy-MM-dd")}`}
-                className="rounded-md border border-border-strong bg-surface px-2.5 py-1 text-[0.8125rem] font-medium shadow-sm transition-colors hover:bg-surface-hover"
-              >
-                Next →
-              </Link>
-            </div>
-          </div>
-          <WeekCalendar
-            lessons={weekLessons.map((l) => ({
-              id: l.id,
-              title: l.title,
-              studentName: l.studentName,
-              startedAt: l.startedAt.toISOString(),
-              durationMinutes: l.durationMinutes,
-              status: l.status,
-            }))}
-            students={studentOptions}
-            weekStartIso={weekStart.toISOString()}
-            todayIso={nowIso()}
-          />
-        </div>
-      ) : upcoming.length === 0 && awaitingWriteUp.length === 0 ? (
+      {upcoming.length === 0 && awaitingWriteUp.length === 0 ? (
         <EmptyState
           icon={<CalendarClock />}
           title="Your schedule is clear"

@@ -375,11 +375,11 @@ test("schedule: agenda lists the appointment, row opens student context", async 
   ).toBeVisible();
 });
 
-test("calendar: click a slot → prefilled booking → chip on the grid", async ({
+test("calendar: slot click → prefilled booking → stays put, chip pops in", async ({
   page,
 }) => {
   // Fixed week so slot labels are deterministic (2031-06-02 is a Monday).
-  await page.goto("/schedule?view=calendar&week=2031-06-02");
+  await page.goto("/calendar?week=2031-06-02");
   await page.getByLabel("Schedule Mon Jun 2 at 10:00").click();
 
   // The dialog opens prefilled with the clicked slot.
@@ -388,13 +388,13 @@ test("calendar: click a slot → prefilled booking → chip on the grid", async 
   await page.getByRole("option", { name: studentName }).click();
   await page.getByLabel("Title").fill(`Calendar E2E ${runId}`);
   await page.getByRole("button", { name: "Create lesson" }).click();
-  await page.waitForURL(/\/lessons\/[0-9a-f-]{36}/);
 
-  // Back on the grid, the lesson shows as a chip in its slot.
-  await page.goto("/schedule?view=calendar&week=2031-06-02");
-  await expect(
-    page.getByText(new RegExp(`10:00 ${studentName}`)).first(),
-  ).toBeVisible();
+  // No detour to the lesson page: we land back on the calendar with the
+  // new booking highlighted (one-time entrance animation).
+  await page.waitForURL(/\/calendar\?week=2031-06-02&created=[0-9a-f-]{36}/);
+  const chip = page.getByText(new RegExp(`10:00 ${studentName}`)).first();
+  await expect(chip).toBeVisible();
+  await expect(chip).toHaveClass(/chip-created/);
 });
 
 test("teacher accounts are kept out of the student area", async ({ page }) => {

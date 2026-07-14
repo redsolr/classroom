@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   BookOpenText,
   CalendarClock,
+  CalendarDays,
   GraduationCap,
   LayoutDashboard,
   LogOut,
@@ -23,6 +24,7 @@ import {
 
 const nav = [
   { href: "/schedule", label: "Schedule", icon: CalendarClock },
+  { href: "/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
   { href: "/students", label: "Students", icon: Users },
   { href: "/lessons", label: "Lessons", icon: BookOpenText },

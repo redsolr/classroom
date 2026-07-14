@@ -28,6 +28,7 @@ export function NewLessonDialog({
   open: controlledOpen,
   onOpenChange,
   initialStart,
+  stay,
 }: {
   studentId?: string;
   students?: { id: string; name: string }[];
@@ -35,6 +36,8 @@ export function NewLessonDialog({
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   initialStart?: string;
+  /** "calendar": after creating, stay on the calendar with the booking highlighted. */
+  stay?: "calendar";
 }) {
   const controlled = controlledOpen !== undefined;
   const [uncontrolledOpen, setUncontrolledOpen] = React.useState(false);
@@ -63,6 +66,7 @@ export function NewLessonDialog({
       )}
       <DialogContent title="New lesson">
         <form action={createLesson} className="space-y-3">
+          {stay && <input type="hidden" name="stay" value={stay} />}
           {studentId ? (
             <input type="hidden" name="studentId" value={studentId} />
           ) : (
