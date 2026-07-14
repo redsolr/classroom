@@ -379,6 +379,45 @@ export async function getPrepSheet(teacherId: string, studentId: string) {
 export type PrepSheet = NonNullable<Awaited<ReturnType<typeof getPrepSheet>>>;
 
 // ---------------------------------------------------------------------------
+// Schedule — the appointment-centric view: what's coming, and which past
+// appointments still need their write-up finished.
+// ---------------------------------------------------------------------------
+
+export async function getScheduleData(teacherId: string) {
+  const [upcoming, awaitingWriteUp] = await Promise.all([
+    db
+      .select({ lesson: lessons, studentName: students.name })
+      .from(lessons)
+      .innerJoin(students, eq(students.id, lessons.studentId))
+      .where(
+        and(eq(lessons.teacherId, teacherId), eq(lessons.status, "scheduled")),
+      )
+      .orderBy(asc(lessons.startedAt))
+      .limit(30),
+    db
+      .select({ lesson: lessons, studentName: students.name })
+      .from(lessons)
+      .innerJoin(students, eq(students.id, lessons.studentId))
+      .where(
+        and(
+          eq(lessons.teacherId, teacherId),
+          inArray(lessons.status, ["draft", "processed"]),
+        ),
+      )
+      .orderBy(desc(lessons.startedAt))
+      .limit(8),
+  ]);
+
+  return {
+    upcoming: upcoming.map((r) => ({ ...r.lesson, studentName: r.studentName })),
+    awaitingWriteUp: awaitingWriteUp.map((r) => ({
+      ...r.lesson,
+      studentName: r.studentName,
+    })),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Dashboard
 // ---------------------------------------------------------------------------
 

@@ -56,10 +56,10 @@ export default async function DashboardPage() {
             title="Up next"
             actions={
               <Link
-                href="/lessons"
+                href="/schedule"
                 className="text-[0.8125rem] text-accent-text hover:underline"
               >
-                All lessons
+                Schedule
               </Link>
             }
           />

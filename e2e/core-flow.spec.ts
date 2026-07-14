@@ -343,6 +343,38 @@ test("study companion: portal AI chat is grounded in the student's record", asyn
   await expect(page.getByText(/she goes/).first()).toBeVisible();
 });
 
+test("schedule: agenda lists the appointment, row opens student context", async ({
+  page,
+}) => {
+  // Book an appointment for the e2e student.
+  const agendaTitle = `Agenda E2E ${runId}`;
+  await page.goto("/students");
+  await page.getByRole("link", { name: studentName }).click();
+  await page.waitForURL(/\/students\/[0-9a-f-]{36}/);
+  await page.getByRole("tab", { name: /^Lessons/ }).click();
+  await page.getByRole("button", { name: "New lesson" }).click();
+  await page.getByLabel("Title").fill(agendaTitle);
+  await page.getByLabel("Date & time").fill("2031-06-01T09:00");
+  await page.getByRole("button", { name: "Create lesson" }).click();
+  await page.waitForURL(/\/lessons\/[0-9a-f-]{36}/);
+
+  // The agenda shows it; clicking the row opens the context panel.
+  await page.goto("/schedule");
+  await page
+    .getByRole("link", { name: new RegExp(agendaTitle) })
+    .first()
+    .click();
+  await expect(
+    page.getByRole("link", { name: studentName, exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("Suggested focus")).toBeVisible();
+  await expect(page.getByText(/Homework to check/)).toBeVisible();
+  await expect(page.getByText("she go", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Mark attended" }),
+  ).toBeVisible();
+});
+
 test("an invalid recap token is a 404, not a data leak", async ({ page }) => {
   const response = await page.goto(`/r/definitely-not-a-real-token-${runId}`);
   expect(response?.status()).toBe(404);
