@@ -48,7 +48,7 @@ function LessonRow({
   return (
     <Link
       href={`/schedule?lesson=${row.id}`}
-      className={`flex items-center gap-2.5 rounded-md px-2 py-2 transition-colors ${
+      className={`flex items-center gap-2.5 px-3 py-2 transition-colors ${
         selected ? "bg-accent-soft" : "hover:bg-surface-hover"
       }`}
     >
@@ -394,8 +394,8 @@ export default async function SchedulePage({
                 <p className="mb-1.5 px-2 text-[0.8125rem] font-medium text-fg-tertiary">
                   {day.label}
                 </p>
-                <Card className="p-1">
-                  <div className="space-y-0.5">
+                <Card className="overflow-hidden">
+                  <div className="divide-y divide-border">
                     {day.rows.map((row) => (
                       <LessonRow
                         key={row.id}
@@ -413,8 +413,8 @@ export default async function SchedulePage({
                 <p className="mb-1.5 px-2 text-[0.8125rem] font-medium text-fg-tertiary">
                   Awaiting write-up
                 </p>
-                <Card className="p-1">
-                  <div className="space-y-0.5">
+                <Card className="overflow-hidden">
+                  <div className="divide-y divide-border">
                     {awaitingWriteUp.map((row) => (
                       <LessonRow
                         key={row.id}
