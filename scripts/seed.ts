@@ -1,11 +1,12 @@
 /**
- * Seed the local DB with a demo teacher + students + lessons so the app
- * is explorable immediately under `npm run dev:mock`.
+ * Seed the local DB with demo students + lessons so the app is
+ * explorable immediately.
  *
- *   npm run db:seed
- *
- * The teacher row uses the same workos_user_id the MOCK_AUTH session
- * resolves to, so mock login lands directly in this data.
+ *   npm run db:seed                            → seeds the MOCK teacher
+ *     (the account `npm run dev:mock` auto-signs you into)
+ *   npm run db:seed -- you@example.com         → seeds YOUR real account
+ *     (sign in to the app once with that email first, so the teacher
+ *     row exists; the seed wipes that account's students and re-seeds)
  */
 import { eq } from "drizzle-orm";
 import {
@@ -21,13 +22,38 @@ import {
   teachers,
   vocabularyItems,
   vocabularyReviews,
+  type Teacher,
 } from "../src/db";
 
 const DAY = 24 * 60 * 60 * 1000;
 const daysAgo = (n: number) => new Date(Date.now() - n * DAY);
 const daysAhead = (n: number) => new Date(Date.now() + n * DAY);
 
-async function main() {
+/**
+ * Resolve the teacher to seed into. With an email argument, seed the
+ * real signed-up account (students wiped + re-seeded; the account row
+ * itself is untouched). Without one, recreate the mock demo teacher.
+ */
+async function resolveTeacher(): Promise<Teacher> {
+  const email = process.env.SEED_TEACHER_EMAIL ?? process.argv[2];
+
+  if (email) {
+    const existing = await db.query.teachers.findFirst({
+      where: eq(teachers.email, email),
+    });
+    if (!existing) {
+      console.error(
+        `No teacher account found for ${email}.\n` +
+          "Sign in to the app once with that account (so the teacher row exists), then re-run:\n" +
+          `  npm run db:seed -- ${email}`,
+      );
+      process.exit(1);
+    }
+    console.log(`Seeding into ${email} — wiping that account's students first.`);
+    await db.delete(students).where(eq(students.teacherId, existing.id));
+    return existing;
+  }
+
   const existing = await db.query.teachers.findFirst({
     where: eq(teachers.workosUserId, "mock_teacher_dev"),
   });
@@ -37,7 +63,7 @@ async function main() {
     await db.delete(teachers).where(eq(teachers.id, existing.id));
   }
 
-  const [teacher] = await db
+  const [created] = await db
     .insert(teachers)
     .values({
       workosUserId: "mock_teacher_dev",
@@ -48,6 +74,22 @@ async function main() {
       timezone: "Asia/Bangkok",
     })
     .returning();
+  return created;
+}
+
+async function main() {
+  const teacher = await resolveTeacher();
+
+  // The fixed demo tokens are unique DB-wide — release them from any
+  // previously seeded account before re-inserting.
+  await db
+    .update(students)
+    .set({ portalToken: null })
+    .where(eq(students.portalToken, "demo-marie-portal-token"));
+  await db
+    .update(lessons)
+    .set({ recapToken: null, recapSharedAt: null })
+    .where(eq(lessons.recapToken, "demo-marie-recap-1"));
 
   // --- Marie: active French→English student with rich history ------------
   const [marie] = await db
@@ -479,7 +521,11 @@ async function main() {
     "  students Marie (italki, portal+SRS+AI chat), Kenji (Preply, trial), Ana (Zoom, no-show), Somchai (in person), David (referral, inactive)",
   );
   console.log("  portal   /p/demo-marie-portal-token");
-  console.log("Run `npm run dev:mock` and you'll land in this data.");
+  console.log(
+    teacher.workosUserId === "mock_teacher_dev"
+      ? "Run `npm run dev:mock` and you'll land in this data."
+      : `Run \`npm run dev\` and sign in as ${teacher.email} to see this data.`,
+  );
   process.exit(0);
 }
 
