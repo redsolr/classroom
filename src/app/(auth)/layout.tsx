@@ -29,7 +29,9 @@ export default function AuthLayout({
       </div>
 
       <div className="relative z-10 flex w-full flex-1 items-start justify-center px-4 py-6 md:items-center md:py-8">
-        <div className="auth-card w-full max-w-[480px] rounded-2xl px-6 pb-6 pt-7 sm:px-8">
+        {/* 520px = the shared auth-card width across Jurisimus FE apps
+            (web-app/crm-web AuthShell) — keep in sync. */}
+        <div className="auth-card w-full max-w-[520px] rounded-2xl px-6 pb-6 pt-7 sm:px-8">
           {children}
         </div>
       </div>
