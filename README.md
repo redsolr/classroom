@@ -18,7 +18,7 @@ Self-contained Next.js full-stack app — deploys to Vercel as-is.
 | Layer | Technology |
 | --- | --- |
 | Framework | Next.js 16 (App Router, server actions) + React 19 |
-| Database | PostgreSQL + Drizzle ORM (local Docker; Supabase in prod) |
+| Database | PostgreSQL + Drizzle ORM (local Docker; Neon in prod) |
 | Auth | WorkOS custom flow ported from Jurisimus web-app — own /login + /signup (B2C, visible), direct Google/Apple OAuth, email-verification step, forgot-password; `MOCK_AUTH` dev mode |
 | AI | Anthropic `claude-opus-4-8` structured extraction (`messages.parse` + zod schema); deterministic mock when no API key |
 | Styling | Tailwind CSS v4 + Radix primitives, Linear/Attio-inspired design tokens |
@@ -88,7 +88,8 @@ overridable via `CLASSROOM_AI_MODEL`).
 
 ### Deploying to Vercel
 
-Set `DATABASE_URL` (Supabase), the four `WORKOS_*` vars (redirect URI
+Set `DATABASE_URL` (Neon — pooled URL for runtime; use the direct/unpooled
+URL for migrations), the four `WORKOS_*` vars (redirect URI
 `https://<domain>/callback`), `NEXT_PUBLIC_APP_URL`, and optionally
 `ANTHROPIC_API_KEY`. Run migrations against the production database with
 `DATABASE_URL=<prod> npm run db:migrate` — never `db:push`.
