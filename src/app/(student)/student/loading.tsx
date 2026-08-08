@@ -1,5 +1,5 @@
-import { RouteLoading } from "@/components/ui/route-loading";
+import { StudentRouteSkeleton } from "@/components/ui/route-loading";
 
 export default function StudentRouteLoading() {
-  return <RouteLoading />;
+  return <StudentRouteSkeleton />;
 }

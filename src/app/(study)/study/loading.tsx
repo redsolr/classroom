@@ -1,5 +1,5 @@
-import { RouteLoading } from "@/components/ui/route-loading";
+import { StudyChatSkeleton } from "@/components/ui/route-loading";
 
 export default function StudyRouteLoading() {
-  return <RouteLoading />;
+  return <StudyChatSkeleton />;
 }
