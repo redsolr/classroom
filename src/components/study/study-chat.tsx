@@ -197,7 +197,10 @@ export function StudyChat({
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    // isComposing: Enter while an IME (Japanese/Chinese/Korean…) is
+    // converting must COMMIT the composition, never send the message —
+    // the message goes only when the learner sends it themselves.
+    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       void send();
     }
