@@ -1,9 +1,10 @@
 import type { NextRequest } from "next/server";
-import { and, asc, count, eq, gte, ne, sql } from "drizzle-orm";
+import { and, asc, eq, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db, studyMessages, studyThreads, studyVocab } from "@/db";
 import { getLearner } from "@/lib/auth";
 import { dailyCapFor, learnerHasPro } from "@/lib/billing";
+import { countTutorMessagesLast24h } from "@/lib/study-usage";
 import {
   resolveStudyModel,
   streamTutorReply,
@@ -51,16 +52,7 @@ export async function POST(req: NextRequest) {
 
   // The plan gate: rolling-24h user-message count across all threads.
   const cap = dailyCapFor(learner);
-  const [{ value: messagesToday }] = await db
-    .select({ value: count() })
-    .from(studyMessages)
-    .where(
-      and(
-        eq(studyMessages.learnerId, learner.id),
-        eq(studyMessages.role, "user"),
-        gte(studyMessages.createdAt, sql`now() - interval '24 hours'`),
-      ),
-    );
+  const messagesToday = await countTutorMessagesLast24h(learner.id);
   if (messagesToday >= cap) {
     return Response.json(
       { error: "daily_cap", cap, pro: learnerHasPro(learner) },

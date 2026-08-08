@@ -5,24 +5,13 @@ import { BookOpenCheck, Trash2 } from "lucide-react";
 import { db, studyVocab, type StudyVocabItem } from "@/db";
 import { addStudyVocab, deleteStudyVocab } from "@/lib/actions/study";
 import { requireLearner } from "@/lib/auth";
+import { isCardDue } from "@/lib/srs";
+import { STUDY_LANGUAGES } from "@/lib/study-languages";
 import { Field, Input, Select } from "@/components/ui/field";
 import { SubmitButton } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "My vocabulary" };
-
-const LANGUAGES = [
-  "French",
-  "Japanese",
-  "English",
-  "Spanish",
-  "German",
-  "Italian",
-  "Korean",
-  "Chinese",
-  "Thai",
-  "Portuguese",
-];
 
 const STATUS_STYLES: Record<StudyVocabItem["status"], string> = {
   new: "bg-surface-hover text-fg-secondary",
@@ -30,10 +19,6 @@ const STATUS_STYLES: Record<StudyVocabItem["status"], string> = {
   reviewing: "bg-accent-soft text-accent-text",
   mastered: "bg-accent text-white",
 };
-
-function isDue(item: StudyVocabItem, now: Date): boolean {
-  return item.srsDueAt === null || item.srsDueAt <= now;
-}
 
 export default async function StudyVocabPage() {
   const learner = await requireLearner();
@@ -45,7 +30,7 @@ export default async function StudyVocabPage() {
     .where(eq(studyVocab.learnerId, learner.id))
     .orderBy(desc(studyVocab.createdAt));
 
-  const dueCount = items.filter((item) => isDue(item, now)).length;
+  const dueCount = items.filter((item) => isCardDue(item.srsDueAt, now)).length;
   const byLanguage = new Map<string, StudyVocabItem[]>();
   for (const item of items) {
     const list = byLanguage.get(item.language) ?? [];
@@ -82,7 +67,7 @@ export default async function StudyVocabPage() {
         <form action={addStudyVocab} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Language">
             <Select name="language" defaultValue="French">
-              {LANGUAGES.map((lang) => (
+              {STUDY_LANGUAGES.map((lang) => (
                 <option key={lang} value={lang}>
                   {lang}
                 </option>
@@ -153,7 +138,7 @@ export default async function StudyVocabPage() {
                       STATUS_STYLES[item.status],
                     )}
                   >
-                    {isDue(item, now) ? "due" : item.status}
+                    {isCardDue(item.srsDueAt, now) ? "due" : item.status}
                   </span>
                   <form action={deleteStudyVocab.bind(null, item.id)}>
                     <button

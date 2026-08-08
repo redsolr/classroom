@@ -78,3 +78,39 @@ export function deriveVocabularyStatus(
   if (next.intervalDays >= 7) return "reviewing";
   return "learning";
 }
+
+export type SrsReviewPatch = {
+  srsReps: number;
+  srsEaseFactor: number;
+  srsIntervalDays: number;
+  srsDueAt: Date;
+  lastReviewedAt: Date;
+  status: "new" | "learning" | "reviewing" | "mastered";
+};
+
+/**
+ * One graded review as the column patch both vocabulary tables share
+ * (roster `vocabulary_items` and learner `study_vocab` use identical SRS
+ * column names) — the review actions spread it into their updates
+ * instead of each re-deriving schedule + status.
+ */
+export function srsReviewPatch(
+  state: SrsState,
+  grade: ReviewGrade,
+  now: Date,
+): SrsReviewPatch {
+  const next = nextSrsState(state, grade);
+  return {
+    srsReps: next.reps,
+    srsEaseFactor: next.easeFactor,
+    srsIntervalDays: next.intervalDays,
+    srsDueAt: new Date(now.getTime() + next.dueInMs),
+    lastReviewedAt: now,
+    status: deriveVocabularyStatus(next),
+  };
+}
+
+/** A card with no srsDueAt has never been reviewed — always due. */
+export function isCardDue(srsDueAt: Date | null, now: Date): boolean {
+  return srsDueAt === null || srsDueAt <= now;
+}

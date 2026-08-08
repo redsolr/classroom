@@ -11,7 +11,7 @@ import {
   getStripe,
   studyPriceId,
 } from "@/lib/billing";
-import { deriveVocabularyStatus, nextSrsState } from "@/lib/srs";
+import { srsReviewPatch } from "@/lib/srs";
 
 // ---------------------------------------------------------------------------
 // Threads
@@ -110,26 +110,19 @@ export async function reviewStudyVocab(
   if (!item) throw new Error("Vocabulary item not found");
 
   const now = new Date();
-  const next = nextSrsState(
+  const patch = srsReviewPatch(
     {
       reps: item.srsReps,
       easeFactor: item.srsEaseFactor,
       intervalDays: item.srsIntervalDays,
     },
     parsedGrade,
+    now,
   );
 
   await db
     .update(studyVocab)
-    .set({
-      srsReps: next.reps,
-      srsEaseFactor: next.easeFactor,
-      srsIntervalDays: next.intervalDays,
-      srsDueAt: new Date(now.getTime() + next.dueInMs),
-      lastReviewedAt: now,
-      status: deriveVocabularyStatus(next),
-      updatedAt: now,
-    })
+    .set({ ...patch, updatedAt: now })
     .where(and(eq(studyVocab.id, id), eq(studyVocab.learnerId, learner.id)));
 
   // Deliberately NOT revalidating /study/vocab/review: the review page

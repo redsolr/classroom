@@ -6,6 +6,8 @@ import { db, studyMessages, studyThreads } from "@/db";
 import { createStudyThread } from "@/lib/actions/study";
 import { STUDY_MODEL, STUDY_MODELS } from "@/lib/ai/study-tutor";
 import { requireLearner } from "@/lib/auth";
+import { STUDY_LANGUAGES } from "@/lib/study-languages";
+import type { StudyThread } from "@/db";
 import { StudyChat } from "@/components/study/study-chat";
 import { DeleteThreadButton } from "@/components/study/delete-thread-button";
 import { Select } from "@/components/ui/field";
@@ -14,18 +16,9 @@ import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Study chat" };
 
-const LANGUAGES = [
-  "French",
-  "Japanese",
-  "English",
-  "Spanish",
-  "German",
-  "Italian",
-  "Korean",
-  "Chinese",
-  "Thai",
-  "Portuguese",
-];
+function threadTitle(thread: Pick<StudyThread, "title" | "language">): string {
+  return thread.title ?? `${thread.language} chat`;
+}
 
 function NewThreadForm({ compact = false }: { compact?: boolean }) {
   return (
@@ -39,7 +32,7 @@ function NewThreadForm({ compact = false }: { compact?: boolean }) {
         aria-label="Language"
         className="flex-1"
       >
-        {LANGUAGES.map((lang) => (
+        {STUDY_LANGUAGES.map((lang) => (
           <option key={lang} value={lang}>
             {lang}
           </option>
@@ -112,7 +105,7 @@ export default async function StudyChatPage({
               )}
             >
               <span className="block truncate text-[0.875rem] font-medium">
-                {thread.title ?? `${thread.language} chat`}
+                {threadTitle(thread)}
               </span>
               <span className="block text-[0.75rem] text-fg-tertiary">
                 {thread.language}
@@ -144,7 +137,7 @@ export default async function StudyChatPage({
                     : "border border-border-strong bg-surface",
                 )}
               >
-                {(thread.title ?? `${thread.language} chat`).slice(0, 24)}
+                {threadTitle(thread).slice(0, 24)}
               </Link>
             ))}
           </div>
@@ -155,7 +148,7 @@ export default async function StudyChatPage({
             <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-2.5 sm:px-6">
               <div className="min-w-0">
                 <h1 className="truncate text-[0.9375rem] font-semibold">
-                  {active.title ?? `${active.language} chat`}
+                  {threadTitle(active)}
                 </h1>
                 <p className="text-[0.78rem] text-fg-tertiary">
                   {active.language}

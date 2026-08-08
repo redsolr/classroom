@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import { format } from "date-fns";
-import { and, count, eq, gte, sql } from "drizzle-orm";
 import { BadgeCheck, CreditCard, Gauge, TriangleAlert } from "lucide-react";
-import { db, studyMessages } from "@/db";
 import {
   billingConfigured,
   FREE_DAILY_CAP,
@@ -15,6 +13,7 @@ import {
 } from "@/lib/actions/study";
 import { STUDY_MODEL, STUDY_MODELS } from "@/lib/ai/study-tutor";
 import { requireLearner } from "@/lib/auth";
+import { countTutorMessagesLast24h } from "@/lib/study-usage";
 import { SubmitButton } from "@/components/ui/button";
 
 export const metadata: Metadata = { title: "Account" };
@@ -30,16 +29,7 @@ export default async function StudyAccountPage({
   const pro = learnerHasPro(learner);
   const cap = pro ? PRO_DAILY_CAP : FREE_DAILY_CAP;
 
-  const [{ value: usedToday }] = await db
-    .select({ value: count() })
-    .from(studyMessages)
-    .where(
-      and(
-        eq(studyMessages.learnerId, learner.id),
-        eq(studyMessages.role, "user"),
-        gte(studyMessages.createdAt, sql`now() - interval '24 hours'`),
-      ),
-    );
+  const usedToday = await countTutorMessagesLast24h(learner.id);
 
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-8 sm:px-6">

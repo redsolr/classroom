@@ -19,7 +19,7 @@ import {
   type CompanionContext,
   type CompanionTurn,
 } from "@/lib/ai/companion";
-import { deriveVocabularyStatus, nextSrsState } from "@/lib/srs";
+import { srsReviewPatch } from "@/lib/srs";
 
 const submitSchema = z.object({
   submissionText: z.string().trim().max(5000).optional(),
@@ -231,26 +231,20 @@ export async function reviewVocabularyViaPortal(
   if (!item) throw new Error("Vocabulary item not found");
 
   const now = new Date();
-  const next = nextSrsState(
+  const patch = srsReviewPatch(
     {
       reps: item.srsReps,
       easeFactor: item.srsEaseFactor,
       intervalDays: item.srsIntervalDays,
     },
     parsedGrade,
+    now,
   );
 
   await db.transaction(async (tx) => {
     await tx
       .update(vocabularyItems)
-      .set({
-        srsReps: next.reps,
-        srsEaseFactor: next.easeFactor,
-        srsIntervalDays: next.intervalDays,
-        srsDueAt: new Date(now.getTime() + next.dueInMs),
-        lastReviewedAt: now,
-        status: deriveVocabularyStatus(next),
-      })
+      .set(patch)
       .where(
         and(
           eq(vocabularyItems.id, itemId),
@@ -263,7 +257,7 @@ export async function reviewVocabularyViaPortal(
       studentId: student.id,
       vocabularyItemId: itemId,
       grade: parsedGrade,
-      intervalDays: next.intervalDays,
+      intervalDays: patch.srsIntervalDays,
       reviewedAt: now,
     });
   });
