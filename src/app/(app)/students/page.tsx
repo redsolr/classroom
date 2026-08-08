@@ -14,7 +14,7 @@ export default async function StudentsPage() {
     <div>
       <PageHeader
         title="Students"
-        subtitle={`${students.length} learner${students.length === 1 ? "" : "s"} in your class-room`}
+        subtitle={`${students.length} learner${students.length === 1 ? "" : "s"} in your classroom`}
       />
       <StudentsTable students={students} />
     </div>

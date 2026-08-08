@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { db, students, teachers } from "@/db";
 import { PortalContent } from "@/components/portal/portal-content";
 
-export const metadata: Metadata = { title: "Your class-room" };
+export const metadata: Metadata = { title: "Your classroom" };
 
 /**
  * Persistent student portal. The token in the URL is the sole

@@ -36,7 +36,7 @@ export default async function LessonsPage() {
           description={
             students.length === 0
               ? "Add a student first, then create your first lesson."
-              : "Create a lesson, paste your notes, and let Class-room structure them."
+              : "Create a lesson, paste your notes, and let Classroom structure them."
           }
         />
       ) : (

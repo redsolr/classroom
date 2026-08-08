@@ -14,7 +14,7 @@ export default async function LandingPage() {
           <span className="flex size-6 items-center justify-center rounded-md bg-accent text-white">
             <GraduationCap className="size-4" />
           </span>
-          Class-room
+          Classroom
         </span>
         <Link
           href="/login"
@@ -35,7 +35,7 @@ export default async function LandingPage() {
           <span className="text-fg-secondary">Know what to teach next.</span>
         </h1>
         <p className="mt-5 max-w-xl text-balance text-[1rem] leading-relaxed text-fg-secondary">
-          Paste your rough notes after each lesson. Class-room turns them into
+          Paste your rough notes after each lesson. Classroom turns them into
           corrections, vocabulary, homework and a professional student recap —
           and keeps a living memory of every learner.
         </p>

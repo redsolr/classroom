@@ -3,16 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  BookOpenCheck,
-  Gauge,
-  GraduationCap,
-  Layers,
-  Menu,
-  MessageCircle,
-  X,
-  type LucideIcon,
-} from "lucide-react";
+import { GraduationCap, Menu, X, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -36,13 +27,6 @@ export type NavEntry = {
   /** Match only the exact pathname (for parents of nested routes). */
   exact?: boolean;
 };
-
-export const SELF_STUDY_ITEMS: NavEntry[] = [
-  { href: "/study", label: "Chat", icon: MessageCircle, exact: true },
-  { href: "/study/vocab", label: "Vocabulary", icon: Layers, exact: true },
-  { href: "/study/vocab/review", label: "Review", icon: BookOpenCheck },
-  { href: "/study/account", label: "Plan & usage", icon: Gauge },
-];
 
 export function NavSection({
   label,
@@ -70,7 +54,7 @@ export function NavSection({
                 "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[0.9375rem] font-medium transition-colors",
                 active
                   ? "bg-accent-soft text-accent-text"
-                  : "text-fg-secondary hover:bg-surface-hover hover:text-fg",
+                  : "text-fg hover:bg-surface-hover",
               )}
             >
               <item.icon className="size-4" />
@@ -92,7 +76,7 @@ function Brand({ homeHref }: { homeHref: string }) {
       <span className="flex size-6 items-center justify-center rounded-md bg-accent text-white">
         <GraduationCap className="size-4" />
       </span>
-      Class-room
+      Classroom
     </Link>
   );
 }
@@ -152,12 +136,15 @@ export function SidebarShell({
         </div>
       )}
 
-      {/* Desktop static column */}
+      {/* Desktop static column — the section list scrolls when it
+          outgrows the viewport (the "Plan & usage cut off" bug). */}
       <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-border bg-surface px-3 py-5 lg:flex">
         <div className="mb-6 px-2">
           <Brand homeHref={homeHref} />
         </div>
-        <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+          {children}
+        </div>
       </aside>
     </>
   );

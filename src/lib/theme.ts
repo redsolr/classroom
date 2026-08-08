@@ -28,7 +28,7 @@ export const THEME_STORAGE_KEY = "classroom-theme";
 /**
  * What new visitors get on first paint when they have no stored preference.
  *
- * "light", deliberately (the inverse of web-app's choice): class-room's
+ * "light", deliberately (the inverse of web-app's choice): classroom's
  * users are teachers, not developers — light UIs read as friendlier and
  * more familiar to this audience. Dark and OS-following are opt-in via
  * Settings → Appearance.

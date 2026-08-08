@@ -22,7 +22,7 @@ export default function AuthLayout({
               <span className="flex size-7 items-center justify-center rounded-lg bg-[var(--auth-on-velvet-chip)] backdrop-blur">
                 <GraduationCap className="size-4.5" />
               </span>
-              Class-room
+              Classroom
             </Link>
           </div>
         </div>
@@ -38,7 +38,7 @@ export default function AuthLayout({
 
       <div className="relative z-10 flex shrink-0 items-center justify-end gap-5 px-8 py-4">
         <span className="text-xs font-semibold text-[var(--auth-on-velvet-muted)]">
-          Class-room — the private memory of an independent teacher
+          Classroom — the private memory of an independent teacher
         </span>
       </div>
     </div>

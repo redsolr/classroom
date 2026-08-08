@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /* ---------------------------------------------------------------------------
- * Class-room design tokens — Linear/Attio-inspired.
+ * Classroom design tokens — Linear/Attio-inspired.
  * Neutral surfaces, hairline borders, one confident iris accent,
  * 13.5px base type, system dark mode.
  * ------------------------------------------------------------------------- */
@@ -43,7 +43,7 @@
 }
 
 /* Theme is attribute-driven (see src/lib/theme.ts): light is the DEFAULT —
- * class-room's users are teachers, not developers. Dark applies only when
+ * classroom's users are teachers, not developers. Dark applies only when
  * the pre-hydration script / ThemeInit stamps data-theme="dark" (chosen
  * directly or resolved from the "system" preference). */
 :root {

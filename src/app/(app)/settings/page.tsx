@@ -26,7 +26,7 @@ export default async function SettingsPage() {
           <Field label="Email">
             <Input value={teacher.email} disabled />
           </Field>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="Timezone">
               <Input
                 name="timezone"

@@ -2,7 +2,7 @@
  * Next.js 16 proxy — WorkOS AuthKit (pattern ported from Jurisimus web-app).
  *
  * `middlewareAuth.enabled` is FALSE by design, same rationale as web-app:
- * class-room now runs a fully CUSTOM login (`/login` + `/signup` + direct
+ * classroom now runs a fully CUSTOM login (`/login` + `/signup` + direct
  * Google/Apple via `getAuthorizationUrl`), never the hosted AuthKit screen.
  * `enabled: true` is the only thing that auto-redirects a protected path to
  * `getSignInUrl()` (the hosted screen), and authkit offers no way to point

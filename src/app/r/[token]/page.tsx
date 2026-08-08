@@ -199,7 +199,7 @@ export default async function RecapPage({
       )}
 
       <footer className="border-t border-border pt-4 text-center text-[0.78rem] text-fg-tertiary">
-        Shared privately with you via Class-room
+        Shared privately with you via Classroom
       </footer>
     </div>
   );

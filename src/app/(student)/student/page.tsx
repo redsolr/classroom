@@ -4,7 +4,7 @@ import { db, teachers } from "@/db";
 import { requireStudent } from "@/lib/auth";
 import { PortalContent } from "@/components/portal/portal-content";
 
-export const metadata: Metadata = { title: "My class-room" };
+export const metadata: Metadata = { title: "My classroom" };
 
 export default async function StudentHomePage() {
   const student = await requireStudent();

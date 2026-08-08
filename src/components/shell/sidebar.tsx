@@ -20,15 +20,16 @@ import {
 } from "@/components/ui/dropdown";
 import {
   NavSection,
-  SELF_STUDY_ITEMS,
   SidebarShell,
   type NavEntry,
 } from "@/components/shell/sidebar-shell";
+import { SelfStudySection } from "@/components/shell/self-study-section";
+import type { SidebarThread } from "@/lib/study-sidebar";
 
 const TEACHING_ITEMS: NavEntry[] = [
+  { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
   { href: "/schedule", label: "Schedule", icon: CalendarClock },
   { href: "/calendar", label: "Calendar", icon: CalendarDays },
-  { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
   { href: "/students", label: "Students", icon: Users },
   { href: "/lessons", label: "Lessons", icon: BookOpenText },
 ];
@@ -36,14 +37,16 @@ const TEACHING_ITEMS: NavEntry[] = [
 export function Sidebar({
   teacherName,
   teacherEmail,
+  studyThreads = [],
 }: {
   teacherName: string;
   teacherEmail: string;
+  studyThreads?: SidebarThread[];
 }) {
   return (
     <SidebarShell homeHref="/schedule">
       <NavSection label="Teaching" items={TEACHING_ITEMS} />
-      <NavSection label="Self-study" items={SELF_STUDY_ITEMS} />
+      <SelfStudySection threads={studyThreads} />
 
       <div className="mt-auto">
         <Dropdown>

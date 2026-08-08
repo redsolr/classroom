@@ -50,6 +50,13 @@
       "when": 1786221987264,
       "tag": "0006_steep_annihilus",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1786230726513,
+      "tag": "0007_dapper_fabian_cortez",
+      "breakpoints": true
     }
   ]
 }

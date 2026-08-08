@@ -5,7 +5,7 @@ import { Card, CardHeader } from "@/components/ui/page-header";
 
 /**
  * Theme picker — ThemeCard mini-preview pattern ported from web-app's
- * settings (`primitives.tsx`), recolored to class-room's palette.
+ * settings (`primitives.tsx`), recolored to classroom's palette.
  */
 
 const PREVIEW = {
@@ -93,10 +93,10 @@ export function AppearanceSection() {
       <CardHeader title="Appearance" />
       <div className="px-4 py-4">
         <p className="mb-4 text-[0.9375rem] text-fg-secondary">
-          How Class-room looks on this device. &ldquo;Auto&rdquo; follows your
+          How Classroom looks on this device. &ldquo;Auto&rdquo; follows your
           system setting.
         </p>
-        <div className="flex items-start gap-6">
+        <div className="flex flex-wrap items-start gap-4 sm:gap-6">
           {(["light", "dark", "system"] as const).map((m) => (
             <ThemeCard
               key={m}

@@ -105,7 +105,7 @@ export function LoginForm() {
       </div>
 
       <AuthFooterLink
-        text="New to Class-room?"
+        text="New to Classroom?"
         linkText="Create a free account"
         href="/signup"
       />

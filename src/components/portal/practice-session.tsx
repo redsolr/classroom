@@ -64,7 +64,7 @@ export function PracticeSession({
           className="mt-4 inline-flex items-center gap-1.5 text-[0.9375rem] text-accent-text hover:underline"
         >
           <ArrowLeft className="size-3.5" />
-          Back to your class-room
+          Back to your classroom
         </Link>
       </div>
     );

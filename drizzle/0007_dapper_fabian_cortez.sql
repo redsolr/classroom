@@ -1,0 +1,1 @@
+ALTER TABLE "study_threads" ADD COLUMN "pinned" boolean DEFAULT false NOT NULL;

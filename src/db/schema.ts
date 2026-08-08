@@ -524,6 +524,8 @@ export const studyThreads = pgTable(
       .references(() => learners.id, { onDelete: "cascade" }),
     language: text("language").notNull(),
     title: text("title"),
+    /** Pinned chats float to the top of the sidebar tree (ChatGPT-style). */
+    pinned: boolean("pinned").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

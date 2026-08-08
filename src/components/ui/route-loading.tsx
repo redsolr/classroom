@@ -45,32 +45,24 @@ export function StudentRouteSkeleton() {
   );
 }
 
-/** /study — the chat two-pane: thread sidebar, header, bubbles, composer. */
+/** /study — single conversation column (threads live in the sidebar). */
 export function StudyChatSkeleton() {
   return (
     <div
       aria-hidden
-      className="mx-auto flex h-[calc(100dvh-3rem)] w-full max-w-5xl animate-pulse lg:h-dvh"
+      className="mx-auto flex h-[calc(100dvh-3rem)] w-full max-w-3xl animate-pulse flex-col lg:h-dvh"
     >
-      <aside className="hidden w-64 shrink-0 flex-col gap-2 border-r border-border p-3 lg:flex">
-        <Bone className="h-9" />
-        <Bone className="h-12" />
-        <Bone className="h-12" />
-        <Bone className="h-12" />
-      </aside>
-      <section className="flex min-w-0 flex-1 flex-col">
-        <div className="border-b border-border px-4 py-2.5 sm:px-6">
-          <Bone className="h-8 w-full lg:h-5 lg:w-40" />
-        </div>
-        <div className="flex-1 space-y-3 px-4 py-5 sm:px-6">
-          <Bone className="mr-10 h-16 rounded-lg sm:mr-16" />
-          <Bone className="ml-10 h-10 rounded-lg sm:ml-16" />
-          <Bone className="mr-10 h-16 rounded-lg sm:mr-16" />
-        </div>
-        <div className="px-4 pt-1 pb-4 sm:px-6">
-          <Bone className="h-20 rounded-2xl" />
-        </div>
-      </section>
+      <div className="border-b border-border px-4 py-2.5 sm:px-6">
+        <Bone className="h-5 w-40" />
+      </div>
+      <div className="flex-1 space-y-3 px-4 py-5 sm:px-6">
+        <Bone className="mr-10 h-16 rounded-lg sm:mr-16" />
+        <Bone className="ml-10 h-10 rounded-lg sm:ml-16" />
+        <Bone className="mr-10 h-16 rounded-lg sm:mr-16" />
+      </div>
+      <div className="px-4 pt-1 pb-4 sm:px-6">
+        <Bone className="h-20 rounded-2xl" />
+      </div>
     </div>
   );
 }

@@ -187,7 +187,7 @@ function LessonsTab({ profile }: { profile: StudentProfile }) {
       <EmptyState
         icon={<BookOpenText />}
         title="No lessons yet"
-        description="Create a lesson, paste your rough notes, and Class-room turns them into a structured record."
+        description="Create a lesson, paste your rough notes, and Classroom turns them into a structured record."
         action={<NewLessonDialog studentId={profile.student.id} />}
       />
     );

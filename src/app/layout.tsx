@@ -11,8 +11,8 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: "Class-room",
-    template: "%s · Class-room",
+    default: "Classroom",
+    template: "%s · Classroom",
   },
   description:
     "The private memory and lesson workflow of an independent language teacher.",

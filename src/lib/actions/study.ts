@@ -31,6 +31,26 @@ export async function createStudyThread(formData: FormData) {
   redirect(`/study?t=${thread.id}`);
 }
 
+export async function toggleStudyThreadPin(threadId: string) {
+  const learner = await requireLearner();
+  const id = z.string().uuid().parse(threadId);
+
+  const thread = await db.query.studyThreads.findFirst({
+    where: and(eq(studyThreads.id, id), eq(studyThreads.learnerId, learner.id)),
+    columns: { pinned: true },
+  });
+  if (!thread) throw new Error("Thread not found");
+
+  await db
+    .update(studyThreads)
+    .set({ pinned: !thread.pinned })
+    .where(
+      and(eq(studyThreads.id, id), eq(studyThreads.learnerId, learner.id)),
+    );
+
+  revalidatePath("/study");
+}
+
 export async function deleteStudyThread(threadId: string) {
   const learner = await requireLearner();
   const id = z.string().uuid().parse(threadId);

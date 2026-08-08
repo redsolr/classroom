@@ -50,7 +50,7 @@ export function StudentsTable({ students }: { students: StudentListRow[] }) {
       </DialogTrigger>
       <DialogContent
         title="New student"
-        description="Add a learner to your class-room."
+        description="Add a learner to your classroom."
         className="max-w-xl"
       >
         <StudentForm action={createStudent} submitLabel="Create student" />

@@ -25,7 +25,7 @@ import { SubmitButton } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/field";
 
 /**
- * The student's whole class-room view — shared by the token portal
+ * The student's whole classroom view — shared by the token portal
  * (/p/[token]) and the signed-in student area (/student). Renders ONLY
  * teacher–student shared content: recaps, vocabulary, homework, goals.
  * Private notes, insights, and raw lesson input are never queried.
@@ -102,7 +102,7 @@ export async function PortalContent({
           <span className="flex size-5 items-center justify-center rounded bg-accent text-white">
             <GraduationCap className="size-3" />
           </span>
-          Your class-room
+          Your classroom
         </p>
         <h1 className="text-[1.625rem] font-semibold tracking-tight">
           Hi {student.name} 👋
@@ -333,7 +333,7 @@ export async function PortalContent({
       )}
 
       <footer className="border-t border-border pt-4 text-center text-[0.78rem] text-fg-tertiary">
-        Shared privately with you via Class-room · Your learning history
+        Shared privately with you via Classroom · Your learning history
         doesn&rsquo;t expire here
       </footer>
     </div>

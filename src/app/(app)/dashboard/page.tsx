@@ -34,7 +34,7 @@ export default async function DashboardPage() {
         title={`Welcome back, ${firstName}`}
         subtitle={
           data.studentCount === 0
-            ? "Let's set up your class-room."
+            ? "Let's set up your classroom."
             : `${data.studentCount} student${data.studentCount === 1 ? "" : "s"} · ${data.pendingReview.length} lesson${data.pendingReview.length === 1 ? "" : "s"} awaiting review`
         }
         actions={

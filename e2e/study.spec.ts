@@ -41,12 +41,9 @@ test("create a French chat, get a grounded mock reply, save the suggested word",
   page,
 }) => {
   await page.goto("/study");
-  // Hero form defaults to French. Scope to the chat column (<section>) —
-  // the desktop thread sidebar (<aside>) carries its own "New chat".
-  await page
-    .locator("section")
-    .getByRole("button", { name: "New chat" })
-    .click();
+  // Hero form defaults to French. The hero button is the only "New chat"
+  // (sidebar folder buttons are named "Start <language> chat").
+  await page.getByRole("button", { name: "New chat" }).click();
   await page.waitForURL(/\/study\?t=[0-9a-f-]{36}/);
 
   await page.getByLabel("Message").fill("Bonjour! Je veux apprendre.");
@@ -61,9 +58,10 @@ test("create a French chat, get a grounded mock reply, save the suggested word",
   await expect(chip).toBeDisabled();
 
   // The saved word is on the vocabulary page, filed under French.
+  // (Scope to main — the sidebar chat tree also contains "Bonjour…".)
   await page.goto("/study/vocab");
   await expect(page.getByRole("heading", { name: "French" })).toBeVisible();
-  await expect(page.getByText("bonjour")).toBeVisible();
+  await expect(page.getByRole("main").getByText("bonjour")).toBeVisible();
 });
 
 test("manual vocab add + SM-2 review session over the due deck", async ({
@@ -95,8 +93,9 @@ test("free daily cap blocks the tutor and points at the upgrade", async ({
   page,
 }) => {
   await page.goto("/study");
-  // Reuse the French thread from the earlier test (1 message spent).
-  await page.getByRole("link", { name: /French/ }).first().click();
+  // Reuse the earlier test's thread via the sidebar chat tree (1 message
+  // spent; the row is titled by its first message).
+  await page.getByRole("link", { name: /Bonjour/ }).first().click();
   await page.waitForURL(/\/study\?t=[0-9a-f-]{36}/);
 
   // Send until the API answers 429 — must happen within the cap budget.

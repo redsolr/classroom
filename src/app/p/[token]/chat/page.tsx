@@ -106,7 +106,7 @@ export default async function CompanionChatPage({
           className="inline-flex items-center gap-1 hover:text-fg"
         >
           <ArrowLeft className="size-3" />
-          Back to your class-room
+          Back to your classroom
         </Link>
       </footer>
     </div>
