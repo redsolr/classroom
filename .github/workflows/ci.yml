@@ -1,0 +1,119 @@
+# class-room CI — the gates that previously only ran when someone typed
+# them (`npm run verify` + the e2e tiers). Three jobs:
+#
+#   verify          lint + tsc + the server-action auth ratchet + build
+#   e2e-mocked      the product-loop Playwright tier (MOCK_AUTH, keyless)
+#   e2e-real-auth   the adversarial tier — REAL WorkOS login, anonymous
+#                   rejection, captured-mutation replay. Runs only when
+#                   the WorkOS secrets are configured on the repo; a
+#                   missing secret skips the job's steps loudly rather
+#                   than red-failing forks/fresh clones.
+#
+# Required secrets for e2e-real-auth (Settings → Secrets → Actions):
+#   WORKOS_API_KEY  WORKOS_CLIENT_ID  WORKOS_COOKIE_PASSWORD
+#   E2E_TEACHER_EMAIL  E2E_TEACHER_PASSWORD
+# (provision the synthetic teacher once with `npm run e2e:user`)
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run verify
+      - run: npm run build
+
+  e2e-mocked:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: classroom
+          POSTGRES_PASSWORD: classroom
+          POSTGRES_DB: classroom
+        ports:
+          - 5439:5432
+        options: >-
+          --health-cmd "pg_isready -U classroom"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://classroom:classroom@localhost:5439/classroom
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run db:migrate
+      # db:seed goes through tsx --env-file=.env.local, which hard-fails
+      # when the file is absent — call the script directly; DATABASE_URL
+      # is already in the job env.
+      - run: npx tsx scripts/seed.ts
+      - run: npm run test:e2e
+
+  e2e-real-auth:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: classroom
+          POSTGRES_PASSWORD: classroom
+          POSTGRES_DB: classroom
+        ports:
+          - 5439:5432
+        options: >-
+          --health-cmd "pg_isready -U classroom"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://classroom:classroom@localhost:5439/classroom
+      WORKOS_API_KEY: ${{ secrets.WORKOS_API_KEY }}
+      WORKOS_CLIENT_ID: ${{ secrets.WORKOS_CLIENT_ID }}
+      WORKOS_COOKIE_PASSWORD: ${{ secrets.WORKOS_COOKIE_PASSWORD }}
+      WORKOS_COOKIE_NAME: classroom-wos-session
+      NEXT_PUBLIC_WORKOS_REDIRECT_URI: http://localhost:3020/callback
+      E2E_TEACHER_EMAIL: ${{ secrets.E2E_TEACHER_EMAIL }}
+      E2E_TEACHER_PASSWORD: ${{ secrets.E2E_TEACHER_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check real-auth secrets
+        id: creds
+        run: |
+          if [ -n "$WORKOS_API_KEY" ] && [ -n "$E2E_TEACHER_EMAIL" ]; then
+            echo "has=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::real-auth secrets not configured — tier skipped"
+          fi
+      - if: steps.creds.outputs.has == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - if: steps.creds.outputs.has == 'true'
+        run: npm ci
+      - if: steps.creds.outputs.has == 'true'
+        run: npx playwright install --with-deps chromium
+      - if: steps.creds.outputs.has == 'true'
+        run: npm run db:migrate
+      - if: steps.creds.outputs.has == 'true'
+        run: npm run test:e2e:real-auth

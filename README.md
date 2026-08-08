@@ -64,7 +64,10 @@ overridable via `CLASSROOM_AI_MODEL`).
 | `npm run dev` / `dev:mock` | Dev server (real / mock auth) |
 | `npm run build` | Production build (includes typecheck) |
 | `npm run lint` / `tsc:check` | ESLint / TypeScript |
-| `npm run test:e2e` | Playwright e2e (boots dev:mock itself; needs Docker Postgres + migrations) |
+| `npm run test:e2e` | Playwright e2e, mocked tier (boots dev:mock itself; needs Docker Postgres + migrations) |
+| `npm run test:e2e:real-auth` | Adversarial tier: REAL WorkOS auth, no mocks — anonymous rejection + captured-mutation replay (needs `npm run e2e:user` once) |
+| `npm run e2e:user` | Provision/reset the synthetic WorkOS teacher the real-auth tier signs in as (appends `E2E_TEACHER_*` to `.env.local` on first run) |
+| `npm run verify` | lint + tsc + `check:actions` (the server-action auth ratchet) — CI runs this on every push |
 | `npm run db:generate` | Generate a Drizzle migration from `src/db/schema.ts` |
 | `npm run db:migrate` | Apply migrations |
 | `npm run db:seed` | Seed demo data (idempotent — re-wipes the demo teacher) |
