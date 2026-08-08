@@ -120,6 +120,13 @@ export function StudyChat({
   const endRef = React.useRef<HTMLDivElement>(null);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
 
+  const firstName = learnerName?.split(" ")[0] ?? null;
+  const suggestions = [
+    `Teach me 3 useful ${language} phrases for today`,
+    "Quiz me on my vocabulary",
+    "Correct this sentence: ",
+  ];
+
   React.useEffect(() => {
     endRef.current?.scrollIntoView({ block: "end" });
   }, [messages]);
@@ -200,16 +207,30 @@ export function StudyChat({
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-5 sm:px-6">
         {messages.length === 0 && (
-          <div className="rounded-lg bg-surface px-4 py-4 shadow-card">
-            <p className="flex items-start gap-2.5 text-[0.9375rem] leading-relaxed">
-              <Sparkles className="mt-0.5 size-4 shrink-0 text-accent" />
-              <span>
-                {learnerName ? `Hi ${learnerName}! ` : "Hi! "}I&rsquo;m your{" "}
-                {language} tutor. Chat with me in any language — I&rsquo;ll
-                correct you gently, practice your vocabulary with you, and
-                suggest words worth saving.
-              </span>
+          <div className="flex h-full flex-col items-center justify-center gap-1.5 text-center">
+            <Sparkles className="mb-1 size-5 text-accent" />
+            <p className="text-[1.25rem] font-semibold tracking-tight">
+              {`${firstName ? `Hi ${firstName}! ` : "Hi! "}I'm your ${language} tutor.`}
             </p>
+            <p className="max-w-sm text-[0.9375rem] text-fg-secondary">
+              Chat in any language — I correct gently, drill your saved
+              words, and mark new ones worth keeping.
+            </p>
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
+              {suggestions.map((suggestion) => (
+                <button
+                  key={suggestion}
+                  type="button"
+                  onClick={() => {
+                    setInput(suggestion);
+                    textareaRef.current?.focus();
+                  }}
+                  className="rounded-full border border-border-strong bg-surface px-3 py-1.5 text-[0.875rem] text-fg-secondary transition-colors hover:bg-surface-hover hover:text-fg"
+                >
+                  {suggestion}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
@@ -252,7 +273,7 @@ export function StudyChat({
         <div ref={endRef} />
       </div>
 
-      <div className="border-t border-border bg-bg px-4 py-3 sm:px-6">
+      <div className="px-4 pt-1 pb-4 sm:px-6">
         {capHit && (
           <div className="mb-2.5 rounded-md border border-border-strong bg-surface px-3 py-2.5 text-[0.875rem]">
             {capHit.pro ? (
@@ -278,40 +299,43 @@ export function StudyChat({
           <p className="mb-2.5 text-[0.875rem] text-danger">{sendError}</p>
         )}
 
-        <div className="flex items-end gap-2">
+        {/* ChatGPT-style pill composer: textarea on top, controls below. */}
+        <div className="rounded-2xl border border-border-strong bg-surface px-3 pt-2.5 pb-2 shadow-sm transition-colors focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/20">
           <textarea
             ref={textareaRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={onKeyDown}
-            rows={Math.min(4, Math.max(1, input.split("\n").length))}
+            rows={Math.min(5, Math.max(1, input.split("\n").length))}
             maxLength={4000}
             placeholder={`Practice your ${language}…`}
             aria-label="Message"
-            className="max-h-40 w-full flex-1 resize-none rounded-md border border-border-strong bg-surface px-3 py-2 text-[0.9375rem] leading-relaxed placeholder:text-fg-tertiary focus:border-accent focus:ring-2 focus:ring-accent/20 focus:outline-none"
+            className="max-h-40 w-full resize-none border-0 bg-transparent text-[0.9375rem] leading-relaxed placeholder:text-fg-tertiary focus:outline-none"
           />
-          <select
-            value={model}
-            onChange={(e) => setModel(e.target.value)}
-            title="Model for the next message"
-            aria-label="Model"
-            className="h-9 shrink-0 rounded-md border border-border-strong bg-surface px-2 text-[0.8125rem] font-medium text-fg-secondary transition-colors hover:bg-surface-hover focus:border-accent focus:outline-none"
-          >
-            {models.map((m) => (
-              <option key={m} value={m}>
-                {modelLabel(m)}
-              </option>
-            ))}
-          </select>
-          <button
-            type="button"
-            onClick={() => void send()}
-            disabled={streaming || input.trim().length === 0}
-            className="flex h-9 shrink-0 items-center gap-1.5 rounded-md border border-transparent bg-accent px-3 text-[0.875rem] font-medium text-white shadow-sm transition-colors hover:bg-accent-hover disabled:pointer-events-none disabled:opacity-50"
-          >
-            <CornerDownLeft className="size-3.5" />
-            Send
-          </button>
+          <div className="mt-1 flex items-center justify-between">
+            <select
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+              title="Model for the next message"
+              aria-label="Model"
+              className="h-7 rounded-md bg-transparent px-1 text-[0.8125rem] font-medium text-fg-secondary transition-colors hover:bg-surface-hover focus:outline-none"
+            >
+              {models.map((m) => (
+                <option key={m} value={m}>
+                  {modelLabel(m)}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={() => void send()}
+              disabled={streaming || input.trim().length === 0}
+              aria-label="Send"
+              className="flex size-8 items-center justify-center rounded-full bg-accent text-white shadow-sm transition-colors hover:bg-accent-hover disabled:pointer-events-none disabled:opacity-40"
+            >
+              <CornerDownLeft className="size-4" />
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -2,14 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { and, asc, desc, eq } from "drizzle-orm";
 import { Languages, Plus } from "lucide-react";
-import { db, studyMessages, studyThreads } from "@/db";
+import { db, studyMessages, studyThreads, type StudyThread } from "@/db";
 import { createStudyThread } from "@/lib/actions/study";
 import { STUDY_MODEL, STUDY_MODELS } from "@/lib/ai/study-tutor";
 import { requireLearner } from "@/lib/auth";
 import { STUDY_LANGUAGES } from "@/lib/study-languages";
-import type { StudyThread } from "@/db";
 import { StudyChat } from "@/components/study/study-chat";
 import { DeleteThreadButton } from "@/components/study/delete-thread-button";
+import { ThreadSwitcher } from "@/components/study/thread-switcher";
 import { Select } from "@/components/ui/field";
 import { SubmitButton } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -20,12 +20,9 @@ function threadTitle(thread: Pick<StudyThread, "title" | "language">): string {
   return thread.title ?? `${thread.language} chat`;
 }
 
-function NewThreadForm({ compact = false }: { compact?: boolean }) {
+function NewThreadForm() {
   return (
-    <form
-      action={createStudyThread}
-      className={cn("flex items-center gap-2", compact ? "" : "max-w-sm")}
-    >
+    <form action={createStudyThread} className="flex items-center gap-2">
       <Select
         name="language"
         defaultValue="French"
@@ -38,7 +35,7 @@ function NewThreadForm({ compact = false }: { compact?: boolean }) {
           </option>
         ))}
       </Select>
-      <SubmitButton size={compact ? "sm" : "md"}>
+      <SubmitButton>
         <Plus className="size-3.5" />
         New chat
       </SubmitButton>
@@ -81,11 +78,11 @@ export default async function StudyChatPage({
     : [];
 
   return (
-    <div className="mx-auto flex h-[calc(100dvh-3.5rem)] w-full max-w-5xl">
-      {/* Thread list — a real column on desktop… */}
+    <div className="mx-auto flex h-[calc(100dvh-3rem)] w-full max-w-5xl lg:h-dvh">
+      {/* Desktop thread column (mobile uses the header switcher). */}
       <aside className="hidden w-64 shrink-0 flex-col border-r border-border lg:flex">
         <div className="border-b border-border p-3">
-          <NewThreadForm compact />
+          <NewThreadForm />
         </div>
         <nav className="flex-1 space-y-0.5 overflow-y-auto p-2">
           {threads.length === 0 && (
@@ -116,37 +113,19 @@ export default async function StudyChatPage({
       </aside>
 
       <section className="flex min-w-0 flex-1 flex-col">
-        {/* …and a scrollable chip row on mobile. */}
-        {threads.length > 0 && (
-          <div className="scrollbar-none flex shrink-0 items-center gap-1.5 overflow-x-auto border-b border-border px-4 py-2 lg:hidden">
-            <Link
-              href="/study"
-              className="flex shrink-0 items-center gap-1 rounded-full border border-border-strong bg-surface px-2.5 py-1 text-[0.8125rem] font-medium"
-            >
-              <Plus className="size-3.5" />
-              New
-            </Link>
-            {threads.map((thread) => (
-              <Link
-                key={thread.id}
-                href={`/study?t=${thread.id}`}
-                className={cn(
-                  "shrink-0 rounded-full px-2.5 py-1 text-[0.8125rem]",
-                  thread.id === active?.id
-                    ? "bg-accent-soft font-medium text-accent-text"
-                    : "border border-border-strong bg-surface",
-                )}
-              >
-                {threadTitle(thread).slice(0, 24)}
-              </Link>
-            ))}
-          </div>
-        )}
-
         {active ? (
           <>
-            <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-2.5 sm:px-6">
-              <div className="min-w-0">
+            <header className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-2 sm:px-6">
+              <div className="min-w-0 flex-1 lg:hidden">
+                <ThreadSwitcher
+                  threads={threads.map((thread) => ({
+                    id: thread.id,
+                    label: threadTitle(thread).slice(0, 40),
+                  }))}
+                  activeId={active.id}
+                />
+              </div>
+              <div className="hidden min-w-0 flex-1 lg:block">
                 <h1 className="truncate text-[0.9375rem] font-semibold">
                   {threadTitle(active)}
                 </h1>
@@ -186,6 +165,22 @@ export default async function StudyChatPage({
               <div className="mx-auto flex justify-center">
                 <NewThreadForm />
               </div>
+              {threads.length > 0 && (
+                <div className="mt-6 space-y-1 text-left lg:hidden">
+                  <p className="px-1 text-[0.78rem] font-semibold tracking-wider text-fg-tertiary uppercase">
+                    Recent chats
+                  </p>
+                  {threads.slice(0, 5).map((thread) => (
+                    <Link
+                      key={thread.id}
+                      href={`/study?t=${thread.id}`}
+                      className="block truncate rounded-md px-2.5 py-2 text-[0.9375rem] hover:bg-surface-hover"
+                    >
+                      {threadTitle(thread)}
+                    </Link>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}

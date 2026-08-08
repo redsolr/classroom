@@ -1,0 +1,164 @@
+"use client";
+
+import * as React from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import {
+  BookOpenCheck,
+  Gauge,
+  GraduationCap,
+  Layers,
+  Menu,
+  MessageCircle,
+  X,
+  type LucideIcon,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+
+/**
+ * The one sidebar chrome for every signed-in surface (teacher, student,
+ * self-study — CRM-style sections, no per-area shells):
+ *
+ *   desktop  — static w-64 column, exactly the shape the app always had
+ *   mobile   — slim top bar with a hamburger that opens a slide-over
+ *              drawer (the ChatGPT pattern); drawer is conditionally
+ *              rendered so closed state leaves no off-screen duplicates
+ *
+ * Section content is provided by the role-specific sidebars; this file
+ * also owns the shared SELF-STUDY section so teacher and student
+ * sidebars can never drift apart on it.
+ */
+
+export type NavEntry = {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  /** Match only the exact pathname (for parents of nested routes). */
+  exact?: boolean;
+};
+
+export const SELF_STUDY_ITEMS: NavEntry[] = [
+  { href: "/study", label: "Chat", icon: MessageCircle, exact: true },
+  { href: "/study/vocab", label: "Vocabulary", icon: Layers, exact: true },
+  { href: "/study/vocab/review", label: "Review", icon: BookOpenCheck },
+  { href: "/study/account", label: "Plan & usage", icon: Gauge },
+];
+
+export function NavSection({
+  label,
+  items,
+}: {
+  label: string;
+  items: NavEntry[];
+}) {
+  const pathname = usePathname();
+  return (
+    <div className="mb-5">
+      <p className="mb-1.5 px-2.5 text-[0.72rem] font-semibold tracking-wider text-fg-tertiary uppercase">
+        {label}
+      </p>
+      <nav className="flex flex-col gap-0.5">
+        {items.map((item) => {
+          const active = item.exact
+            ? pathname === item.href
+            : pathname === item.href || pathname.startsWith(item.href + "/");
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={cn(
+                "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[0.9375rem] font-medium transition-colors",
+                active
+                  ? "bg-accent-soft text-accent-text"
+                  : "text-fg-secondary hover:bg-surface-hover hover:text-fg",
+              )}
+            >
+              <item.icon className="size-4" />
+              {item.label}
+            </Link>
+          );
+        })}
+      </nav>
+    </div>
+  );
+}
+
+function Brand({ homeHref }: { homeHref: string }) {
+  return (
+    <Link
+      href={homeHref}
+      className="flex items-center gap-2 text-[1rem] font-semibold tracking-tight"
+    >
+      <span className="flex size-6 items-center justify-center rounded-md bg-accent text-white">
+        <GraduationCap className="size-4" />
+      </span>
+      Class-room
+    </Link>
+  );
+}
+
+export function SidebarShell({
+  homeHref,
+  children,
+}: {
+  homeHref: string;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = React.useState(false);
+
+  return (
+    <>
+      {/* Mobile top bar */}
+      <header className="sticky top-0 z-30 flex h-12 items-center gap-2.5 border-b border-border bg-surface px-3 lg:hidden">
+        <button
+          type="button"
+          aria-label="Open menu"
+          onClick={() => setOpen(true)}
+          className="flex size-8 items-center justify-center rounded-md text-fg-secondary transition-colors hover:bg-surface-hover"
+        >
+          <Menu className="size-5" />
+        </button>
+        <Brand homeHref={homeHref} />
+      </header>
+
+      {/* Mobile drawer */}
+      {open && (
+        <div className="fixed inset-0 z-40 lg:hidden">
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setOpen(false)}
+          />
+          <aside
+            className="absolute inset-y-0 left-0 flex w-72 flex-col overflow-y-auto bg-surface px-3 py-4 shadow-xl"
+            // Tapping any link in the drawer closes it — cheaper and more
+            // reliable than syncing open-state with the route.
+            onClickCapture={(e) => {
+              if ((e.target as HTMLElement).closest("a")) setOpen(false);
+            }}
+          >
+            <div className="mb-5 flex items-center justify-between px-2">
+              <Brand homeHref={homeHref} />
+              <button
+                type="button"
+                aria-label="Close menu"
+                onClick={() => setOpen(false)}
+                className="flex size-8 items-center justify-center rounded-md text-fg-tertiary transition-colors hover:bg-surface-hover"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+            <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+          </aside>
+        </div>
+      )}
+
+      {/* Desktop static column */}
+      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-border bg-surface px-3 py-5 lg:flex">
+        <div className="mb-6 px-2">
+          <Brand homeHref={homeHref} />
+        </div>
+        <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+      </aside>
+    </>
+  );
+}

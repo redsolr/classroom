@@ -1,19 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import {
   BookOpenText,
   CalendarClock,
   CalendarDays,
-  GraduationCap,
   LayoutDashboard,
   LogOut,
   Settings,
-  Sparkles,
   Users,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { Avatar } from "@/components/ui/avatar";
 import {
   Dropdown,
@@ -22,14 +18,19 @@ import {
   DropdownSeparator,
   DropdownTrigger,
 } from "@/components/ui/dropdown";
+import {
+  NavSection,
+  SELF_STUDY_ITEMS,
+  SidebarShell,
+  type NavEntry,
+} from "@/components/shell/sidebar-shell";
 
-const nav = [
+const TEACHING_ITEMS: NavEntry[] = [
   { href: "/schedule", label: "Schedule", icon: CalendarClock },
   { href: "/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
   { href: "/students", label: "Students", icon: Users },
   { href: "/lessons", label: "Lessons", icon: BookOpenText },
-  { href: "/study", label: "Self-study", icon: Sparkles },
 ];
 
 export function Sidebar({
@@ -39,41 +40,10 @@ export function Sidebar({
   teacherName: string;
   teacherEmail: string;
 }) {
-  const pathname = usePathname();
-
   return (
-    <aside className="sticky top-0 flex h-screen w-64 shrink-0 flex-col border-r border-border bg-surface px-3 py-5">
-      <Link
-        href="/schedule"
-        className="mb-6 flex items-center gap-2 px-2 text-[1rem] font-semibold tracking-tight"
-      >
-        <span className="flex size-6 items-center justify-center rounded-md bg-accent text-white">
-          <GraduationCap className="size-4" />
-        </span>
-        Class-room
-      </Link>
-
-      <nav className="flex flex-col gap-0.5">
-        {nav.map((item) => {
-          const active =
-            pathname === item.href || pathname.startsWith(item.href + "/");
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[0.9375rem] font-medium transition-colors",
-                active
-                  ? "bg-accent-soft text-accent-text"
-                  : "text-fg-secondary hover:bg-surface-hover hover:text-fg",
-              )}
-            >
-              <item.icon className="size-4" />
-              {item.label}
-            </Link>
-          );
-        })}
-      </nav>
+    <SidebarShell homeHref="/schedule">
+      <NavSection label="Teaching" items={TEACHING_ITEMS} />
+      <NavSection label="Self-study" items={SELF_STUDY_ITEMS} />
 
       <div className="mt-auto">
         <Dropdown>
@@ -105,6 +75,6 @@ export function Sidebar({
           </DropdownContent>
         </Dropdown>
       </div>
-    </aside>
+    </SidebarShell>
   );
 }
