@@ -4,6 +4,7 @@ import { and, asc, desc, eq } from "drizzle-orm";
 import { Languages, Plus } from "lucide-react";
 import { db, studyMessages, studyThreads } from "@/db";
 import { createStudyThread } from "@/lib/actions/study";
+import { STUDY_MODEL, STUDY_MODELS } from "@/lib/ai/study-tutor";
 import { requireLearner } from "@/lib/auth";
 import { StudyChat } from "@/components/study/study-chat";
 import { DeleteThreadButton } from "@/components/study/delete-thread-button";
@@ -168,6 +169,12 @@ export default async function StudyChatPage({
               language={active.language}
               learnerName={learner.name}
               initialMessages={messages}
+              models={
+                STUDY_MODELS.includes(STUDY_MODEL)
+                  ? STUDY_MODELS
+                  : [STUDY_MODEL, ...STUDY_MODELS]
+              }
+              defaultModel={STUDY_MODEL}
             />
           </>
         ) : (

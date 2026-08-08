@@ -4,12 +4,32 @@ import type { StudyVocabItem } from "@/db";
 /**
  * The self-study tutor (/study) — OpenAI-backed, unlike the roster
  * companion (companion.ts, Anthropic): the study surface is the founder's
- * Terra/Sol evaluation ground (2026-08-09 arc). Terra answers by default;
- * "think harder" escalates a single turn to Sol.
+ * GPT-5.6-tier evaluation ground (2026-08-09 arc). The learner picks the
+ * model per message from a fixed roster; requests are validated against
+ * it so the client can never name an arbitrary (pricier) model.
  */
-export const STUDY_MODEL = process.env.STUDY_AI_MODEL ?? "gpt-5.6-terra";
-export const STUDY_MODEL_MAX =
-  process.env.STUDY_AI_MODEL_MAX ?? "gpt-5.6-sol";
+const DEFAULT_ROSTER = "gpt-5.6-terra,gpt-5.6-sol,gpt-5.6-luna";
+
+export const STUDY_MODELS: string[] = (
+  process.env.STUDY_AI_MODELS ?? DEFAULT_ROSTER
+)
+  .split(",")
+  .map((m) => m.trim())
+  .filter(Boolean);
+
+/** The composer's preselected model — first roster entry by default. */
+export const STUDY_MODEL = process.env.STUDY_AI_MODEL ?? STUDY_MODELS[0];
+
+/**
+ * Resolve the model a turn will actually run on. "mock" without a key;
+ * roster-validated otherwise (unknown/absent requests fall back to the
+ * default). Persisted on the assistant message.
+ */
+export function resolveStudyModel(requested?: string | null): string {
+  if (!process.env.OPENAI_API_KEY) return "mock";
+  if (requested && STUDY_MODELS.includes(requested)) return requested;
+  return STUDY_MODEL;
+}
 
 export type TutorContext = {
   learnerName: string | null;
@@ -77,14 +97,14 @@ export async function* streamTutorReply(
   ctx: TutorContext,
   history: TutorTurn[],
   message: string,
-  options: { boost?: boolean } = {},
+  options: { model: string },
 ): AsyncGenerator<string> {
-  if (!process.env.OPENAI_API_KEY) {
+  const model = options.model;
+  if (model === "mock" || !process.env.OPENAI_API_KEY) {
     yield mockTutorReply(ctx, message);
     return;
   }
 
-  const model = options.boost ? STUDY_MODEL_MAX : STUDY_MODEL;
   const client = new OpenAI();
   const stream = await client.responses.create({
     model,
@@ -99,10 +119,4 @@ export async function* streamTutorReply(
       yield event.delta;
     }
   }
-}
-
-/** Which model name a turn will run on — persisted with the message. */
-export function tutorModelFor(boost: boolean): string {
-  if (!process.env.OPENAI_API_KEY) return "mock";
-  return boost ? STUDY_MODEL_MAX : STUDY_MODEL;
 }

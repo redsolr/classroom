@@ -5,8 +5,8 @@ import { db, studyMessages, studyThreads, studyVocab } from "@/db";
 import { getLearner } from "@/lib/auth";
 import { dailyCapFor, learnerHasPro } from "@/lib/billing";
 import {
+  resolveStudyModel,
   streamTutorReply,
-  tutorModelFor,
   type TutorContext,
   type TutorTurn,
 } from "@/lib/ai/study-tutor";
@@ -17,7 +17,8 @@ const VOCAB_CONTEXT_ITEMS = 30;
 const bodySchema = z.object({
   threadId: z.string().uuid(),
   message: z.string().trim().min(1).max(4000),
-  boost: z.boolean().optional().default(false),
+  /** Roster-validated server-side; unknown values fall to the default. */
+  model: z.string().max(80).optional(),
 });
 
 /**
@@ -35,7 +36,8 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) {
     return Response.json({ error: "invalid_body" }, { status: 400 });
   }
-  const { threadId, message, boost } = parsed.data;
+  const { threadId, message } = parsed.data;
+  const model = resolveStudyModel(parsed.data.model);
 
   const thread = await db.query.studyThreads.findFirst({
     where: and(
@@ -120,7 +122,6 @@ export async function POST(req: NextRequest) {
     vocab,
   };
   const turns: TutorTurn[] = historyRows.slice(-HISTORY_TURNS);
-  const model = tutorModelFor(boost);
 
   const encoder = new TextEncoder();
   let full = "";
@@ -128,7 +129,7 @@ export async function POST(req: NextRequest) {
     async start(controller) {
       try {
         for await (const delta of streamTutorReply(context, turns, message, {
-          boost,
+          model,
         })) {
           full += delta;
           controller.enqueue(encoder.encode(delta));

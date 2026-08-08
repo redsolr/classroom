@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, CornerDownLeft, Plus, Sparkles, Zap } from "lucide-react";
+import { Check, CornerDownLeft, Plus, Sparkles } from "lucide-react";
 import { addStudyVocab } from "@/lib/actions/study";
 import { cn } from "@/lib/utils";
 
@@ -89,22 +89,32 @@ function VocabChip({
   );
 }
 
+/** "gpt-5.6-terra" → "Terra" — raw id when the pattern doesn't fit. */
+function modelLabel(model: string): string {
+  const tail = model.split("-").at(-1) ?? model;
+  return tail.length > 2 ? tail[0].toUpperCase() + tail.slice(1) : model;
+}
+
 export function StudyChat({
   threadId,
   language,
   learnerName,
   initialMessages,
+  models,
+  defaultModel,
 }: {
   threadId: string;
   language: string;
   learnerName: string | null;
   initialMessages: ChatMessage[];
+  models: string[];
+  defaultModel: string;
 }) {
   const router = useRouter();
   const [messages, setMessages] = React.useState<ChatMessage[]>(initialMessages);
   const [input, setInput] = React.useState("");
   const [streaming, setStreaming] = React.useState(false);
-  const [boost, setBoost] = React.useState(false);
+  const [model, setModel] = React.useState(defaultModel);
   const [capHit, setCapHit] = React.useState<CapHit | null>(null);
   const [sendError, setSendError] = React.useState<string | null>(null);
   const endRef = React.useRef<HTMLDivElement>(null);
@@ -131,7 +141,7 @@ export function StudyChat({
       const res = await fetch("/api/study/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ threadId, message, boost }),
+        body: JSON.stringify({ threadId, message, model }),
       });
 
       if (res.status === 429) {
@@ -147,11 +157,11 @@ export function StudyChat({
         throw new Error(`Chat request failed (${res.status})`);
       }
 
-      const model = res.headers.get("X-Study-Model");
+      const repliedModel = res.headers.get("X-Study-Model");
       const assistantId = `local-assistant-${messages.length}`;
       setMessages((prev) => [
         ...prev,
-        { id: assistantId, role: "assistant", content: "", model },
+        { id: assistantId, role: "assistant", content: "", model: repliedModel },
       ]);
 
       const reader = res.body.getReader();
@@ -175,7 +185,6 @@ export function StudyChat({
       setInput(message);
     } finally {
       setStreaming(false);
-      setBoost(false);
       textareaRef.current?.focus();
     }
   };
@@ -281,21 +290,19 @@ export function StudyChat({
             aria-label="Message"
             className="max-h-40 w-full flex-1 resize-none rounded-md border border-border-strong bg-surface px-3 py-2 text-[0.9375rem] leading-relaxed placeholder:text-fg-tertiary focus:border-accent focus:ring-2 focus:ring-accent/20 focus:outline-none"
           />
-          <button
-            type="button"
-            onClick={() => setBoost((b) => !b)}
-            title="Think harder — answer this message with the top model"
-            aria-pressed={boost}
-            className={cn(
-              "flex h-9 shrink-0 items-center gap-1.5 rounded-md border px-2.5 text-[0.8125rem] font-medium transition-colors",
-              boost
-                ? "border-transparent bg-accent text-white"
-                : "border-border-strong bg-surface text-fg-secondary hover:bg-surface-hover",
-            )}
+          <select
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+            title="Model for the next message"
+            aria-label="Model"
+            className="h-9 shrink-0 rounded-md border border-border-strong bg-surface px-2 text-[0.8125rem] font-medium text-fg-secondary transition-colors hover:bg-surface-hover focus:border-accent focus:outline-none"
           >
-            <Zap className="size-3.5" />
-            <span className="hidden sm:inline">Think harder</span>
-          </button>
+            {models.map((m) => (
+              <option key={m} value={m}>
+                {modelLabel(m)}
+              </option>
+            ))}
+          </select>
           <button
             type="button"
             onClick={() => void send()}

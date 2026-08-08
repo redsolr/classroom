@@ -18,10 +18,11 @@ streaming AI tutor chat per language (threads, like ChatGPT), a personal
 vocabulary list with SM-2 flashcard review, and a Stripe **Study Pro**
 subscription. Free tier = `STUDY_FREE_DAILY_CAP` tutor messages per rolling
 day (default 10); Pro raises it to an abuse brake (default 500). Vocabulary
-and review are always free. The tutor runs on OpenAI (`STUDY_AI_MODEL`,
-default `gpt-5.6-terra`; the "Think harder" button sends one turn to
-`STUDY_AI_MODEL_MAX`, default `gpt-5.6-sol`) and falls back to a
-deterministic offline mock without `OPENAI_API_KEY`. The learner role is
+and review are always free. The tutor runs on OpenAI — the composer has a
+per-message model picker over the `STUDY_AI_MODELS` roster (default
+`gpt-5.6-terra,gpt-5.6-sol,gpt-5.6-luna`; requests are roster-validated
+server-side, `STUDY_AI_MODEL` preselects the default) — and falls back to
+a deterministic offline mock without `OPENAI_API_KEY`. The learner role is
 orthogonal to teacher/student — a `learners` row is created on first visit
 to `/study`, and the roster surfaces are untouched.
 

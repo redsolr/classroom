@@ -13,7 +13,7 @@ import {
   openStudyBillingPortal,
   startStudyCheckout,
 } from "@/lib/actions/study";
-import { STUDY_MODEL, STUDY_MODEL_MAX } from "@/lib/ai/study-tutor";
+import { STUDY_MODEL, STUDY_MODELS } from "@/lib/ai/study-tutor";
 import { requireLearner } from "@/lib/auth";
 import { SubmitButton } from "@/components/ui/button";
 
@@ -127,10 +127,16 @@ export default async function StudyAccountPage({
       <section className="rounded-lg bg-surface p-5 shadow-card">
         <h2 className="mb-1 text-[1.0625rem] font-semibold">Models</h2>
         <p className="text-[0.9375rem] leading-relaxed text-fg-secondary">
-          Everyday replies come from <span className="font-medium">{STUDY_MODEL}</span>.
-          The <span className="font-medium">Think harder</span> button answers
-          one message with <span className="font-medium">{STUDY_MODEL_MAX}</span> —
-          use it when an explanation isn&rsquo;t landing.
+          Pick the model per message in the chat composer. Available:{" "}
+          {STUDY_MODELS.map((m, i) => (
+            <span key={m}>
+              {i > 0 && " · "}
+              <span className="font-medium">{m}</span>
+              {m === STUDY_MODEL && " (default)"}
+            </span>
+          ))}
+          . Cheaper models drill vocabulary just fine — save the big one for
+          explanations that aren&rsquo;t landing.
         </p>
       </section>
     </div>
