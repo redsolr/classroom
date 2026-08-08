@@ -5,8 +5,11 @@ import { and, eq, isNull } from "drizzle-orm";
 import { withAuth } from "@workos-inc/authkit-nextjs";
 import { db, students, teachers, type Student, type Teacher } from "@/db";
 import { generateAccessToken } from "@/lib/tokens";
+import { MOCK_AUTH_ENABLED } from "@/lib/mock-auth";
 
-const MOCK_AUTH = process.env.MOCK_AUTH === "true";
+// Never read process.env.MOCK_AUTH directly — the shared seam welds the
+// hatch shut on production builds (see mock-auth.ts).
+const MOCK_AUTH = MOCK_AUTH_ENABLED;
 
 const SESSION_COOKIE = process.env.WORKOS_COOKIE_NAME ?? "wos-session";
 

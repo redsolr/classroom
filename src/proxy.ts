@@ -21,6 +21,7 @@
 
 import { authkitProxy } from "@workos-inc/authkit-nextjs";
 import { NextResponse } from "next/server";
+import { MOCK_AUTH_ENABLED } from "@/lib/mock-auth";
 
 const mockProxy = () => NextResponse.next();
 
@@ -48,7 +49,7 @@ const misconfiguredProxy = () => {
   );
 };
 
-export default process.env.MOCK_AUTH === "true"
+export default MOCK_AUTH_ENABLED
   ? mockProxy
   : missingWorkOSVars.length > 0
   ? misconfiguredProxy

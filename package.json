@@ -12,6 +12,8 @@
     "lint": "eslint src --cache --cache-location node_modules/.cache/eslint/ --cache-strategy content",
     "lint:fix": "eslint src --fix --cache --cache-location node_modules/.cache/eslint/ --cache-strategy content",
     "tsc:check": "tsc --noEmit",
+    "check:actions": "node scripts/check-action-auth.mjs",
+    "verify": "npm run lint && npm run tsc:check && npm run check:actions",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",

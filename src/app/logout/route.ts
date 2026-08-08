@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { withAuth } from "@workos-inc/authkit-nextjs";
 import { getWorkOS } from "@/lib/workos";
+import { MOCK_AUTH_ENABLED } from "@/lib/mock-auth";
 
 /**
  * Logout — back-channel session revocation + local cookie clear.
@@ -15,7 +16,7 @@ import { getWorkOS } from "@/lib/workos";
  * dependency.
  */
 export async function GET() {
-  if (process.env.MOCK_AUTH === "true") {
+  if (MOCK_AUTH_ENABLED) {
     redirect("/");
   }
 
