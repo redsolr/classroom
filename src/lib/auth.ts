@@ -3,7 +3,15 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { and, eq, isNull } from "drizzle-orm";
 import { withAuth } from "@workos-inc/authkit-nextjs";
-import { db, students, teachers, type Student, type Teacher } from "@/db";
+import {
+  db,
+  learners,
+  students,
+  teachers,
+  type Learner,
+  type Student,
+  type Teacher,
+} from "@/db";
 import { generateAccessToken } from "@/lib/tokens";
 import { MOCK_AUTH_ENABLED } from "@/lib/mock-auth";
 
@@ -178,4 +186,62 @@ export const getAccount = cache(async (): Promise<Account | null> => {
   const cookieStore = await cookies();
   if (!MOCK_AUTH && !cookieStore.has(SESSION_COOKIE)) return null;
   return resolveAccount();
+});
+
+// ---------------------------------------------------------------------------
+// Learners — the self-serve study surface (/study). Orthogonal to the
+// teacher/student roles above: ANY signed-in login gets a learner row on
+// first touch, keyed on the WorkOS user id. A teacher studying French and
+// a claimed roster student keep their existing roles untouched.
+// ---------------------------------------------------------------------------
+
+async function findOrCreateLearner(input: {
+  workosUserId: string;
+  email: string;
+  name: string | null;
+}): Promise<Learner> {
+  const existing = await db.query.learners.findFirst({
+    where: eq(learners.workosUserId, input.workosUserId),
+  });
+  if (existing) return existing;
+
+  const [created] = await db
+    .insert(learners)
+    .values({
+      workosUserId: input.workosUserId,
+      email: input.email,
+      name: input.name,
+    })
+    .onConflictDoUpdate({
+      target: learners.workosUserId,
+      set: { email: input.email, updatedAt: new Date() },
+    })
+    .returning();
+  return created;
+}
+
+/**
+ * Non-redirecting learner resolver — route handlers turn a null into a
+ * 401 instead of a redirect. Never creates a row for anonymous callers.
+ */
+export const getLearner = cache(async (): Promise<Learner | null> => {
+  if (MOCK_AUTH) {
+    return findOrCreateLearner({ ...MOCK_TEACHER });
+  }
+  const { user } = await withAuth();
+  if (!user) return null;
+  const name =
+    [user.firstName, user.lastName].filter(Boolean).join(" ") || null;
+  return findOrCreateLearner({
+    workosUserId: user.id,
+    email: user.email,
+    name,
+  });
+});
+
+/** Resolve the signed-in learner; anonymous requests go to /login. */
+export const requireLearner = cache(async (): Promise<Learner> => {
+  const learner = await getLearner();
+  if (!learner) return unauthenticatedRedirect();
+  return learner;
 });

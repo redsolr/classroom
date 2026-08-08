@@ -44,6 +44,7 @@ const AUTH_RESOLVERS = new Set([
   "requireTeacher",
   "requireStudent",
   "requirePortalStudent",
+  "requireLearner",
 ]);
 
 /**

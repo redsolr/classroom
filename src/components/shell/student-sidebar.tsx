@@ -6,6 +6,7 @@ import {
   CalendarClock,
   GraduationCap,
   LogOut,
+  Sparkles,
   UserRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -21,6 +22,7 @@ const nav = [
   { href: "/student/schedule", label: "Schedule", icon: CalendarClock },
   { href: "/student", label: "My class-room", icon: GraduationCap },
   { href: "/student/teacher", label: "Teacher", icon: UserRound },
+  { href: "/study", label: "Self-study", icon: Sparkles },
 ];
 
 export function StudentSidebar({

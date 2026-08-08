@@ -10,6 +10,7 @@ import {
   LayoutDashboard,
   LogOut,
   Settings,
+  Sparkles,
   Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -28,6 +29,7 @@ const nav = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
   { href: "/students", label: "Students", icon: Users },
   { href: "/lessons", label: "Lessons", icon: BookOpenText },
+  { href: "/study", label: "Self-study", icon: Sparkles },
 ];
 
 export function Sidebar({

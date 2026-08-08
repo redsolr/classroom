@@ -168,6 +168,14 @@ body {
   scrollbar-color: var(--border-strong) transparent;
 }
 
+/* Hide the bar entirely — horizontal chip rows (study nav/threads). */
+@utility scrollbar-none {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 /* ---------------------------------------------------------------------------
  * Auth screens — design language ported from Jurisimus web-app.
  *

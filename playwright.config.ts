@@ -62,5 +62,23 @@ export default defineConfig({
     url: "http://localhost:3020",
     reuseExistingServer: false,
     timeout: 120_000,
+    // Deterministic free-tier gate for study.spec.ts (merged over
+    // process.env). The real-auth tier keeps production-shaped defaults.
+    //
+    // The mocked tier also FORCE-EMPTIES every paid-provider key: Next
+    // never overrides a var that already exists in process.env (even
+    // empty), so this beats .env.local — a founder key sitting there must
+    // never make `npm run test:e2e` burn real LLM/Stripe calls or break
+    // the mock-reply assertions.
+    env: REAL_AUTH
+      ? {}
+      : {
+          STUDY_FREE_DAILY_CAP: "5",
+          OPENAI_API_KEY: "",
+          ANTHROPIC_API_KEY: "",
+          STRIPE_SECRET_KEY: "",
+          STRIPE_WEBHOOK_SECRET: "",
+          STRIPE_STUDY_PRICE_ID: "",
+        },
   },
 });

@@ -11,6 +11,26 @@ topics, and long-term insights for review, keeps a living learning record per
 student, and produces a clean student-facing recap — while private notes stay
 private.
 
+## Self-study space (`/study`)
+
+Any signed-in account also gets a personal study space (2026-08-09 arc):
+streaming AI tutor chat per language (threads, like ChatGPT), a personal
+vocabulary list with SM-2 flashcard review, and a Stripe **Study Pro**
+subscription. Free tier = `STUDY_FREE_DAILY_CAP` tutor messages per rolling
+day (default 10); Pro raises it to an abuse brake (default 500). Vocabulary
+and review are always free. The tutor runs on OpenAI (`STUDY_AI_MODEL`,
+default `gpt-5.6-terra`; the "Think harder" button sends one turn to
+`STUDY_AI_MODEL_MAX`, default `gpt-5.6-sol`) and falls back to a
+deterministic offline mock without `OPENAI_API_KEY`. The learner role is
+orthogonal to teacher/student — a `learners` row is created on first visit
+to `/study`, and the roster surfaces are untouched.
+
+Stripe setup (test mode): create a recurring price, set `STRIPE_SECRET_KEY`,
+`STRIPE_STUDY_PRICE_ID`, and `STRIPE_WEBHOOK_SECRET` (from
+`stripe listen --forward-to localhost:3020/api/stripe/webhook`). With any of
+the three missing, the account page says billing is not configured and the
+free tier applies — checkout never silently no-ops.
+
 ## Stack
 
 Self-contained Next.js full-stack app — deploys to Vercel as-is.
@@ -20,7 +40,7 @@ Self-contained Next.js full-stack app — deploys to Vercel as-is.
 | Framework | Next.js 16 (App Router, server actions) + React 19 |
 | Database | PostgreSQL + Drizzle ORM (local Docker; Neon in prod) |
 | Auth | WorkOS custom flow ported from Jurisimus web-app — own /login + /signup (B2C, visible), direct Google/Apple OAuth, email-verification step, forgot-password; `MOCK_AUTH` dev mode |
-| AI | Anthropic `claude-opus-4-8` structured extraction (`messages.parse` + zod schema); deterministic mock when no API key |
+| AI | Anthropic `claude-opus-4-8` structured extraction (`messages.parse` + zod schema); OpenAI (`gpt-5.6-terra`/`-sol`) streaming self-study tutor; deterministic mocks when no API keys |
 | Styling | Tailwind CSS v4 + Radix primitives, Linear/Attio-inspired design tokens |
 
 ## Local development

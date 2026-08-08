@@ -1,0 +1,167 @@
+import type { NextRequest } from "next/server";
+import { and, asc, count, eq, gte, ne, sql } from "drizzle-orm";
+import { z } from "zod";
+import { db, studyMessages, studyThreads, studyVocab } from "@/db";
+import { getLearner } from "@/lib/auth";
+import { dailyCapFor, learnerHasPro } from "@/lib/billing";
+import {
+  streamTutorReply,
+  tutorModelFor,
+  type TutorContext,
+  type TutorTurn,
+} from "@/lib/ai/study-tutor";
+
+const HISTORY_TURNS = 20;
+const VOCAB_CONTEXT_ITEMS = 30;
+
+const bodySchema = z.object({
+  threadId: z.string().uuid(),
+  message: z.string().trim().min(1).max(4000),
+  boost: z.boolean().optional().default(false),
+});
+
+/**
+ * The study tutor endpoint — streams the reply as plain-text chunks.
+ * getLearner() (not the redirecting guard) is the auth line: anonymous
+ * callers get a 401, never a redirect into HTML.
+ */
+export async function POST(req: NextRequest) {
+  const learner = await getLearner();
+  if (!learner) {
+    return Response.json({ error: "unauthenticated" }, { status: 401 });
+  }
+
+  const parsed = bodySchema.safeParse(await req.json().catch(() => null));
+  if (!parsed.success) {
+    return Response.json({ error: "invalid_body" }, { status: 400 });
+  }
+  const { threadId, message, boost } = parsed.data;
+
+  const thread = await db.query.studyThreads.findFirst({
+    where: and(
+      eq(studyThreads.id, threadId),
+      eq(studyThreads.learnerId, learner.id),
+    ),
+  });
+  if (!thread) {
+    return Response.json({ error: "thread_not_found" }, { status: 404 });
+  }
+
+  // The plan gate: rolling-24h user-message count across all threads.
+  const cap = dailyCapFor(learner);
+  const [{ value: messagesToday }] = await db
+    .select({ value: count() })
+    .from(studyMessages)
+    .where(
+      and(
+        eq(studyMessages.learnerId, learner.id),
+        eq(studyMessages.role, "user"),
+        gte(studyMessages.createdAt, sql`now() - interval '24 hours'`),
+      ),
+    );
+  if (messagesToday >= cap) {
+    return Response.json(
+      { error: "daily_cap", cap, pro: learnerHasPro(learner) },
+      { status: 429 },
+    );
+  }
+
+  const [inserted] = await db
+    .insert(studyMessages)
+    .values({
+      learnerId: learner.id,
+      threadId: thread.id,
+      role: "user",
+      content: message,
+    })
+    .returning({ id: studyMessages.id });
+
+  await db
+    .update(studyThreads)
+    .set({
+      title: thread.title ?? message.slice(0, 60),
+      updatedAt: new Date(),
+    })
+    .where(eq(studyThreads.id, thread.id));
+
+  const [vocab, historyRows] = await Promise.all([
+    db
+      .select({
+        term: studyVocab.term,
+        reading: studyVocab.reading,
+        meaning: studyVocab.meaning,
+        status: studyVocab.status,
+      })
+      .from(studyVocab)
+      .where(
+        and(
+          eq(studyVocab.learnerId, learner.id),
+          eq(studyVocab.language, thread.language),
+        ),
+      )
+      .orderBy(sql`${studyVocab.srsDueAt} asc nulls first`)
+      .limit(VOCAB_CONTEXT_ITEMS),
+    db
+      .select({ role: studyMessages.role, content: studyMessages.content })
+      .from(studyMessages)
+      .where(
+        and(
+          eq(studyMessages.threadId, thread.id),
+          // The just-inserted user turn is passed separately.
+          ne(studyMessages.id, inserted.id),
+        ),
+      )
+      .orderBy(asc(studyMessages.createdAt)),
+  ]);
+
+  const context: TutorContext = {
+    learnerName: learner.name,
+    language: thread.language,
+    vocab,
+  };
+  const turns: TutorTurn[] = historyRows.slice(-HISTORY_TURNS);
+  const model = tutorModelFor(boost);
+
+  const encoder = new TextEncoder();
+  let full = "";
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      try {
+        for await (const delta of streamTutorReply(context, turns, message, {
+          boost,
+        })) {
+          full += delta;
+          controller.enqueue(encoder.encode(delta));
+        }
+        if (!full.trim()) throw new Error("Tutor returned no text");
+      } catch (error) {
+        console.error("study chat: tutor stream failed", error);
+        const fallback = full
+          ? "\n\n(The reply was cut off — please ask again.)"
+          : "Sorry — I had trouble thinking just now. Please try again in a moment.";
+        full += fallback;
+        controller.enqueue(encoder.encode(fallback));
+      }
+      try {
+        await db.insert(studyMessages).values({
+          learnerId: learner.id,
+          threadId: thread.id,
+          role: "assistant",
+          content: full,
+          model,
+        });
+      } catch (error) {
+        console.error("study chat: failed to persist assistant reply", error);
+      }
+      controller.close();
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "no-store",
+      "X-Study-Model": model,
+    },
+  });
+}

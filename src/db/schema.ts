@@ -97,6 +97,13 @@ export const aiMessageRoleEnum = pgEnum("ai_message_role", [
   "assistant",
 ]);
 
+export const studyPlanStatusEnum = pgEnum("study_plan_status", [
+  "free",
+  "active",
+  "past_due",
+  "canceled",
+]);
+
 export const insightTypeEnum = pgEnum("insight_type", [
   "recurringMistake",
   "learningPreference",
@@ -473,6 +480,125 @@ export const aiMessages = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// Learners — the self-serve study account (2026-08-09 self-study arc).
+// Orthogonal to teacher/student: ANY WorkOS login gets a learner row on
+// first visit to /study, whether or not it also owns a teacher account or
+// a claimed roster row. Carries the Stripe subscription state for the
+// study surface — the only billed surface in the app.
+// ---------------------------------------------------------------------------
+
+export const learners = pgTable(
+  "learners",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    workosUserId: text("workos_user_id").notNull(),
+    email: text("email").notNull(),
+    name: text("name"),
+    stripeCustomerId: text("stripe_customer_id"),
+    stripeSubscriptionId: text("stripe_subscription_id"),
+    planStatus: studyPlanStatusEnum("plan_status").notNull().default("free"),
+    planRenewsAt: timestamp("plan_renews_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("learners_workos_user_id_idx").on(t.workosUserId),
+    uniqueIndex("learners_stripe_customer_id_idx").on(t.stripeCustomerId),
+  ],
+);
+
+// ---------------------------------------------------------------------------
+// Study threads — one AI-tutor conversation, pinned to one language.
+// ---------------------------------------------------------------------------
+
+export const studyThreads = pgTable(
+  "study_threads",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    learnerId: uuid("learner_id")
+      .notNull()
+      .references(() => learners.id, { onDelete: "cascade" }),
+    language: text("language").notNull(),
+    title: text("title"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index("study_threads_learner_id_idx").on(t.learnerId, t.updatedAt)],
+);
+
+export const studyMessages = pgTable(
+  "study_messages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    learnerId: uuid("learner_id")
+      .notNull()
+      .references(() => learners.id, { onDelete: "cascade" }),
+    threadId: uuid("thread_id")
+      .notNull()
+      .references(() => studyThreads.id, { onDelete: "cascade" }),
+    role: aiMessageRoleEnum("role").notNull(),
+    content: text("content").notNull(),
+    /** Which model produced an assistant turn (null on user turns). */
+    model: text("model"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("study_messages_thread_created_idx").on(t.threadId, t.createdAt),
+    // The daily-cap query counts a learner's user turns across all threads.
+    index("study_messages_learner_created_idx").on(t.learnerId, t.createdAt),
+  ],
+);
+
+// ---------------------------------------------------------------------------
+// Personal vocabulary — learner-owned, independent of any teacher roster.
+// Same SM-2-lite state machine as the roster vocabulary (src/lib/srs.ts);
+// status is DERIVED from review evidence, never asserted.
+// ---------------------------------------------------------------------------
+
+export const studyVocab = pgTable(
+  "study_vocab",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    learnerId: uuid("learner_id")
+      .notNull()
+      .references(() => learners.id, { onDelete: "cascade" }),
+    language: text("language").notNull(),
+    term: text("term").notNull(),
+    /** Pronunciation aid — furigana/romaji for Japanese, IPA, etc. */
+    reading: text("reading"),
+    meaning: text("meaning"),
+    example: text("example"),
+    notes: text("notes"),
+    status: vocabularyStatusEnum("status").notNull().default("new"),
+    srsReps: integer("srs_reps").notNull().default(0),
+    srsEaseFactor: real("srs_ease_factor").notNull().default(2.5),
+    srsIntervalDays: real("srs_interval_days").notNull().default(0),
+    srsDueAt: timestamp("srs_due_at", { withTimezone: true }),
+    lastReviewedAt: timestamp("last_reviewed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("study_vocab_learner_language_idx").on(t.learnerId, t.language),
+    index("study_vocab_learner_due_idx").on(t.learnerId, t.srsDueAt),
+  ],
+);
+
+// ---------------------------------------------------------------------------
 // Row types
 // ---------------------------------------------------------------------------
 
@@ -487,3 +613,7 @@ export type VocabularyReview = typeof vocabularyReviews.$inferSelect;
 export type AiMessage = typeof aiMessages.$inferSelect;
 export type Homework = typeof homework.$inferSelect;
 export type Insight = typeof insights.$inferSelect;
+export type Learner = typeof learners.$inferSelect;
+export type StudyThread = typeof studyThreads.$inferSelect;
+export type StudyMessage = typeof studyMessages.$inferSelect;
+export type StudyVocabItem = typeof studyVocab.$inferSelect;

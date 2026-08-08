@@ -46,6 +46,10 @@ const PROTECTED_ROUTES = [
   "/lessons",
   "/settings",
   "/student",
+  "/study",
+  "/study/vocab",
+  "/study/vocab/review",
+  "/study/account",
 ];
 
 function sql() {
@@ -98,6 +102,19 @@ test("anonymous requests are redirected to /login on every protected surface", a
   await page.goto("/schedule");
   await page.waitForURL("**/login");
   await context.close();
+});
+
+test("anonymous POST to the study chat API is a 401, never a served reply", async () => {
+  const anon = await pwRequest.newContext({ baseURL: BASE_URL });
+  const res = await anon.post("/api/study/chat", {
+    data: {
+      threadId: "00000000-0000-4000-8000-000000000000",
+      message: "hello?",
+    },
+    maxRedirects: 0,
+  });
+  expect(res.status(), "study chat must reject anonymous callers").toBe(401);
+  await anon.dispose();
 });
 
 test("real email+password login opens an authenticated session", async ({
