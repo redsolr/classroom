@@ -268,10 +268,12 @@ test("edit-in-place updates a word and survives reload", async ({ page }) => {
     table.getByRole("cell", { name: /cat \(animal\)/ }),
   ).toBeVisible();
 
-  // Persisted, not just local state.
+  // Persisted, not just local state. Scope to the table: the phone card
+  // list renders the same word (hidden at this width, but getByText still
+  // matches it).
   await page.reload();
   await expect(
-    page.getByRole("main").getByText("cat (animal)"),
+    table.getByRole("cell", { name: /cat \(animal\)/ }),
   ).toBeVisible();
 });
 
@@ -284,7 +286,13 @@ test("CSV export serves the personal list Anki-ready", async ({ page }) => {
   expect(res.headers()["content-type"]).toContain("text/csv");
   expect(res.headers()["content-disposition"]).toContain("vocabulary.csv");
 
-  const [header, ...rows] = (await res.text()).split("\r\n");
+  const body = await res.text();
+  expect(
+    body.startsWith("﻿"),
+    "UTF-8 BOM — without it Excel mojibakes 猫 and accented French",
+  ).toBe(true);
+
+  const [header, ...rows] = body.slice(1).split("\r\n");
   expect(header).toBe("term,reading,meaning,example,language,status");
   expect(
     rows.some((r) => r.startsWith('"猫","neko","cat (animal)"')),
@@ -294,6 +302,45 @@ test("CSV export serves the personal list Anki-ready", async ({ page }) => {
     rows.some((r) => r.startsWith('"bonjour"')),
     "the chip-saved French word must export",
   ).toBe(true);
+});
+
+test("Escape cancels an edit, Enter saves it, and delete takes two clicks", async ({
+  page,
+}) => {
+  // A throwaway word, so this test leaves the list exactly as it found it.
+  await page.goto("/study/vocab");
+  await page.getByLabel("Language").selectOption("Spanish");
+  await page.getByLabel("Word or phrase").fill("perro");
+  await page.getByLabel("Meaning").fill("dog");
+  await page.getByRole("button", { name: "Add word" }).click();
+
+  const table = page.getByRole("main").locator("table");
+  const row = () => table.locator("tbody tr").filter({ hasText: "perro" });
+  const editRow = table
+    .locator("tbody tr")
+    .filter({ has: page.getByLabel("Edit term") });
+
+  // Escape abandons the edit — the original meaning survives.
+  await row().getByTitle("Edit word").click();
+  await editRow.getByLabel("Edit meaning").fill("cat");
+  await editRow.getByLabel("Edit meaning").press("Escape");
+  await expect(row()).toContainText("dog");
+  await expect(row()).not.toContainText("cat");
+
+  // Enter commits without reaching for the mouse.
+  await row().getByTitle("Edit word").click();
+  await editRow.getByLabel("Edit meaning").fill("dog (Spanish)");
+  await editRow.getByLabel("Edit meaning").press("Enter");
+  await expect(row()).toContainText("dog (Spanish)");
+
+  // Delete arms first — one stray click next to the pencil can't destroy a word.
+  const del = row().getByTitle("Delete word");
+  await del.click();
+  await expect(del).toContainText("Sure?");
+  await expect(row()).toBeVisible();
+
+  await del.click();
+  await expect(row()).toHaveCount(0);
 });
 
 test("free daily cap blocks the tutor and points at the upgrade", async ({

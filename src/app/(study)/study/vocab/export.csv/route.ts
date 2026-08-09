@@ -3,6 +3,14 @@ import { desc, eq } from "drizzle-orm";
 import { db, studyVocab } from "@/db";
 import { getLearner } from "@/lib/auth";
 
+/**
+ * Byte-order mark. Anki strips it, but without it Excel on Windows renders
+ * 猫 and accented French as mojibake — and this list is the founder's
+ * Japanese/French vocabulary. Built from the code point rather than an
+ * inline "﻿" so the character is visible in the source.
+ */
+const UTF8_BOM = String.fromCharCode(0xfeff);
+
 function csvField(value: string | null): string {
   if (value == null) return "";
   return `"${value.replaceAll('"', '""')}"`;
@@ -39,7 +47,7 @@ export async function GET() {
     ),
   ];
 
-  return new NextResponse(lines.join("\r\n"), {
+  return new NextResponse(`${UTF8_BOM}${lines.join("\r\n")}`, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
       "Content-Disposition": `attachment; filename="vocabulary.csv"`,

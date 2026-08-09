@@ -43,6 +43,46 @@ test("chat is fully usable at phone width: new chat, type, send, reply", async (
   await expect(page.getByText(/Happy to help with anything/)).toBeVisible();
 });
 
+test("vocabulary is a usable card list at phone width: add, sort, edit in place", async ({
+  page,
+}) => {
+  await page.goto("/study/vocab");
+  await page.getByLabel("Language").selectOption("French");
+  await page.getByLabel("Word or phrase").fill("chien");
+  await page.getByLabel("Meaning").fill("dog");
+  await page.getByRole("button", { name: "Add word" }).click();
+
+  // Phones get cards, not the 8-column table (which is display:none here —
+  // role queries skip it, so a listitem match proves the phone branch).
+  const card = page
+    .getByRole("main")
+    .getByRole("listitem")
+    .filter({ hasText: "chien" });
+  await expect(card).toBeVisible();
+
+  // Column headers don't exist on this branch, so sorting has its own
+  // control — it must be reachable, not just present.
+  await page.getByRole("main").getByLabel("Sort by").selectOption("term");
+  await expect(card).toBeVisible();
+
+  // Edit-in-place works with a real tap, not just on desktop.
+  await card.getByTitle("Edit word").click();
+  const editor = page
+    .getByRole("main")
+    .getByRole("listitem")
+    .filter({ has: page.getByLabel("Edit term") });
+  await expect(editor.getByLabel("Edit term")).toHaveValue("chien");
+  await editor.getByLabel("Edit meaning").fill("dog (animal)");
+  await editor.getByTitle("Save word").click();
+
+  await expect(
+    page
+      .getByRole("main")
+      .getByRole("listitem")
+      .filter({ hasText: "chien" }),
+  ).toContainText("dog (animal)");
+});
+
 test("PWA manifest and icons serve", async ({ page }) => {
   const manifest = await page.request.get("/manifest.webmanifest");
   expect(manifest.status()).toBe(200);

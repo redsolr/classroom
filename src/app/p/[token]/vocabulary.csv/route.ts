@@ -2,6 +2,13 @@ import { NextResponse } from "next/server";
 import { desc, eq } from "drizzle-orm";
 import { db, students, vocabularyItems } from "@/db";
 
+/**
+ * Byte-order mark so Excel opens non-ASCII vocabulary correctly (Anki
+ * ignores it). Kept identical to the learner export at
+ * /study/vocab/export.csv.
+ */
+const UTF8_BOM = String.fromCharCode(0xfeff);
+
 function csvField(value: string | null): string {
   if (value == null) return "";
   return `"${value.replaceAll('"', '""')}"`;
@@ -43,7 +50,7 @@ export async function GET(
     ),
   ];
 
-  return new NextResponse(lines.join("\r\n"), {
+  return new NextResponse(`${UTF8_BOM}${lines.join("\r\n")}`, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
       "Content-Disposition": `attachment; filename="vocabulary.csv"`,
