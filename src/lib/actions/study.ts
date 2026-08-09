@@ -12,16 +12,29 @@ function revalidateStudyTree() {
   revalidatePath("/", "layout");
 }
 import { redirect } from "next/navigation";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
-import { db, learners, studyProjects, studyThreads, studyVocab } from "@/db";
+import {
+  db,
+  learners,
+  studyMessages,
+  studyProjects,
+  studyThreads,
+  studyVocab,
+} from "@/db";
+import {
+  extractVocabCandidates,
+  type VocabCandidate,
+} from "@/lib/ai/vocab-extract";
 import { requireLearner } from "@/lib/auth";
 import {
   billingConfigured,
+  dailyCapFor,
   getStripe,
   studyPriceId,
 } from "@/lib/billing";
 import { srsReviewPatch } from "@/lib/srs";
+import { countTutorMessagesLast24h } from "@/lib/study-usage";
 
 // ---------------------------------------------------------------------------
 // Projects — ChatGPT-Projects-shaped: name + optional language (tutor
@@ -287,6 +300,141 @@ export async function deleteStudyVocab(vocabId: string) {
     .where(and(eq(studyVocab.id, id), eq(studyVocab.learnerId, learner.id)));
 
   revalidatePath("/study/vocab");
+}
+
+/**
+ * Resolve a thread the learner owns to its tutor language (project wins,
+ * matching the chat route). Null = generic chat.
+ */
+async function resolveThreadLanguage(learnerId: string, threadId: string) {
+  const id = z.string().uuid().parse(threadId);
+  const thread = await db.query.studyThreads.findFirst({
+    where: and(eq(studyThreads.id, id), eq(studyThreads.learnerId, learnerId)),
+    columns: { id: true, language: true, projectId: true },
+  });
+  if (!thread) throw new Error("Chat not found");
+
+  let language = thread.language;
+  if (thread.projectId) {
+    const project = await db.query.studyProjects.findFirst({
+      where: and(
+        eq(studyProjects.id, thread.projectId),
+        eq(studyProjects.learnerId, learnerId),
+      ),
+      columns: { language: true },
+    });
+    language = project?.language ?? language;
+  }
+  return { threadId: thread.id, language };
+}
+
+/** The learner's saved terms in a language, lowercased for dedup. */
+async function savedTermsFor(learnerId: string, language: string) {
+  const rows = await db
+    .select({ term: studyVocab.term })
+    .from(studyVocab)
+    .where(
+      and(eq(studyVocab.learnerId, learnerId), eq(studyVocab.language, language)),
+    );
+  return new Set(rows.map((r) => r.term.toLowerCase()));
+}
+
+/**
+ * Chat→vocab bulk extraction, step 1: propose candidates from the whole
+ * conversation (LLM with a key, deterministic VOCAB-line mock without).
+ * Proposes only — nothing is saved until the learner picks in step 2.
+ * Gated on the same rolling-24h cap as tutor messages: with a key this
+ * is a paid model call.
+ */
+export async function extractStudyVocab(threadId: string): Promise<{
+  language: string;
+  candidates: VocabCandidate[];
+}> {
+  const learner = await requireLearner();
+  const { threadId: id, language } = await resolveThreadLanguage(
+    learner.id,
+    threadId,
+  );
+  if (!language) {
+    throw new Error(
+      "This chat isn't tied to a language — vocabulary extraction needs one.",
+    );
+  }
+
+  const cap = dailyCapFor(learner);
+  if ((await countTutorMessagesLast24h(learner.id)) >= cap) {
+    throw new Error(
+      "You've used today's tutor allowance — extraction runs the model too. Try again tomorrow or upgrade.",
+    );
+  }
+
+  const [turns, saved] = await Promise.all([
+    db
+      .select({ role: studyMessages.role, content: studyMessages.content })
+      .from(studyMessages)
+      .where(eq(studyMessages.threadId, id))
+      .orderBy(asc(studyMessages.createdAt)),
+    savedTermsFor(learner.id, language),
+  ]);
+
+  const candidates = (await extractVocabCandidates(
+    language,
+    turns,
+    [...saved],
+  )).filter((c) => !saved.has(c.term.toLowerCase()));
+
+  return { language, candidates };
+}
+
+const bulkItemsSchema = z
+  .array(
+    z.object({
+      term: z.string().trim().min(1).max(200),
+      reading: z.string().trim().max(200).nullable(),
+      meaning: z.string().trim().max(500).nullable(),
+    }),
+  )
+  .min(1)
+  .max(40);
+
+/**
+ * Step 2: save the candidates the learner picked. Language comes from
+ * the thread server-side (never the client), and already-saved terms are
+ * skipped again — the list may have changed since extraction.
+ */
+export async function addStudyVocabBulk(
+  threadId: string,
+  items: VocabCandidate[],
+): Promise<{ added: number }> {
+  const learner = await requireLearner();
+  const { language } = await resolveThreadLanguage(learner.id, threadId);
+  if (!language) throw new Error("This chat isn't tied to a language.");
+
+  const parsed = bulkItemsSchema.parse(items);
+  const saved = await savedTermsFor(learner.id, language);
+
+  const fresh: typeof parsed = [];
+  for (const item of parsed) {
+    const key = item.term.toLowerCase();
+    if (saved.has(key)) continue;
+    saved.add(key); // also dedups within the submitted batch
+    fresh.push(item);
+  }
+
+  if (fresh.length > 0) {
+    await db.insert(studyVocab).values(
+      fresh.map((item) => ({
+        learnerId: learner.id,
+        language,
+        term: item.term,
+        reading: item.reading || null,
+        meaning: item.meaning || null,
+      })),
+    );
+    revalidatePath("/study/vocab");
+  }
+
+  return { added: fresh.length };
 }
 
 const gradeSchema = z.enum(["again", "hard", "good", "easy"]);

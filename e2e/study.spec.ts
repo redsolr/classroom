@@ -343,12 +343,59 @@ test("Escape cancels an edit, Enter saves it, and delete takes two clicks", asyn
   await expect(row()).toHaveCount(0);
 });
 
+test("chat→vocab bulk extraction: review dialog, bulk save, dedup", async ({
+  page,
+}) => {
+  // A German project: its vocab list is empty, so the mock tutor
+  // suggests its starter word as a VOCAB line.
+  await page.goto("/study/project/new");
+  await page.getByLabel("Name").fill("German");
+  await page.getByLabel(/Language/).selectOption("German");
+  await page.getByRole("button", { name: "Create project" }).click();
+  await page.waitForURL(/\/study\/project\/[0-9a-f-]{36}/);
+
+  await page.getByRole("button", { name: "New chat" }).click();
+  await page.waitForURL(/\/study\?t=[0-9a-f-]{36}/);
+  const threadUrl = page.url();
+
+  // One send — counts against the suite's shared cap budget.
+  await page.getByLabel("Message").fill("Guten Tag! Ich lerne Deutsch.");
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(page.getByText(/Let's practice your German/)).toBeVisible();
+
+  // The tutor marked a word; do NOT tap its chip — extraction must find
+  // it by reading the transcript.
+  await page.getByTitle("Save words from this chat").click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByText("bonjour")).toBeVisible();
+  await dialog.getByRole("button", { name: "Add 1 word" }).click();
+  await expect(dialog.getByText(/Added 1 word/)).toBeVisible();
+  await dialog.getByRole("link", { name: /Open my vocabulary/ }).click();
+
+  // Filed under German (bonjour also exists under French — the term
+  // dedup is per language).
+  await page.waitForURL("**/study/vocab");
+  const row = page
+    .getByRole("main")
+    .locator("tbody tr")
+    .filter({ hasText: "German" });
+  await expect(row.getByRole("cell", { name: "bonjour" })).toBeVisible();
+
+  // Round 2 proves dedup: the word is on the list now, so extraction
+  // comes back empty instead of proposing it again.
+  await page.goto(threadUrl);
+  await page.getByTitle("Save words from this chat").click();
+  await expect(
+    page.getByRole("dialog").getByText(/No new words found/),
+  ).toBeVisible();
+});
+
 test("free daily cap blocks the tutor and points at the upgrade", async ({
   page,
 }) => {
   await page.goto("/study");
   // Reuse the French thread via the sidebar chat tree (titled by its
-  // first message). 3 of the 5 free messages are already spent.
+  // first message). 4 of the 5 free messages are already spent.
   await page.getByRole("link", { name: /Bonjour/ }).first().click();
   await page.waitForURL(/\/study\?t=[0-9a-f-]{36}/);
 

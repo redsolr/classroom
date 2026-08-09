@@ -9,6 +9,7 @@ import { requireLearner } from "@/lib/auth";
 import { threadTitle } from "@/lib/study-display";
 import { StudyChat } from "@/components/study/study-chat";
 import { DeleteThreadButton } from "@/components/study/delete-thread-button";
+import { ExtractVocabButton } from "@/components/study/extract-vocab-dialog";
 import { SubmitButton } from "@/components/ui/button";
 
 export const metadata: Metadata = { title: "Study chat" };
@@ -81,7 +82,14 @@ export default async function StudyChatPage({
                 )}
               </p>
             </div>
-            <DeleteThreadButton threadId={active.id} />
+            <div className="flex shrink-0 items-center gap-1">
+              {/* Extraction needs a language to file words under and a
+                  conversation to read — generic or empty chats hide it. */}
+              {chatLanguage && messages.length > 0 && (
+                <ExtractVocabButton threadId={active.id} />
+              )}
+              <DeleteThreadButton threadId={active.id} />
+            </div>
           </header>
           <StudyChat
             key={active.id}
