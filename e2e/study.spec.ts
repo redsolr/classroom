@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import postgres from "postgres";
+import { resetMockLearner } from "./helpers";
 
 /**
  * The self-study space (/study): projects with custom instructions
@@ -17,19 +17,7 @@ import postgres from "postgres";
 
 const FREE_CAP = 5;
 
-test.beforeAll(async () => {
-  const sql = postgres(
-    process.env.DATABASE_URL ??
-      "postgresql://classroom:classroom@localhost:5439/classroom",
-    { max: 1 },
-  );
-  try {
-    // Cascades to study_projects, study_threads, study_messages, study_vocab.
-    await sql`delete from learners where workos_user_id = 'mock_teacher_dev'`;
-  } finally {
-    await sql.end();
-  }
-});
+test.beforeAll(resetMockLearner);
 
 test("study space opens on the new-chat hero", async ({ page }) => {
   await page.goto("/study");

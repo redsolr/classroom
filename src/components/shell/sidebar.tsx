@@ -26,8 +26,6 @@ import {
 import { SelfStudySection } from "@/components/shell/self-study-section";
 import type { SidebarStudy } from "@/lib/study-sidebar";
 
-const EMPTY_STUDY: SidebarStudy = { projects: [], pinned: [], chats: [] };
-
 const TEACHING_ITEMS: NavEntry[] = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
   { href: "/schedule", label: "Schedule", icon: CalendarClock },
@@ -39,11 +37,11 @@ const TEACHING_ITEMS: NavEntry[] = [
 export function Sidebar({
   teacherName,
   teacherEmail,
-  study = EMPTY_STUDY,
+  study,
 }: {
   teacherName: string;
   teacherEmail: string;
-  study?: SidebarStudy;
+  study: SidebarStudy;
 }) {
   return (
     <SidebarShell homeHref="/schedule">

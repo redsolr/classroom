@@ -21,6 +21,11 @@ import {
   toggleStudyThreadPin,
 } from "@/lib/actions/study";
 import type { SidebarStudy, SidebarThread } from "@/lib/study-sidebar";
+import { threadTitle } from "@/lib/study-display";
+import {
+  navRowClass,
+  SectionLabel,
+} from "@/components/shell/sidebar-shell";
 import { cn } from "@/lib/utils";
 
 /**
@@ -40,18 +45,6 @@ const STATIC_ITEMS = [
   { href: "/study/vocab/review", label: "Review", icon: BookOpenCheck },
   { href: "/study/account", label: "Plan & usage", icon: Gauge },
 ];
-
-const rowClass = (active: boolean) =>
-  cn(
-    "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[0.9375rem] font-medium transition-colors",
-    active
-      ? "bg-accent-soft text-accent-text"
-      : "text-fg hover:bg-surface-hover",
-  );
-
-function threadLabel(thread: SidebarThread): string {
-  return thread.title ?? `${thread.language ?? "New"} chat`;
-}
 
 function ThreadRow({
   thread,
@@ -90,7 +83,7 @@ function ThreadRow({
           active ? "text-accent-text" : "text-fg",
         )}
       >
-        {threadLabel(thread)}
+        {threadTitle(thread)}
       </Link>
       <button
         type="button"
@@ -143,7 +136,9 @@ function StudyChatTree({ study }: { study: SidebarStudy }) {
 
   return (
     <div>
-      <div className={cn(rowClass(pathname === "/study" && !activeId), "pr-1")}>
+      <div
+        className={cn(navRowClass(pathname === "/study" && !activeId), "pr-1")}
+      >
         <Link href="/study" className="flex min-w-0 flex-1 items-center gap-2.5">
           <MessageCircle className="size-4 shrink-0" />
           Chat
@@ -277,9 +272,7 @@ export function SelfStudySection({ study }: { study: SidebarStudy }) {
   const pathname = usePathname();
   return (
     <div className="mb-5">
-      <p className="mb-1.5 px-2.5 text-[0.72rem] font-semibold tracking-wider text-fg-tertiary uppercase">
-        Self-study
-      </p>
+      <SectionLabel>Self-study</SectionLabel>
       <nav className="flex flex-col gap-0.5">
         {/* useSearchParams lives below this Suspense boundary. */}
         <React.Suspense fallback={null}>
@@ -290,7 +283,11 @@ export function SelfStudySection({ study }: { study: SidebarStudy }) {
             ? pathname === item.href
             : pathname === item.href || pathname.startsWith(item.href + "/");
           return (
-            <Link key={item.href} href={item.href} className={rowClass(active)}>
+            <Link
+              key={item.href}
+              href={item.href}
+              className={navRowClass(active)}
+            >
               <item.icon className="size-4" />
               {item.label}
             </Link>

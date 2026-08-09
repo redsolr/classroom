@@ -21,8 +21,6 @@ import {
 import { SelfStudySection } from "@/components/shell/self-study-section";
 import type { SidebarStudy } from "@/lib/study-sidebar";
 
-const EMPTY_STUDY: SidebarStudy = { projects: [], pinned: [], chats: [] };
-
 const CLASSROOM_ITEMS: NavEntry[] = [
   { href: "/student/schedule", label: "Schedule", icon: CalendarClock },
   { href: "/student", label: "My classroom", icon: GraduationCap, exact: true },
@@ -32,11 +30,11 @@ const CLASSROOM_ITEMS: NavEntry[] = [
 export function StudentSidebar({
   studentName,
   studentEmail,
-  study = EMPTY_STUDY,
+  study,
 }: {
   studentName: string;
   studentEmail: string | null;
-  study?: SidebarStudy;
+  study: SidebarStudy;
 }) {
   return (
     <SidebarShell homeHref="/student">

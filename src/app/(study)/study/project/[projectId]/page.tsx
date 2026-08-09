@@ -10,8 +10,7 @@ import {
   updateStudyProject,
 } from "@/lib/actions/study";
 import { requireLearner } from "@/lib/auth";
-import { STUDY_LANGUAGES } from "@/lib/study-languages";
-import { Field, Input, Select, Textarea } from "@/components/ui/field";
+import { ProjectFields } from "@/components/study/project-fields";
 import { SubmitButton } from "@/components/ui/button";
 
 export const metadata: Metadata = { title: "Project" };
@@ -71,39 +70,7 @@ export default async function StudyProjectPage({
           action={updateStudyProject.bind(null, project.id)}
           className="space-y-4"
         >
-          <Field label="Name">
-            <Input
-              name="name"
-              required
-              maxLength={80}
-              defaultValue={project.name}
-            />
-          </Field>
-          <Field
-            label="Language"
-            hint="Set → chats here get the language tutor with your vocabulary."
-          >
-            <Select name="language" defaultValue={project.language ?? ""}>
-              <option value="">Not language-specific</option>
-              {STUDY_LANGUAGES.map((lang) => (
-                <option key={lang} value={lang}>
-                  {lang}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field
-            label="Custom instructions"
-            hint="The AI follows these in every chat in this project."
-          >
-            <Textarea
-              name="instructions"
-              rows={5}
-              maxLength={4000}
-              defaultValue={project.instructions ?? ""}
-              placeholder="e.g. Always correct my grammar strictly. Keep replies short."
-            />
-          </Field>
+          <ProjectFields defaults={project} />
           <div className="flex items-center justify-between">
             <SubmitButton>Save project</SubmitButton>
           </div>

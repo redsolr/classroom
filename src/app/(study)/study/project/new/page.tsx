@@ -2,8 +2,7 @@ import type { Metadata } from "next";
 import { FolderPlus } from "lucide-react";
 import { createStudyProject } from "@/lib/actions/study";
 import { requireLearner } from "@/lib/auth";
-import { STUDY_LANGUAGES } from "@/lib/study-languages";
-import { Field, Input, Select, Textarea } from "@/components/ui/field";
+import { ProjectFields } from "@/components/study/project-fields";
 import { SubmitButton } from "@/components/ui/button";
 
 export const metadata: Metadata = { title: "New project" };
@@ -24,40 +23,7 @@ export default async function NewStudyProjectPage() {
       </p>
 
       <form action={createStudyProject} className="space-y-4">
-        <Field label="Name">
-          <Input
-            name="name"
-            required
-            maxLength={80}
-            placeholder="French · Japanese · Freelance · …"
-          />
-        </Field>
-        <Field
-          label="Language"
-          hint="Optional — set it and chats in this project get the language tutor with your vocabulary."
-        >
-          <Select name="language" defaultValue="">
-            <option value="">Not language-specific</option>
-            {STUDY_LANGUAGES.map((lang) => (
-              <option key={lang} value={lang}>
-                {lang}
-              </option>
-            ))}
-          </Select>
-        </Field>
-        <Field
-          label="Custom instructions"
-          hint="Optional — the AI follows these in every chat in this project."
-        >
-          <Textarea
-            name="instructions"
-            rows={5}
-            maxLength={4000}
-            placeholder={
-              "e.g. Always correct my grammar strictly. Explain in simple English. Focus on JLPT N4."
-            }
-          />
-        </Field>
+        <ProjectFields />
         <SubmitButton>Create project</SubmitButton>
       </form>
     </div>

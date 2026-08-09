@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import postgres from "postgres";
+import { resetMockLearner } from "./helpers";
 
 /**
  * Mobile-viewport branches of the study surface (390×844): the hamburger
@@ -11,18 +11,7 @@ import postgres from "postgres";
 
 test.use({ viewport: { width: 390, height: 844 } });
 
-test.beforeAll(async () => {
-  const sql = postgres(
-    process.env.DATABASE_URL ??
-      "postgresql://classroom:classroom@localhost:5439/classroom",
-    { max: 1 },
-  );
-  try {
-    await sql`delete from learners where workos_user_id = 'mock_teacher_dev'`;
-  } finally {
-    await sql.end();
-  }
-});
+test.beforeAll(resetMockLearner);
 
 test("hamburger opens the drawer; a nav tap navigates and closes it", async ({
   page,

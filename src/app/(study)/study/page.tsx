@@ -2,25 +2,16 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { and, asc, eq } from "drizzle-orm";
 import { FolderPlus, Languages, Plus } from "lucide-react";
-import {
-  db,
-  studyMessages,
-  studyProjects,
-  studyThreads,
-  type StudyThread,
-} from "@/db";
+import { db, studyMessages, studyProjects, studyThreads } from "@/db";
 import { createStudyThread } from "@/lib/actions/study";
 import { STUDY_MODEL, STUDY_MODELS } from "@/lib/ai/study-tutor";
 import { requireLearner } from "@/lib/auth";
+import { threadTitle } from "@/lib/study-display";
 import { StudyChat } from "@/components/study/study-chat";
 import { DeleteThreadButton } from "@/components/study/delete-thread-button";
 import { SubmitButton } from "@/components/ui/button";
 
 export const metadata: Metadata = { title: "Study chat" };
-
-function threadTitle(thread: Pick<StudyThread, "title" | "language">): string {
-  return thread.title ?? `${thread.language ?? "New"} chat`;
-}
 
 export default async function StudyChatPage({
   searchParams,

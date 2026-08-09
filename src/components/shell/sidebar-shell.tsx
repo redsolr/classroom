@@ -28,6 +28,25 @@ export type NavEntry = {
   exact?: boolean;
 };
 
+/** The one nav-row look (white text; accent when active) — shared with
+ * the self-study section so the sidebar can't drift stylistically. */
+export function navRowClass(active: boolean): string {
+  return cn(
+    "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[0.9375rem] font-medium transition-colors",
+    active
+      ? "bg-accent-soft text-accent-text"
+      : "text-fg hover:bg-surface-hover",
+  );
+}
+
+export function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="mb-1.5 px-2.5 text-[0.72rem] font-semibold tracking-wider text-fg-tertiary uppercase">
+      {children}
+    </p>
+  );
+}
+
 export function NavSection({
   label,
   items,
@@ -38,25 +57,14 @@ export function NavSection({
   const pathname = usePathname();
   return (
     <div className="mb-5">
-      <p className="mb-1.5 px-2.5 text-[0.72rem] font-semibold tracking-wider text-fg-tertiary uppercase">
-        {label}
-      </p>
+      <SectionLabel>{label}</SectionLabel>
       <nav className="flex flex-col gap-0.5">
         {items.map((item) => {
           const active = item.exact
             ? pathname === item.href
             : pathname === item.href || pathname.startsWith(item.href + "/");
           return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[0.9375rem] font-medium transition-colors",
-                active
-                  ? "bg-accent-soft text-accent-text"
-                  : "text-fg hover:bg-surface-hover",
-              )}
-            >
+            <Link key={item.href} href={item.href} className={navRowClass(active)}>
               <item.icon className="size-4" />
               {item.label}
             </Link>

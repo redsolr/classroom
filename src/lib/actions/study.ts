@@ -46,13 +46,17 @@ const projectSchema = z.object({
     .transform((v) => (v ? v : undefined)),
 });
 
-export async function createStudyProject(formData: FormData) {
-  const learner = await requireLearner();
-  const parsed = projectSchema.parse({
+function parseProjectForm(formData: FormData) {
+  return projectSchema.parse({
     name: formData.get("name"),
     language: formData.get("language") || undefined,
     instructions: formData.get("instructions") || undefined,
   });
+}
+
+export async function createStudyProject(formData: FormData) {
+  const learner = await requireLearner();
+  const parsed = parseProjectForm(formData);
 
   const [project] = await db
     .insert(studyProjects)
@@ -74,11 +78,7 @@ export async function updateStudyProject(
 ) {
   const learner = await requireLearner();
   const id = z.string().uuid().parse(projectId);
-  const parsed = projectSchema.parse({
-    name: formData.get("name"),
-    language: formData.get("language") || undefined,
-    instructions: formData.get("instructions") || undefined,
-  });
+  const parsed = parseProjectForm(formData);
 
   const updated = await db
     .update(studyProjects)
