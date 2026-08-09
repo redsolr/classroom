@@ -1,24 +1,17 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { desc, eq } from "drizzle-orm";
-import { BookOpenCheck, Trash2 } from "lucide-react";
-import { db, studyVocab, type StudyVocabItem } from "@/db";
-import { addStudyVocab, deleteStudyVocab } from "@/lib/actions/study";
+import { BookOpenCheck } from "lucide-react";
+import { db, studyVocab } from "@/db";
+import { addStudyVocab } from "@/lib/actions/study";
 import { requireLearner } from "@/lib/auth";
 import { isCardDue } from "@/lib/srs";
 import { STUDY_LANGUAGES } from "@/lib/study-languages";
 import { Field, Input, Select } from "@/components/ui/field";
 import { SubmitButton } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { VocabTable } from "@/components/study/vocab-table";
 
 export const metadata: Metadata = { title: "My vocabulary" };
-
-const STATUS_STYLES: Record<StudyVocabItem["status"], string> = {
-  new: "bg-surface-hover text-fg-secondary",
-  learning: "bg-accent-soft text-accent-text",
-  reviewing: "bg-accent-soft text-accent-text",
-  mastered: "bg-accent text-white",
-};
 
 export default async function StudyVocabPage() {
   const learner = await requireLearner();
@@ -31,15 +24,9 @@ export default async function StudyVocabPage() {
     .orderBy(desc(studyVocab.createdAt));
 
   const dueCount = items.filter((item) => isCardDue(item.srsDueAt, now)).length;
-  const byLanguage = new Map<string, StudyVocabItem[]>();
-  for (const item of items) {
-    const list = byLanguage.get(item.language) ?? [];
-    list.push(item);
-    byLanguage.set(item.language, list);
-  }
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6">
+    <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
       <header className="mb-6 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-[1.625rem] font-semibold tracking-tight">
@@ -102,58 +89,7 @@ export default async function StudyVocabPage() {
           “+ word — meaning” chips — one tap adds them here.
         </p>
       ) : (
-        [...byLanguage.entries()].map(([language, list]) => (
-          <section key={language} className="mb-8">
-            <h2 className="mb-2.5 text-[1rem] font-semibold">{language}</h2>
-            <ul className="space-y-2">
-              {list.map((item) => (
-                <li
-                  key={item.id}
-                  className="flex items-start gap-3 rounded-lg bg-surface px-4 py-3 shadow-card"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[0.9375rem]">
-                      <span className="font-semibold">{item.term}</span>
-                      {item.reading && (
-                        <span className="ml-1.5 text-fg-secondary">
-                          [{item.reading}]
-                        </span>
-                      )}
-                      {item.meaning && (
-                        <span className="text-fg-secondary">
-                          {" "}
-                          — {item.meaning}
-                        </span>
-                      )}
-                    </p>
-                    {item.example && (
-                      <p className="mt-0.5 truncate text-[0.875rem] text-fg-tertiary italic">
-                        {item.example}
-                      </p>
-                    )}
-                  </div>
-                  <span
-                    className={cn(
-                      "mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-[0.72rem] font-medium",
-                      STATUS_STYLES[item.status],
-                    )}
-                  >
-                    {isCardDue(item.srsDueAt, now) ? "due" : item.status}
-                  </span>
-                  <form action={deleteStudyVocab.bind(null, item.id)}>
-                    <button
-                      type="submit"
-                      title="Delete word"
-                      className="flex size-7 shrink-0 items-center justify-center rounded-md text-fg-tertiary transition-colors hover:bg-surface-hover hover:text-danger"
-                    >
-                      <Trash2 className="size-3.5" />
-                    </button>
-                  </form>
-                </li>
-              ))}
-            </ul>
-          </section>
-        ))
+        <VocabTable items={items} />
       )}
     </div>
   );

@@ -15,8 +15,9 @@ private.
 
 Any signed-in account also gets a personal study space (2026-08-09 arc):
 streaming AI tutor chat per language (threads, like ChatGPT), a personal
-vocabulary list with SM-2 flashcard review, and a Stripe **Study Pro**
-subscription. Free tier = `STUDY_FREE_DAILY_CAP` tutor messages per rolling
+vocabulary table (sortable columns, language filter, edit-in-place) with
+SM-2 flashcard review and an Anki-ready CSV export
+(`/study/vocab/export.csv`), and a Stripe **Study Pro** subscription. Free tier = `STUDY_FREE_DAILY_CAP` tutor messages per rolling
 day (default 10); Pro raises it to an abuse brake (default 500). Vocabulary
 and review are always free. The tutor runs on OpenAI — the composer has a
 per-message model picker over the `STUDY_AI_MODELS` roster (default

@@ -70,6 +70,10 @@ function VocabChip({
       type="button"
       onClick={add}
       disabled={added || pending}
+      // Saved vs still-saving must be distinguishable (disabled alone is
+      // ambiguous — the button also disables while the action is in
+      // flight, and navigating away then aborts the save).
+      title={added ? "Added to your vocabulary" : "Add to your vocabulary"}
       className={cn(
         "inline-flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1 text-[0.8125rem] transition-colors",
         added

@@ -118,6 +118,13 @@ test("anonymous POST to the study chat API is a 401, never a served reply", asyn
   await anon.dispose();
 });
 
+test("anonymous GET of the vocab CSV export is a 401, never data", async () => {
+  const anon = await pwRequest.newContext({ baseURL: BASE_URL });
+  const res = await anon.get("/study/vocab/export.csv", { maxRedirects: 0 });
+  expect(res.status(), "vocab export must reject anonymous callers").toBe(401);
+  await anon.dispose();
+});
+
 test("real email+password login opens an authenticated session", async ({
   page,
 }) => {

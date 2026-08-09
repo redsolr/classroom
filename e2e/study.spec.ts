@@ -53,13 +53,20 @@ test("language project with custom instructions: tutor reply is grounded AND fol
   const chip = page.getByRole("button", { name: /bonjour — hello/ });
   await expect(chip).toBeVisible();
   await chip.click();
+  // Wait for the SAVED state, not just disabled — the chip also disables
+  // while the action is in flight, and navigating away at that moment
+  // aborts the save (this exact race flaked the suite).
+  await expect(chip).toHaveAttribute("title", "Added to your vocabulary");
   await expect(chip).toBeDisabled();
 
-  // The saved word is on the vocabulary page, filed under French.
+  // The saved word is a row in the vocabulary table, filed under French.
   // (Scope to main — the sidebar chat tree also contains "Bonjour…".)
   await page.goto("/study/vocab");
-  await expect(page.getByRole("heading", { name: "French" })).toBeVisible();
-  await expect(page.getByRole("main").getByText("bonjour")).toBeVisible();
+  const row = page
+    .getByRole("main")
+    .locator("tbody tr")
+    .filter({ hasText: "bonjour" });
+  await expect(row.getByRole("cell", { name: "French" })).toBeVisible();
 });
 
 test("a loose chat is generic: no tutor persona, no instructions tail", async ({
@@ -191,7 +198,9 @@ test("manual vocab add + SM-2 review session over the due deck", async ({
   await page.getByLabel(/Reading/).fill("neko");
   await page.getByLabel("Meaning").fill("cat");
   await page.getByRole("button", { name: "Add word" }).click();
-  await expect(page.getByRole("heading", { name: "Japanese" })).toBeVisible();
+  await expect(
+    page.getByRole("main").getByRole("cell", { name: "猫" }),
+  ).toBeVisible();
 
   // Both saved words are due (never reviewed) — review the whole deck.
   await page.goto("/study/vocab/review");
@@ -205,6 +214,86 @@ test("manual vocab add + SM-2 review session over the due deck", async ({
   // Graded cards moved out of "due" — the list shows pipeline status.
   await page.goto("/study/vocab");
   await expect(page.getByText("0 due for review")).toBeVisible();
+});
+
+test("vocab table: columns, sort, and language filter", async ({ page }) => {
+  await page.goto("/study/vocab");
+  const table = page.getByRole("main").locator("table");
+  for (const col of [
+    "Term",
+    "Reading",
+    "Meaning",
+    "Language",
+    "Status",
+    "Due",
+    "Reps",
+  ]) {
+    await expect(table.getByText(col, { exact: true })).toBeVisible();
+  }
+
+  // Default order = newest first (猫 was added after bonjour); sorting
+  // by term ascending flips it (latin collates before CJK).
+  const terms = table.locator("tbody tr td:first-child");
+  await expect(terms.first()).toHaveText("猫");
+  await table.getByRole("button", { name: "Term" }).click();
+  await expect(terms.first()).toHaveText("bonjour");
+
+  // Language chips narrow the table to one language.
+  const main = page.getByRole("main");
+  await main.getByRole("button", { name: "Japanese", exact: true }).click();
+  await expect(table.getByRole("cell", { name: "bonjour" })).not.toBeVisible();
+  await expect(table.getByRole("cell", { name: "猫" })).toBeVisible();
+  await main.getByRole("button", { name: "all", exact: true }).click();
+  await expect(table.getByRole("cell", { name: "bonjour" })).toBeVisible();
+});
+
+test("edit-in-place updates a word and survives reload", async ({ page }) => {
+  await page.goto("/study/vocab");
+  const table = page.getByRole("main").locator("table");
+  await table
+    .locator("tbody tr")
+    .filter({ hasText: "猫" })
+    .getByTitle("Edit word")
+    .click();
+
+  // In edit mode the term is an input, so re-locate the row by its
+  // edit fields (hasText no longer sees the term).
+  const editRow = table
+    .locator("tbody tr")
+    .filter({ has: page.getByLabel("Edit term") });
+  await expect(editRow.getByLabel("Edit term")).toHaveValue("猫");
+  await editRow.getByLabel("Edit meaning").fill("cat (animal)");
+  await editRow.getByTitle("Save word").click();
+  await expect(
+    table.getByRole("cell", { name: /cat \(animal\)/ }),
+  ).toBeVisible();
+
+  // Persisted, not just local state.
+  await page.reload();
+  await expect(
+    page.getByRole("main").getByText("cat (animal)"),
+  ).toBeVisible();
+});
+
+test("CSV export serves the personal list Anki-ready", async ({ page }) => {
+  await page.goto("/study/vocab");
+  await expect(page.getByRole("link", { name: "Export CSV" })).toBeVisible();
+
+  const res = await page.request.get("/study/vocab/export.csv");
+  expect(res.status()).toBe(200);
+  expect(res.headers()["content-type"]).toContain("text/csv");
+  expect(res.headers()["content-disposition"]).toContain("vocabulary.csv");
+
+  const [header, ...rows] = (await res.text()).split("\r\n");
+  expect(header).toBe("term,reading,meaning,example,language,status");
+  expect(
+    rows.some((r) => r.startsWith('"猫","neko","cat (animal)"')),
+    "the edited Japanese word must export with its reading",
+  ).toBe(true);
+  expect(
+    rows.some((r) => r.startsWith('"bonjour"')),
+    "the chip-saved French word must export",
+  ).toBe(true);
 });
 
 test("free daily cap blocks the tutor and points at the upgrade", async ({

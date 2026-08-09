@@ -242,6 +242,42 @@ export async function addStudyVocab(formData: FormData) {
   revalidatePath("/study/vocab");
 }
 
+/**
+ * Edit-in-place from the vocab table. The patch covers the editable
+ * columns only — SRS state and status stay evidence-derived, never
+ * hand-edited.
+ */
+export async function updateStudyVocab(
+  vocabId: string,
+  patch: {
+    language: string;
+    term: string;
+    reading?: string;
+    meaning?: string;
+    example?: string;
+  },
+) {
+  const learner = await requireLearner();
+  const id = z.string().uuid().parse(vocabId);
+  const parsed = vocabSchema.parse(patch);
+
+  const updated = await db
+    .update(studyVocab)
+    .set({
+      language: parsed.language,
+      term: parsed.term,
+      reading: parsed.reading || null,
+      meaning: parsed.meaning || null,
+      example: parsed.example || null,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(studyVocab.id, id), eq(studyVocab.learnerId, learner.id)))
+    .returning({ id: studyVocab.id });
+  if (updated.length === 0) throw new Error("Vocabulary item not found");
+
+  revalidatePath("/study/vocab");
+}
+
 export async function deleteStudyVocab(vocabId: string) {
   const learner = await requireLearner();
   const id = z.string().uuid().parse(vocabId);
