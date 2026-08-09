@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
-import { db, learners, studyThreads, studyVocab } from "@/db";
+import { db, learners, studyProjects, studyThreads, studyVocab } from "@/db";
 import { requireLearner } from "@/lib/auth";
 import {
   billingConfigured,
@@ -14,18 +14,130 @@ import {
 import { srsReviewPatch } from "@/lib/srs";
 
 // ---------------------------------------------------------------------------
-// Threads
+// Projects — ChatGPT-Projects-shaped: name + optional language (tutor
+// mode) + optional standing instructions injected into every chat.
 // ---------------------------------------------------------------------------
 
 const languageSchema = z.string().trim().min(2).max(40);
 
+const projectSchema = z.object({
+  name: z.string().trim().min(1).max(80),
+  language: z
+    .string()
+    .trim()
+    .max(40)
+    .optional()
+    .transform((v) => (v ? v : undefined)),
+  instructions: z
+    .string()
+    .trim()
+    .max(4000)
+    .optional()
+    .transform((v) => (v ? v : undefined)),
+});
+
+export async function createStudyProject(formData: FormData) {
+  const learner = await requireLearner();
+  const parsed = projectSchema.parse({
+    name: formData.get("name"),
+    language: formData.get("language") || undefined,
+    instructions: formData.get("instructions") || undefined,
+  });
+
+  const [project] = await db
+    .insert(studyProjects)
+    .values({
+      learnerId: learner.id,
+      name: parsed.name,
+      language: parsed.language ?? null,
+      instructions: parsed.instructions ?? null,
+    })
+    .returning({ id: studyProjects.id });
+
+  redirect(`/study/project/${project.id}`);
+}
+
+export async function updateStudyProject(
+  projectId: string,
+  formData: FormData,
+) {
+  const learner = await requireLearner();
+  const id = z.string().uuid().parse(projectId);
+  const parsed = projectSchema.parse({
+    name: formData.get("name"),
+    language: formData.get("language") || undefined,
+    instructions: formData.get("instructions") || undefined,
+  });
+
+  const updated = await db
+    .update(studyProjects)
+    .set({
+      name: parsed.name,
+      language: parsed.language ?? null,
+      instructions: parsed.instructions ?? null,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(eq(studyProjects.id, id), eq(studyProjects.learnerId, learner.id)),
+    )
+    .returning({ id: studyProjects.id });
+  if (updated.length === 0) throw new Error("Project not found");
+
+  revalidatePath(`/study/project/${id}`);
+  revalidatePath("/study");
+}
+
+/** Chats survive project deletion (FK sets project_id null → "Chats"). */
+export async function deleteStudyProject(projectId: string) {
+  const learner = await requireLearner();
+  const id = z.string().uuid().parse(projectId);
+
+  await db
+    .delete(studyProjects)
+    .where(
+      and(eq(studyProjects.id, id), eq(studyProjects.learnerId, learner.id)),
+    );
+
+  revalidatePath("/study");
+  redirect("/study");
+}
+
+// ---------------------------------------------------------------------------
+// Threads — generic by default; created inside a project they inherit
+// its language (tutor mode).
+// ---------------------------------------------------------------------------
+
 export async function createStudyThread(formData: FormData) {
   const learner = await requireLearner();
-  const language = languageSchema.parse(formData.get("language"));
+  const projectId = formData.get("projectId");
+
+  let project: { id: string; language: string | null } | undefined;
+  if (projectId) {
+    const id = z.string().uuid().parse(projectId);
+    project = await db.query.studyProjects.findFirst({
+      where: and(
+        eq(studyProjects.id, id),
+        eq(studyProjects.learnerId, learner.id),
+      ),
+      columns: { id: true, language: true },
+    });
+    if (!project) throw new Error("Project not found");
+  }
+
+  // Legacy path (pre-projects forms): a bare language creates a loose
+  // tutor chat.
+  const rawLanguage = formData.get("language");
+  const language =
+    project?.language ??
+    (rawLanguage ? languageSchema.parse(rawLanguage) : null);
 
   const [thread] = await db
     .insert(studyThreads)
-    .values({ learnerId: learner.id, language })
+    .values({
+      learnerId: learner.id,
+      projectId: project?.id ?? null,
+      language,
+    })
     .returning({ id: studyThreads.id });
 
   redirect(`/study?t=${thread.id}`);

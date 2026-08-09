@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { and, asc, eq, ne, sql } from "drizzle-orm";
 import { z } from "zod";
-import { db, studyMessages, studyThreads, studyVocab } from "@/db";
+import { db, studyMessages, studyProjects, studyThreads, studyVocab } from "@/db";
 import { getLearner } from "@/lib/auth";
 import { dailyCapFor, learnerHasPro } from "@/lib/billing";
 import { countTutorMessagesLast24h } from "@/lib/study-usage";
@@ -78,23 +78,36 @@ export async function POST(req: NextRequest) {
     })
     .where(eq(studyThreads.id, thread.id));
 
-  const [vocab, historyRows] = await Promise.all([
-    db
-      .select({
-        term: studyVocab.term,
-        reading: studyVocab.reading,
-        meaning: studyVocab.meaning,
-        status: studyVocab.status,
-      })
-      .from(studyVocab)
-      .where(
-        and(
-          eq(studyVocab.learnerId, learner.id),
-          eq(studyVocab.language, thread.language),
+  // Project (if any) supplies language mode + standing instructions.
+  const project = thread.projectId
+    ? await db.query.studyProjects.findFirst({
+        where: and(
+          eq(studyProjects.id, thread.projectId),
+          eq(studyProjects.learnerId, learner.id),
         ),
-      )
-      .orderBy(sql`${studyVocab.srsDueAt} asc nulls first`)
-      .limit(VOCAB_CONTEXT_ITEMS),
+      })
+    : null;
+  const language = project?.language ?? thread.language ?? null;
+
+  const [vocab, historyRows] = await Promise.all([
+    language
+      ? db
+          .select({
+            term: studyVocab.term,
+            reading: studyVocab.reading,
+            meaning: studyVocab.meaning,
+            status: studyVocab.status,
+          })
+          .from(studyVocab)
+          .where(
+            and(
+              eq(studyVocab.learnerId, learner.id),
+              eq(studyVocab.language, language),
+            ),
+          )
+          .orderBy(sql`${studyVocab.srsDueAt} asc nulls first`)
+          .limit(VOCAB_CONTEXT_ITEMS)
+      : Promise.resolve([]),
     db
       .select({ role: studyMessages.role, content: studyMessages.content })
       .from(studyMessages)
@@ -110,8 +123,10 @@ export async function POST(req: NextRequest) {
 
   const context: TutorContext = {
     learnerName: learner.name,
-    language: thread.language,
+    language,
     vocab,
+    projectName: project?.name ?? null,
+    projectInstructions: project?.instructions ?? null,
   };
   const turns: TutorTurn[] = historyRows.slice(-HISTORY_TURNS);
 

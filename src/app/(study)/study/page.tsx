@@ -1,20 +1,25 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { and, asc, eq } from "drizzle-orm";
-import { Languages, Plus } from "lucide-react";
-import { db, studyMessages, studyThreads, type StudyThread } from "@/db";
+import { FolderPlus, Languages, Plus } from "lucide-react";
+import {
+  db,
+  studyMessages,
+  studyProjects,
+  studyThreads,
+  type StudyThread,
+} from "@/db";
 import { createStudyThread } from "@/lib/actions/study";
 import { STUDY_MODEL, STUDY_MODELS } from "@/lib/ai/study-tutor";
 import { requireLearner } from "@/lib/auth";
-import { STUDY_LANGUAGES } from "@/lib/study-languages";
 import { StudyChat } from "@/components/study/study-chat";
 import { DeleteThreadButton } from "@/components/study/delete-thread-button";
-import { Select } from "@/components/ui/field";
 import { SubmitButton } from "@/components/ui/button";
 
 export const metadata: Metadata = { title: "Study chat" };
 
 function threadTitle(thread: Pick<StudyThread, "title" | "language">): string {
-  return thread.title ?? `${thread.language} chat`;
+  return thread.title ?? `${thread.language ?? "New"} chat`;
 }
 
 export default async function StudyChatPage({
@@ -33,6 +38,17 @@ export default async function StudyChatPage({
         ),
       })
     : undefined;
+
+  const project = active?.projectId
+    ? await db.query.studyProjects.findFirst({
+        where: and(
+          eq(studyProjects.id, active.projectId),
+          eq(studyProjects.learnerId, learner.id),
+        ),
+        columns: { id: true, name: true, language: true },
+      })
+    : undefined;
+  const chatLanguage = project?.language ?? active?.language ?? null;
 
   const messages = active
     ? await db
@@ -61,8 +77,17 @@ export default async function StudyChatPage({
               <h1 className="truncate text-[0.9375rem] font-semibold">
                 {threadTitle(active)}
               </h1>
-              <p className="text-[0.78rem] text-fg-tertiary">
-                {active.language}
+              <p className="truncate text-[0.78rem] text-fg-tertiary">
+                {project ? (
+                  <Link
+                    href={`/study/project/${project.id}`}
+                    className="hover:text-fg hover:underline"
+                  >
+                    {project.name}
+                  </Link>
+                ) : (
+                  (chatLanguage ?? "Chat")
+                )}
               </p>
             </div>
             <DeleteThreadButton threadId={active.id} />
@@ -70,7 +95,7 @@ export default async function StudyChatPage({
           <StudyChat
             key={active.id}
             threadId={active.id}
-            language={active.language}
+            language={chatLanguage}
             learnerName={learner.name}
             initialMessages={messages}
             models={
@@ -91,31 +116,25 @@ export default async function StudyChatPage({
               What are we studying today?
             </h1>
             <p className="mt-1.5 mb-5 text-[0.9375rem] text-fg-secondary">
-              Pick a language and start chatting — your tutor corrects you,
-              drills your own vocabulary, and suggests words worth saving.
-              Your chats live in the sidebar, grouped by language.
+              Start a chat about anything — or chat inside a project to get
+              its custom instructions (language projects add your tutor and
+              vocabulary). Chats live in the sidebar.
             </p>
-            <form
-              action={createStudyThread}
-              className="mx-auto flex max-w-sm items-center gap-2"
-            >
-              <Select
-                name="language"
-                defaultValue="French"
-                aria-label="Language"
-                className="flex-1"
+            <div className="flex flex-col items-center gap-3">
+              <form action={createStudyThread}>
+                <SubmitButton>
+                  <Plus className="size-3.5" />
+                  New chat
+                </SubmitButton>
+              </form>
+              <Link
+                href="/study/project/new"
+                className="inline-flex items-center gap-1.5 text-[0.9375rem] font-medium text-accent-text hover:underline"
               >
-                {STUDY_LANGUAGES.map((lang) => (
-                  <option key={lang} value={lang}>
-                    {lang}
-                  </option>
-                ))}
-              </Select>
-              <SubmitButton>
-                <Plus className="size-3.5" />
-                New chat
-              </SubmitButton>
-            </form>
+                <FolderPlus className="size-4" />
+                New project
+              </Link>
+            </div>
           </div>
         </div>
       )}

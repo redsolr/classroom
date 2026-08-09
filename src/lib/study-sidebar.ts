@@ -1,31 +1,85 @@
-import { desc, eq } from "drizzle-orm";
-import { db, studyThreads } from "@/db";
+import { asc, desc, eq } from "drizzle-orm";
+import { db, studyProjects, studyThreads } from "@/db";
 import { getLearner } from "@/lib/auth";
 
 export type SidebarThread = {
   id: string;
   title: string | null;
-  language: string;
+  language: string | null;
   pinned: boolean;
+  projectId: string | null;
 };
 
+export type SidebarProject = {
+  id: string;
+  name: string;
+  language: string | null;
+  threads: SidebarThread[];
+};
+
+export type SidebarStudy = {
+  projects: SidebarProject[];
+  /** Pinned chats, floated out of their groups. */
+  pinned: SidebarThread[];
+  /** Loose chats (no project). */
+  chats: SidebarThread[];
+};
+
+const EMPTY: SidebarStudy = { projects: [], pinned: [], chats: [] };
+
 /**
- * The signed-in account's study threads for the sidebar chat tree.
- * Every authed layout calls this (the SELF-STUDY section is part of the
- * one app sidebar); returns [] for accounts that never opened /study.
+ * The signed-in account's study tree for the sidebar (projects with
+ * their chat history + pinned + loose chats). Every authed layout calls
+ * this; [] shapes for accounts that never opened /study.
  */
-export async function getSidebarStudyThreads(): Promise<SidebarThread[]> {
+export async function getSidebarStudy(): Promise<SidebarStudy> {
   const learner = await getLearner();
-  if (!learner) return [];
-  return db
-    .select({
-      id: studyThreads.id,
-      title: studyThreads.title,
-      language: studyThreads.language,
-      pinned: studyThreads.pinned,
-    })
-    .from(studyThreads)
-    .where(eq(studyThreads.learnerId, learner.id))
-    .orderBy(desc(studyThreads.updatedAt))
-    .limit(50);
+  if (!learner) return EMPTY;
+
+  const [projects, threads] = await Promise.all([
+    db
+      .select({
+        id: studyProjects.id,
+        name: studyProjects.name,
+        language: studyProjects.language,
+      })
+      .from(studyProjects)
+      .where(eq(studyProjects.learnerId, learner.id))
+      .orderBy(asc(studyProjects.name)),
+    db
+      .select({
+        id: studyThreads.id,
+        title: studyThreads.title,
+        language: studyThreads.language,
+        pinned: studyThreads.pinned,
+        projectId: studyThreads.projectId,
+      })
+      .from(studyThreads)
+      .where(eq(studyThreads.learnerId, learner.id))
+      .orderBy(desc(studyThreads.updatedAt))
+      .limit(100),
+  ]);
+
+  const pinned = threads.filter((t) => t.pinned);
+  const byProject = new Map<string, SidebarThread[]>();
+  const chats: SidebarThread[] = [];
+  for (const thread of threads) {
+    if (thread.pinned) continue;
+    if (thread.projectId) {
+      const list = byProject.get(thread.projectId) ?? [];
+      list.push(thread);
+      byProject.set(thread.projectId, list);
+    } else {
+      chats.push(thread);
+    }
+  }
+
+  return {
+    projects: projects.map((p) => ({
+      ...p,
+      threads: byProject.get(p.id) ?? [],
+    })),
+    pinned,
+    chats,
+  };
 }

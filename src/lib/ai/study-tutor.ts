@@ -33,14 +33,18 @@ export function resolveStudyModel(requested?: string | null): string {
 
 export type TutorContext = {
   learnerName: string | null;
-  language: string;
+  /** Null = a generic chat (no tutor persona, no vocab grounding). */
+  language: string | null;
   /** The learner's own vocab in this language — grounding material. */
   vocab: Pick<StudyVocabItem, "term" | "reading" | "meaning" | "status">[];
+  projectName: string | null;
+  /** The project's standing custom instructions, verbatim. */
+  projectInstructions: string | null;
 };
 
 export type TutorTurn = { role: "user" | "assistant"; content: string };
 
-const SYSTEM_PROMPT = `You are a personal language tutor inside Classroom's self-study space. The learner studies on their own schedule; you are their always-available practice partner and explainer.
+const TUTOR_PROMPT = `You are a personal language tutor inside Classroom's self-study space. The learner studies on their own schedule; you are their always-available practice partner and explainer.
 
 How to tutor:
 - Adapt to the learner's level from how they write. Reply mostly in the language they use with you; when they practice the target language, respond in it at a level slightly above theirs, with brief native-language glosses for anything new.
@@ -50,27 +54,47 @@ How to tutor:
 - Keep replies short and conversational (a few sentences, or a compact list when drilling). This is a chat, not a textbook.
 - Never invent facts about the learner's history that are not in the context.`;
 
+const GENERIC_PROMPT = `You are the learner's personal assistant inside Classroom's self-study space. This chat is not tied to a language course — help with whatever they bring: writing, planning, questions, thinking things through.
+
+- Be concise and conversational; this is a chat, not a report.
+- If the conversation turns into language practice, you may mark a genuinely useful word on its own line as: VOCAB: term — meaning.
+- Never invent facts about the learner's history that are not in the context.`;
+
 function renderTutorContext(ctx: TutorContext): string {
-  const lines = [
-    `Learner: ${ctx.learnerName ?? "(no name given)"}`,
-    `Studying: ${ctx.language}`,
-  ];
-  if (ctx.vocab.length > 0) {
-    lines.push(
-      `Their current vocabulary list (${ctx.vocab.length} shown): ${ctx.vocab
-        .map((v) => {
-          const reading = v.reading ? ` [${v.reading}]` : "";
-          const meaning = v.meaning ? ` = ${v.meaning}` : "";
-          return `${v.term}${reading}${meaning} (${v.status})`;
-        })
-        .join("; ")}`,
-    );
-  } else {
-    lines.push(
-      "Their vocabulary list is empty — suggest starting one from this conversation.",
-    );
+  const lines = [`Learner: ${ctx.learnerName ?? "(no name given)"}`];
+  if (ctx.language) {
+    lines.push(`Studying: ${ctx.language}`);
+    if (ctx.vocab.length > 0) {
+      lines.push(
+        `Their current vocabulary list (${ctx.vocab.length} shown): ${ctx.vocab
+          .map((v) => {
+            const reading = v.reading ? ` [${v.reading}]` : "";
+            const meaning = v.meaning ? ` = ${v.meaning}` : "";
+            return `${v.term}${reading}${meaning} (${v.status})`;
+          })
+          .join("; ")}`,
+      );
+    } else {
+      lines.push(
+        "Their vocabulary list is empty — suggest starting one from this conversation.",
+      );
+    }
   }
   return lines.join("\n");
+}
+
+/** Full instructions block: persona + learner context + project rules. */
+function buildInstructions(ctx: TutorContext): string {
+  const parts = [
+    ctx.language ? TUTOR_PROMPT : GENERIC_PROMPT,
+    `<learner_context>\n${renderTutorContext(ctx)}\n</learner_context>`,
+  ];
+  if (ctx.projectInstructions?.trim()) {
+    parts.push(
+      `<project_instructions>\nThe learner set these standing instructions for the "${ctx.projectName ?? "project"}" project — follow them in every reply:\n${ctx.projectInstructions.trim()}\n</project_instructions>`,
+    );
+  }
+  return parts.join("\n\n");
 }
 
 /**
@@ -79,14 +103,24 @@ function renderTutorContext(ctx: TutorContext): string {
  * references the learner's own vocabulary.
  */
 function mockTutorReply(ctx: TutorContext, message: string): string {
+  // The e2e suite's probe that project instructions actually reach the
+  // prompt assembly — the real model gets them in <project_instructions>.
+  const instructionsTail = ctx.projectInstructions?.trim()
+    ? "\n(Following your project instructions.)"
+    : "";
+
+  if (!ctx.language) {
+    return `Hi${ctx.learnerName ? ` ${ctx.learnerName}` : ""}! You said: “${message.slice(0, 80)}”. Happy to help with anything.${instructionsTail}`;
+  }
+
   const intro = `Bienvenue${ctx.learnerName ? `, ${ctx.learnerName}` : ""}! Let's practice your ${ctx.language}.`;
   const vocab = ctx.vocab[0];
   if (vocab) {
-    return `${intro} Try using “${vocab.term}”${vocab.meaning ? ` (${vocab.meaning})` : ""} in a sentence.`;
+    return `${intro} Try using “${vocab.term}”${vocab.meaning ? ` (${vocab.meaning})` : ""} in a sentence.${instructionsTail}`;
   }
   // VOCAB suggestions live on their own line — same convention the system
   // prompt demands of the real model (that's what the chip parser reads).
-  return `${intro} You said: “${message.slice(0, 80)}”. A good word to start your list with:\nVOCAB: bonjour — hello`;
+  return `${intro} You said: “${message.slice(0, 80)}”. A good word to start your list with:${instructionsTail}\nVOCAB: bonjour — hello`;
 }
 
 /**
@@ -110,7 +144,7 @@ export async function* streamTutorReply(
     model,
     stream: true,
     max_output_tokens: 1200,
-    instructions: `${SYSTEM_PROMPT}\n\n<learner_context>\n${renderTutorContext(ctx)}\n</learner_context>`,
+    instructions: buildInstructions(ctx),
     input: [...history, { role: "user" as const, content: message }],
   });
 

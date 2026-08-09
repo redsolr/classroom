@@ -104,7 +104,8 @@ export function StudyChat({
   defaultModel,
 }: {
   threadId: string;
-  language: string;
+  /** Null = generic chat (no tutor persona, no vocab chips). */
+  language: string | null;
   learnerName: string | null;
   initialMessages: ChatMessage[];
   models: string[];
@@ -121,11 +122,23 @@ export function StudyChat({
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
 
   const firstName = learnerName?.split(" ")[0] ?? null;
-  const suggestions = [
-    `Teach me 3 useful ${language} phrases for today`,
-    "Quiz me on my vocabulary",
-    "Correct this sentence: ",
-  ];
+  const suggestions = language
+    ? [
+        `Teach me 3 useful ${language} phrases for today`,
+        "Quiz me on my vocabulary",
+        "Correct this sentence: ",
+      ]
+    : [
+        "Help me think through something: ",
+        "Draft a message for me: ",
+        "Explain this to me: ",
+      ];
+  const greeting = language
+    ? `${firstName ? `Hi ${firstName}! ` : "Hi! "}I'm your ${language} tutor.`
+    : `${firstName ? `Hi ${firstName}! ` : "Hi! "}What's on your mind?`;
+  const subline = language
+    ? "Chat in any language — I correct gently, drill your saved words, and mark new ones worth keeping."
+    : "This chat isn't tied to a language — ask about anything. Project instructions apply if this chat lives in a project.";
 
   React.useEffect(() => {
     endRef.current?.scrollIntoView({ block: "end" });
@@ -213,11 +226,10 @@ export function StudyChat({
           <div className="flex h-full flex-col items-center justify-center gap-1.5 text-center">
             <Sparkles className="mb-1 size-5 text-accent" />
             <p className="text-[1.25rem] font-semibold tracking-tight">
-              {`${firstName ? `Hi ${firstName}! ` : "Hi! "}I'm your ${language} tutor.`}
+              {greeting}
             </p>
             <p className="max-w-sm text-[0.9375rem] text-fg-secondary">
-              Chat in any language — I correct gently, drill your saved
-              words, and mark new ones worth keeping.
+              {subline}
             </p>
             <div className="mt-4 flex flex-wrap justify-center gap-2">
               {suggestions.map((suggestion) => (
@@ -247,13 +259,17 @@ export function StudyChat({
               </div>
             );
           }
-          const { text, vocab } = parseReply(m.content);
+          // VOCAB chips need a language to file the word under — generic
+          // chats render replies verbatim.
+          const { text, vocab } = language
+            ? parseReply(m.content)
+            : { text: m.content, vocab: [] };
           return (
             <div key={m.id} className="mr-10 rounded-lg bg-surface px-4 py-2.5 shadow-card sm:mr-16">
               <p className="whitespace-pre-wrap text-[0.9375rem] leading-relaxed">
                 {text || (streaming ? "…" : "")}
               </p>
-              {vocab.length > 0 && (
+              {language && vocab.length > 0 && (
                 <div className="mt-2.5 flex flex-wrap gap-1.5">
                   {vocab.map((v) => (
                     <VocabChip
@@ -311,7 +327,7 @@ export function StudyChat({
             onKeyDown={onKeyDown}
             rows={Math.min(5, Math.max(1, input.split("\n").length))}
             maxLength={4000}
-            placeholder={`Practice your ${language}…`}
+            placeholder={language ? `Practice your ${language}…` : "Ask anything…"}
             aria-label="Message"
             className="max-h-40 w-full resize-none border-0 bg-transparent text-[0.9375rem] leading-relaxed placeholder:text-fg-tertiary focus:outline-none"
           />

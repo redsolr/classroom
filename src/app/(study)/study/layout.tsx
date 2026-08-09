@@ -1,5 +1,5 @@
 import { requireLearner, resolveAccount } from "@/lib/auth";
-import { getSidebarStudyThreads } from "@/lib/study-sidebar";
+import { getSidebarStudy } from "@/lib/study-sidebar";
 import { Sidebar } from "@/components/shell/sidebar";
 import { StudentSidebar } from "@/components/shell/student-sidebar";
 
@@ -17,7 +17,7 @@ export default async function StudyLayout({
 }) {
   await requireLearner();
   const account = await resolveAccount();
-  const studyThreads = await getSidebarStudyThreads();
+  const study = await getSidebarStudy();
 
   return (
     <div className="min-h-dvh lg:flex">
@@ -25,7 +25,7 @@ export default async function StudyLayout({
         <StudentSidebar
           studentName={account.student.name}
           studentEmail={account.student.email}
-          studyThreads={studyThreads}
+          study={study}
         />
       ) : (
         <Sidebar
@@ -36,7 +36,7 @@ export default async function StudyLayout({
           teacherEmail={
             account?.kind === "teacher" ? account.teacher.email : ""
           }
-          studyThreads={studyThreads}
+          study={study}
         />
       )}
       <main className="min-w-0 flex-1">{children}</main>

@@ -8,6 +8,7 @@ import {
   ChevronDown,
   ChevronRight,
   Folder,
+  FolderPlus,
   Gauge,
   Layers,
   MessageCircle,
@@ -19,21 +20,19 @@ import {
   createStudyThread,
   toggleStudyThreadPin,
 } from "@/lib/actions/study";
-import type { SidebarThread } from "@/lib/study-sidebar";
+import type { SidebarStudy, SidebarThread } from "@/lib/study-sidebar";
 import { cn } from "@/lib/utils";
 
 /**
- * The SELF-STUDY sidebar section — ChatGPT-shaped chat tree:
+ * The SELF-STUDY sidebar section — ChatGPT-shaped tree:
  *
- *   Chat            ▾
- *     Pinned
- *       <pinned chats>
- *     <language folders ("projects")>  [+ new chat in that language]
+ *   Chat                       ▾
+ *     Pinned                   (pinned chats, floated out of groups)
+ *     <project folders>        (label → project page; + → chat inside)
  *       <chat history>
+ *     New project
+ *     Chats                    (loose chats, no project)
  *   Vocabulary / Review / Plan & usage
- *
- * Rendered by both the teacher and student sidebars so the section can
- * never drift between roles.
  */
 
 const STATIC_ITEMS = [
@@ -51,17 +50,15 @@ const rowClass = (active: boolean) =>
   );
 
 function threadLabel(thread: SidebarThread): string {
-  return thread.title ?? `${thread.language} chat`;
+  return thread.title ?? `${thread.language ?? "New"} chat`;
 }
 
 function ThreadRow({
   thread,
   active,
-  className,
 }: {
   thread: SidebarThread;
   active: boolean;
-  className?: string;
 }) {
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
@@ -84,7 +81,6 @@ function ThreadRow({
       className={cn(
         "group flex items-center rounded-md pl-2.5 transition-colors",
         active ? "bg-accent-soft" : "hover:bg-surface-hover",
-        className,
       )}
     >
       <Link
@@ -115,30 +111,32 @@ function ThreadRow({
   );
 }
 
-function StudyChatTree({ threads }: { threads: SidebarThread[] }) {
+function Rail({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="ml-[1.35rem] border-l border-border pl-1.5">{children}</div>
+  );
+}
+
+function StudyChatTree({ study }: { study: SidebarStudy }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const activeId = pathname === "/study" ? searchParams.get("t") : null;
+
+  const hasContent =
+    study.projects.length > 0 ||
+    study.pinned.length > 0 ||
+    study.chats.length > 0;
 
   const [open, setOpen] = React.useState(true);
   const [closedFolders, setClosedFolders] = React.useState<Set<string>>(
     () => new Set(),
   );
 
-  const pinned = threads.filter((thread) => thread.pinned);
-  const byLanguage = new Map<string, SidebarThread[]>();
-  for (const thread of threads) {
-    if (thread.pinned) continue;
-    const list = byLanguage.get(thread.language) ?? [];
-    list.push(thread);
-    byLanguage.set(thread.language, list);
-  }
-
-  const toggleFolder = (language: string) => {
+  const toggleFolder = (id: string) => {
     setClosedFolders((prev) => {
       const next = new Set(prev);
-      if (next.has(language)) next.delete(language);
-      else next.add(language);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   };
@@ -146,14 +144,11 @@ function StudyChatTree({ threads }: { threads: SidebarThread[] }) {
   return (
     <div>
       <div className={cn(rowClass(pathname === "/study" && !activeId), "pr-1")}>
-        <Link
-          href="/study"
-          className="flex min-w-0 flex-1 items-center gap-2.5"
-        >
+        <Link href="/study" className="flex min-w-0 flex-1 items-center gap-2.5">
           <MessageCircle className="size-4 shrink-0" />
           Chat
         </Link>
-        {threads.length > 0 && (
+        {hasContent && (
           <button
             type="button"
             onClick={() => setOpen((o) => !o)}
@@ -169,76 +164,116 @@ function StudyChatTree({ threads }: { threads: SidebarThread[] }) {
         )}
       </div>
 
-      {open && threads.length > 0 && (
+      {open && (
         <div className="mt-0.5 space-y-0.5">
-          {pinned.length > 0 && (
-            <div className="ml-[1.35rem] border-l border-border pl-1.5">
+          {study.pinned.length > 0 && (
+            <Rail>
               <p className="px-2.5 pt-1 text-[0.72rem] font-semibold tracking-wider text-fg-tertiary uppercase">
                 Pinned
               </p>
-              {pinned.map((thread) => (
+              {study.pinned.map((thread) => (
                 <ThreadRow
                   key={thread.id}
                   thread={thread}
                   active={thread.id === activeId}
                 />
               ))}
-            </div>
+            </Rail>
           )}
 
-          {[...byLanguage.entries()].map(([language, list]) => {
-            const folderOpen = !closedFolders.has(language);
+          {study.projects.map((project) => {
+            const folderOpen = !closedFolders.has(project.id);
+            const onProjectPage = pathname === `/study/project/${project.id}`;
             return (
-              <div key={language}>
-                <div className="group flex items-center rounded-md pl-4 pr-1 transition-colors hover:bg-surface-hover">
+              <div key={project.id}>
+                <div
+                  className={cn(
+                    "group flex items-center rounded-md pl-4 pr-1 transition-colors",
+                    onProjectPage ? "bg-accent-soft" : "hover:bg-surface-hover",
+                  )}
+                >
                   <button
                     type="button"
-                    onClick={() => toggleFolder(language)}
-                    className="flex min-w-0 flex-1 items-center gap-2 py-1.5 text-[0.875rem] font-medium text-fg"
+                    onClick={() => toggleFolder(project.id)}
+                    aria-label={
+                      folderOpen
+                        ? `Collapse ${project.name}`
+                        : `Expand ${project.name}`
+                    }
+                    className="flex size-5 shrink-0 items-center justify-center text-fg-tertiary hover:text-fg"
                   >
                     {folderOpen ? (
-                      <ChevronDown className="size-3.5 shrink-0 text-fg-tertiary" />
+                      <ChevronDown className="size-3.5" />
                     ) : (
-                      <ChevronRight className="size-3.5 shrink-0 text-fg-tertiary" />
+                      <ChevronRight className="size-3.5" />
                     )}
-                    <Folder className="size-3.5 shrink-0 text-fg-tertiary" />
-                    <span className="truncate">{language}</span>
                   </button>
+                  <Link
+                    href={`/study/project/${project.id}`}
+                    className={cn(
+                      "flex min-w-0 flex-1 items-center gap-2 py-1.5 pl-1 text-[0.875rem] font-medium",
+                      onProjectPage ? "text-accent-text" : "text-fg",
+                    )}
+                  >
+                    <Folder className="size-3.5 shrink-0 text-fg-tertiary" />
+                    <span className="truncate">{project.name}</span>
+                  </Link>
                   <form action={createStudyThread}>
-                    <input type="hidden" name="language" value={language} />
+                    <input type="hidden" name="projectId" value={project.id} />
                     <button
                       type="submit"
-                      aria-label={`Start ${language} chat`}
-                      title={`Start a new ${language} chat`}
+                      aria-label={`Start ${project.name} chat`}
+                      title={`Start a new chat in ${project.name}`}
                       className="flex size-6 shrink-0 items-center justify-center rounded text-fg-tertiary opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 hover:text-fg"
                     >
                       <Plus className="size-3.5" />
                     </button>
                   </form>
                 </div>
-                {/* Children nest under the folder LABEL on a guide rail —
-                    a flat shallower indent read as mis-alignment. */}
-                {folderOpen && (
-                  <div className="ml-[1.35rem] border-l border-border pl-1.5">
-                    {list.map((thread) => (
+                {folderOpen && project.threads.length > 0 && (
+                  <Rail>
+                    {project.threads.map((thread) => (
                       <ThreadRow
                         key={thread.id}
                         thread={thread}
                         active={thread.id === activeId}
                       />
                     ))}
-                  </div>
+                  </Rail>
                 )}
               </div>
             );
           })}
+
+          <Link
+            href="/study/project/new"
+            className="flex items-center gap-2 rounded-md py-1.5 pr-2 pl-[1.6rem] text-[0.875rem] text-fg-secondary transition-colors hover:bg-surface-hover hover:text-fg"
+          >
+            <FolderPlus className="size-3.5" />
+            New project
+          </Link>
+
+          {study.chats.length > 0 && (
+            <Rail>
+              <p className="px-2.5 pt-1 text-[0.72rem] font-semibold tracking-wider text-fg-tertiary uppercase">
+                Chats
+              </p>
+              {study.chats.map((thread) => (
+                <ThreadRow
+                  key={thread.id}
+                  thread={thread}
+                  active={thread.id === activeId}
+                />
+              ))}
+            </Rail>
+          )}
         </div>
       )}
     </div>
   );
 }
 
-export function SelfStudySection({ threads }: { threads: SidebarThread[] }) {
+export function SelfStudySection({ study }: { study: SidebarStudy }) {
   const pathname = usePathname();
   return (
     <div className="mb-5">
@@ -248,7 +283,7 @@ export function SelfStudySection({ threads }: { threads: SidebarThread[] }) {
       <nav className="flex flex-col gap-0.5">
         {/* useSearchParams lives below this Suspense boundary. */}
         <React.Suspense fallback={null}>
-          <StudyChatTree threads={threads} />
+          <StudyChatTree study={study} />
         </React.Suspense>
         {STATIC_ITEMS.map((item) => {
           const active = item.exact

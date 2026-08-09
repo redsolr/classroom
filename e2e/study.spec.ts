@@ -2,11 +2,12 @@ import { expect, test } from "@playwright/test";
 import postgres from "postgres";
 
 /**
- * The self-study space (/study): tutor chat (offline mock tutor —
- * demonstrably grounded in the learner's vocab), the personal vocabulary
- * loop (chip-add from chat, manual add, SM-2 review), and the free-tier
- * daily cap (STUDY_FREE_DAILY_CAP=5 set by playwright.config for this
- * suite).
+ * The self-study space (/study): projects with custom instructions
+ * (ChatGPT-Projects shape), tutor chat in language projects (offline
+ * mock tutor — demonstrably grounded in the learner's vocab), generic
+ * loose chats, the personal vocabulary loop (chip-add, manual add, SM-2
+ * review), and the free-tier daily cap (STUDY_FREE_DAILY_CAP=5 set by
+ * playwright.config for this suite).
  *
  * The mock learner accumulates rows across local runs (persistent
  * Postgres, fixed mock identity), so the suite resets that learner
@@ -23,7 +24,7 @@ test.beforeAll(async () => {
     { max: 1 },
   );
   try {
-    // Cascades to study_threads, study_messages, study_vocab.
+    // Cascades to study_projects, study_threads, study_messages, study_vocab.
     await sql`delete from learners where workos_user_id = 'mock_teacher_dev'`;
   } finally {
     await sql.end();
@@ -37,23 +38,32 @@ test("study space opens on the new-chat hero", async ({ page }) => {
   ).toBeVisible();
 });
 
-test("create a French chat, get a grounded mock reply, save the suggested word", async ({
+test("language project with custom instructions: tutor reply is grounded AND follows instructions", async ({
   page,
 }) => {
-  await page.goto("/study");
-  // Hero form defaults to French. The hero button is the only "New chat"
-  // (sidebar folder buttons are named "Start <language> chat").
+  await page.goto("/study/project/new");
+  await page.getByLabel("Name").fill("French");
+  await page.getByLabel(/Language/).selectOption("French");
+  await page.getByLabel(/Custom instructions/).fill("Always be brief.");
+  await page.getByRole("button", { name: "Create project" }).click();
+  await page.waitForURL(/\/study\/project\/[0-9a-f-]{36}/);
+
+  // New chat from the project page inherits language + instructions.
   await page.getByRole("button", { name: "New chat" }).click();
   await page.waitForURL(/\/study\?t=[0-9a-f-]{36}/);
 
   await page.getByLabel("Message").fill("Bonjour! Je veux apprendre.");
   await page.getByRole("button", { name: "Send" }).click();
 
-  // Mock tutor greets and (with an empty vocab list) suggests a word.
+  // Mock tutor: language mode + the instructions-reached-the-prompt probe.
   await expect(page.getByText(/Let's practice your French/)).toBeVisible();
+  await expect(
+    page.getByText(/Following your project instructions/),
+  ).toBeVisible();
+
+  // With an empty vocab list it suggests a starter word as a chip.
   const chip = page.getByRole("button", { name: /bonjour — hello/ });
   await expect(chip).toBeVisible();
-
   await chip.click();
   await expect(chip).toBeDisabled();
 
@@ -62,6 +72,23 @@ test("create a French chat, get a grounded mock reply, save the suggested word",
   await page.goto("/study/vocab");
   await expect(page.getByRole("heading", { name: "French" })).toBeVisible();
   await expect(page.getByRole("main").getByText("bonjour")).toBeVisible();
+});
+
+test("a loose chat is generic: no tutor persona, no instructions tail", async ({
+  page,
+}) => {
+  await page.goto("/study");
+  await page.getByRole("button", { name: "New chat" }).click();
+  await page.waitForURL(/\/study\?t=[0-9a-f-]{36}/);
+
+  await page.getByLabel("Message").fill("help me plan my week");
+  await page.getByRole("button", { name: "Send" }).click();
+
+  await expect(page.getByText(/Happy to help with anything/)).toBeVisible();
+  await expect(page.getByText(/Let's practice your/)).not.toBeVisible();
+  await expect(
+    page.getByText(/Following your project instructions/),
+  ).not.toBeVisible();
 });
 
 test("manual vocab add + SM-2 review session over the due deck", async ({
@@ -93,8 +120,8 @@ test("free daily cap blocks the tutor and points at the upgrade", async ({
   page,
 }) => {
   await page.goto("/study");
-  // Reuse the earlier test's thread via the sidebar chat tree (1 message
-  // spent; the row is titled by its first message).
+  // Reuse the French thread via the sidebar chat tree (titled by its
+  // first message). 2 of the 5 free messages are already spent.
   await page.getByRole("link", { name: /Bonjour/ }).first().click();
   await page.waitForURL(/\/study\?t=[0-9a-f-]{36}/);
 
@@ -107,8 +134,7 @@ test("free daily cap blocks the tutor and points at the upgrade", async ({
       page.getByRole("button", { name: "Send" }).click(),
     ]);
     capStatus = res.status();
-    // Turn is over when the composer takes focus back (finally block) —
-    // that's the signal the stream closed and Send may be clicked again.
+    // Turn is over when the composer takes focus back (finally block).
     await expect(page.getByLabel("Message")).toBeFocused();
   }
 
@@ -126,7 +152,7 @@ test("account page: free plan, usage meter, billing-not-configured state", async
   await expect(page.getByRole("heading", { name: "Free plan" })).toBeVisible();
   await expect(page.getByText(/of 5 tutor messages/)).toBeVisible();
   await expect(page.getByText(/Billing is not configured/)).toBeVisible();
-  // Models card names the Terra default and the Sol escalation.
+  // Models card names the roster.
   await expect(page.getByText("gpt-5.6-terra")).toBeVisible();
   await expect(page.getByText("gpt-5.6-sol")).toBeVisible();
 });

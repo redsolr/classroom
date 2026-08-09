@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { THEME_PRE_HYDRATION_SCRIPT } from "@/lib/theme";
 import { ThemeInit } from "@/components/theme/theme-init";
@@ -16,6 +16,18 @@ export const metadata: Metadata = {
   },
   description:
     "The private memory and lesson workflow of an independent language teacher.",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Classroom",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f7f7f8" },
+    { media: "(prefers-color-scheme: dark)", color: "#0e0e11" },
+  ],
 };
 
 export default function RootLayout({

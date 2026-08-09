@@ -24,7 +24,9 @@ import {
   type NavEntry,
 } from "@/components/shell/sidebar-shell";
 import { SelfStudySection } from "@/components/shell/self-study-section";
-import type { SidebarThread } from "@/lib/study-sidebar";
+import type { SidebarStudy } from "@/lib/study-sidebar";
+
+const EMPTY_STUDY: SidebarStudy = { projects: [], pinned: [], chats: [] };
 
 const TEACHING_ITEMS: NavEntry[] = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
@@ -37,16 +39,16 @@ const TEACHING_ITEMS: NavEntry[] = [
 export function Sidebar({
   teacherName,
   teacherEmail,
-  studyThreads = [],
+  study = EMPTY_STUDY,
 }: {
   teacherName: string;
   teacherEmail: string;
-  studyThreads?: SidebarThread[];
+  study?: SidebarStudy;
 }) {
   return (
     <SidebarShell homeHref="/schedule">
       <NavSection label="Teaching" items={TEACHING_ITEMS} />
-      <SelfStudySection threads={studyThreads} />
+      <SelfStudySection study={study} />
 
       <div className="mt-auto">
         <Dropdown>

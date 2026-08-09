@@ -512,7 +512,36 @@ export const learners = pgTable(
 );
 
 // ---------------------------------------------------------------------------
-// Study threads — one AI-tutor conversation, pinned to one language.
+// Study projects — ChatGPT-Projects-shaped containers: a name, optional
+// language (language projects get tutor behavior + vocab grounding),
+// and optional CUSTOM INSTRUCTIONS injected into every chat inside.
+// ---------------------------------------------------------------------------
+
+export const studyProjects = pgTable(
+  "study_projects",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    learnerId: uuid("learner_id")
+      .notNull()
+      .references(() => learners.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    /** Set → chats in this project run in language-tutor mode. */
+    language: text("language"),
+    /** Standing instructions injected into every chat in this project. */
+    instructions: text("instructions"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index("study_projects_learner_id_idx").on(t.learnerId)],
+);
+
+// ---------------------------------------------------------------------------
+// Study threads — one AI conversation; generic by default, tutor-flavored
+// when it lives in a language project.
 // ---------------------------------------------------------------------------
 
 export const studyThreads = pgTable(
@@ -522,7 +551,12 @@ export const studyThreads = pgTable(
     learnerId: uuid("learner_id")
       .notNull()
       .references(() => learners.id, { onDelete: "cascade" }),
-    language: text("language").notNull(),
+    /** Null = a loose chat (sidebar "Chats"); deleting a project frees its chats. */
+    projectId: uuid("project_id").references(() => studyProjects.id, {
+      onDelete: "set null",
+    }),
+    /** Copied from the project at creation; null = generic chat. */
+    language: text("language"),
     title: text("title"),
     /** Pinned chats float to the top of the sidebar tree (ChatGPT-style). */
     pinned: boolean("pinned").notNull().default(false),
@@ -616,6 +650,7 @@ export type AiMessage = typeof aiMessages.$inferSelect;
 export type Homework = typeof homework.$inferSelect;
 export type Insight = typeof insights.$inferSelect;
 export type Learner = typeof learners.$inferSelect;
+export type StudyProject = typeof studyProjects.$inferSelect;
 export type StudyThread = typeof studyThreads.$inferSelect;
 export type StudyMessage = typeof studyMessages.$inferSelect;
 export type StudyVocabItem = typeof studyVocab.$inferSelect;

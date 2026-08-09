@@ -50,6 +50,7 @@ const PROTECTED_ROUTES = [
   "/study/vocab",
   "/study/vocab/review",
   "/study/account",
+  "/study/project/new",
 ];
 
 function sql() {
