@@ -12,7 +12,7 @@ function revalidateStudyTree() {
   revalidatePath("/", "layout");
 }
 import { redirect } from "next/navigation";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db, learners, studyProjects, studyThreads, studyVocab } from "@/db";
 import { requireLearner } from "@/lib/auth";
@@ -141,6 +141,25 @@ export async function createStudyThread(formData: FormData) {
   const language =
     project?.language ??
     (rawLanguage ? languageSchema.parse(rawLanguage) : null);
+
+  // ChatGPT behavior: reuse an existing EMPTY chat in the same container
+  // instead of stacking blank "French chat" rows on every tap.
+  const [existingEmpty] = await db
+    .select({ id: studyThreads.id })
+    .from(studyThreads)
+    .where(
+      and(
+        eq(studyThreads.learnerId, learner.id),
+        project
+          ? eq(studyThreads.projectId, project.id)
+          : isNull(studyThreads.projectId),
+        sql`not exists (select 1 from study_messages m where m.thread_id = ${studyThreads.id})`,
+      ),
+    )
+    .limit(1);
+  if (existingEmpty) {
+    redirect(`/study?t=${existingEmpty.id}`);
+  }
 
   const [thread] = await db
     .insert(studyThreads)

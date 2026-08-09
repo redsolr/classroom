@@ -157,6 +157,15 @@ test("deleting a project frees its chats instead of destroying them", async ({
   // A chat inside it (no message sent — stays "New chat").
   await page.getByRole("button", { name: "New chat" }).click();
   await page.waitForURL(/\/study\?t=[0-9a-f-]{36}/);
+  const emptyChatUrl = page.url();
+
+  // Tapping + again REUSES the empty chat (no blank-thread littering).
+  // The redirect targets the SAME url, so waitForURL resolves instantly —
+  // settle the in-flight RSC response before opening the menu, or it
+  // re-renders the sidebar and closes the dropdown mid-click.
+  await page.getByRole("button", { name: "Start Temp chat" }).click();
+  await page.waitForLoadState("networkidle");
+  expect(page.url()).toBe(emptyChatUrl);
 
   // Delete straight from the folder's ⋯ menu (confirm dialog).
   page.on("dialog", (dialog) => void dialog.accept());
