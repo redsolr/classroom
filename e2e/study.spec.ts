@@ -91,6 +91,101 @@ test("a loose chat is generic: no tutor persona, no instructions tail", async ({
   ).not.toBeVisible();
 });
 
+test("pin floats a chat into Pinned; unpin returns it to its project", async ({
+  page,
+}) => {
+  await page.goto("/study");
+  const sidebar = page.getByRole("complementary");
+  const row = sidebar
+    .locator("div.group")
+    .filter({ has: page.getByRole("link", { name: /Bonjour/ }) });
+
+  await row.hover();
+  await row.getByRole("button", { name: "Pin chat" }).click();
+  await expect(sidebar.getByText("Pinned", { exact: true })).toBeVisible();
+
+  await row.hover();
+  await row.getByRole("button", { name: "Unpin chat" }).click();
+  await expect(sidebar.getByText("Pinned", { exact: true })).not.toBeVisible();
+  await expect(sidebar.getByRole("link", { name: /Bonjour/ })).toBeVisible();
+});
+
+test("editing project instructions + name applies to later replies and the sidebar", async ({
+  page,
+}) => {
+  await page.goto("/study");
+  await page
+    .getByRole("complementary")
+    .getByRole("link", { name: "French", exact: true })
+    .click();
+  await page.waitForURL(/\/study\/project\/[0-9a-f-]{36}/);
+
+  await page.getByLabel("Name").fill("Français");
+  await page.getByLabel(/Custom instructions/).fill("Use emojis.");
+  await page.getByRole("button", { name: "Save project" }).click();
+  await expect(
+    page.getByRole("complementary").getByRole("link", { name: "Français" }),
+  ).toBeVisible();
+
+  // The updated instructions reach the next reply (mock probe).
+  await page.getByRole("link", { name: /Bonjour/ }).first().click();
+  await page.waitForURL(/\/study\?t=[0-9a-f-]{36}/);
+  await page.getByLabel("Message").fill("encore une fois");
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(
+    page.getByText(/Following your project instructions/).last(),
+  ).toBeVisible();
+  // And with “bonjour” saved, the tutor drills the learner's own word.
+  await expect(page.getByText(/Try using/).last()).toBeVisible();
+});
+
+test("deleting a chat removes it after the confirm dialog", async ({
+  page,
+}) => {
+  await page.goto("/study");
+  const loose = page
+    .getByRole("complementary")
+    .getByRole("link", { name: /help me plan/ });
+  await loose.click();
+  await page.waitForURL(/\/study\?t=[0-9a-f-]{36}/);
+
+  page.on("dialog", (dialog) => void dialog.accept());
+  await page.getByRole("button", { name: "Delete chat" }).click();
+  await page.waitForURL(/\/study$/);
+  await expect(
+    page.getByRole("complementary").getByRole("link", { name: /help me plan/ }),
+  ).not.toBeVisible();
+});
+
+test("deleting a project frees its chats instead of destroying them", async ({
+  page,
+}) => {
+  await page.goto("/study/project/new");
+  await page.getByLabel("Name").fill("Temp");
+  await page.getByRole("button", { name: "Create project" }).click();
+  await page.waitForURL(/\/study\/project\/[0-9a-f-]{36}/);
+
+  // A chat inside it (no message sent — stays "New chat").
+  await page.getByRole("button", { name: "New chat" }).click();
+  await page.waitForURL(/\/study\?t=[0-9a-f-]{36}/);
+
+  await page
+    .getByRole("complementary")
+    .getByRole("link", { name: "Temp" })
+    .click();
+  await page.waitForURL(/\/study\/project\/[0-9a-f-]{36}/);
+  await page.getByRole("button", { name: "Delete project" }).click();
+  await page.waitForURL(/\/study$/);
+
+  // The chat survived — now a loose chat in the sidebar.
+  await expect(
+    page.getByRole("complementary").getByRole("link", { name: "New chat" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("complementary").getByText("Chats", { exact: true }),
+  ).toBeVisible();
+});
+
 test("manual vocab add + SM-2 review session over the due deck", async ({
   page,
 }) => {
@@ -121,7 +216,7 @@ test("free daily cap blocks the tutor and points at the upgrade", async ({
 }) => {
   await page.goto("/study");
   // Reuse the French thread via the sidebar chat tree (titled by its
-  // first message). 2 of the 5 free messages are already spent.
+  // first message). 3 of the 5 free messages are already spent.
   await page.getByRole("link", { name: /Bonjour/ }).first().click();
   await page.waitForURL(/\/study\?t=[0-9a-f-]{36}/);
 

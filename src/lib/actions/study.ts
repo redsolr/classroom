@@ -1,6 +1,16 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+
+/**
+ * The sidebar chat tree is layout data (all three authed layouts fetch
+ * it) — every thread/project mutation must revalidate the LAYOUT tree,
+ * or action redirects (soft navigations) leave the sidebar stale.
+ * Learned from e2e: a fresh project was invisible until a hard reload.
+ */
+function revalidateStudyTree() {
+  revalidatePath("/", "layout");
+}
 import { redirect } from "next/navigation";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
@@ -54,6 +64,7 @@ export async function createStudyProject(formData: FormData) {
     })
     .returning({ id: studyProjects.id });
 
+  revalidateStudyTree();
   redirect(`/study/project/${project.id}`);
 }
 
@@ -84,7 +95,7 @@ export async function updateStudyProject(
   if (updated.length === 0) throw new Error("Project not found");
 
   revalidatePath(`/study/project/${id}`);
-  revalidatePath("/study");
+  revalidateStudyTree();
 }
 
 /** Chats survive project deletion (FK sets project_id null → "Chats"). */
@@ -98,7 +109,7 @@ export async function deleteStudyProject(projectId: string) {
       and(eq(studyProjects.id, id), eq(studyProjects.learnerId, learner.id)),
     );
 
-  revalidatePath("/study");
+  revalidateStudyTree();
   redirect("/study");
 }
 
@@ -140,6 +151,7 @@ export async function createStudyThread(formData: FormData) {
     })
     .returning({ id: studyThreads.id });
 
+  revalidateStudyTree();
   redirect(`/study?t=${thread.id}`);
 }
 
@@ -160,7 +172,7 @@ export async function toggleStudyThreadPin(threadId: string) {
       and(eq(studyThreads.id, id), eq(studyThreads.learnerId, learner.id)),
     );
 
-  revalidatePath("/study");
+  revalidateStudyTree();
 }
 
 export async function deleteStudyThread(threadId: string) {
@@ -173,7 +185,7 @@ export async function deleteStudyThread(threadId: string) {
       and(eq(studyThreads.id, id), eq(studyThreads.learnerId, learner.id)),
     );
 
-  revalidatePath("/study");
+  revalidateStudyTree();
   redirect("/study");
 }
 
