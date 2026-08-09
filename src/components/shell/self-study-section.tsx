@@ -12,14 +12,25 @@ import {
   Gauge,
   Layers,
   MessageCircle,
+  MoreHorizontal,
   Pin,
   PinOff,
   Plus,
+  Settings,
+  Trash2,
 } from "lucide-react";
 import {
   createStudyThread,
+  deleteStudyProject,
   toggleStudyThreadPin,
 } from "@/lib/actions/study";
+import {
+  Dropdown,
+  DropdownContent,
+  DropdownItem,
+  DropdownSeparator,
+  DropdownTrigger,
+} from "@/components/ui/dropdown";
 import type { SidebarStudy, SidebarThread } from "@/lib/study-sidebar";
 import { threadTitle } from "@/lib/study-display";
 import {
@@ -93,9 +104,10 @@ function ThreadRow({
         title={thread.pinned ? "Unpin" : "Pin"}
         className={cn(
           "mr-1 flex size-6 shrink-0 items-center justify-center rounded text-fg-tertiary transition-opacity hover:text-fg",
+          // Hover-reveal on desktop; always visible on touch (no hover).
           thread.pinned
             ? "opacity-100"
-            : "opacity-0 group-focus-within:opacity-100 group-hover:opacity-100",
+            : "opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 max-lg:opacity-100",
         )}
       >
         <PinIcon className="size-3.5" />
@@ -107,6 +119,66 @@ function ThreadRow({
 function Rail({ children }: { children: React.ReactNode }) {
   return (
     <div className="ml-[1.35rem] border-l border-border pl-1.5">{children}</div>
+  );
+}
+
+/** The folder's ⋯ menu — settings (where the project's context/
+ * instructions live) and delete. The folder LABEL only expands. */
+function ProjectMenu({
+  projectId,
+  projectName,
+}: {
+  projectId: string;
+  projectName: string;
+}) {
+  const [pending, startTransition] = React.useTransition();
+
+  return (
+    <Dropdown>
+      <DropdownTrigger asChild>
+        <button
+          type="button"
+          aria-label={`${projectName} options`}
+          title="Project options"
+          className="flex size-6 shrink-0 items-center justify-center rounded text-fg-tertiary hover:text-fg data-[state=open]:text-fg"
+        >
+          <MoreHorizontal className="size-3.5" />
+        </button>
+      </DropdownTrigger>
+      <DropdownContent align="start" className="w-52">
+        <DropdownItem asChild>
+          <Link href={`/study/project/${projectId}`}>
+            <Settings className="size-4 text-fg-tertiary" />
+            Project settings
+          </Link>
+        </DropdownItem>
+        <DropdownSeparator />
+        <DropdownItem
+          disabled={pending}
+          className="text-danger"
+          onSelect={() => {
+            if (
+              !window.confirm(
+                `Delete project “${projectName}”? Its chats move to Chats.`,
+              )
+            )
+              return;
+            startTransition(async () => {
+              try {
+                await deleteStudyProject(projectId);
+              } catch (error) {
+                // The action redirects on success (NEXT_REDIRECT is
+                // handled by Next); anything reaching here is real.
+                console.error("sidebar: failed to delete project", error);
+              }
+            });
+          }}
+        >
+          <Trash2 className="size-4" />
+          Delete project
+        </DropdownItem>
+      </DropdownContent>
+    </Dropdown>
   );
 }
 
@@ -183,47 +255,44 @@ function StudyChatTree({ study }: { study: SidebarStudy }) {
               <div key={project.id}>
                 <div
                   className={cn(
-                    "group flex items-center rounded-md pl-4 pr-1 transition-colors",
+                    "group flex items-center rounded-md pr-1 pl-4 transition-colors",
                     onProjectPage ? "bg-accent-soft" : "hover:bg-surface-hover",
                   )}
                 >
+                  {/* The label only expands/collapses — the project's
+                      context lives behind ⋯ → Project settings. */}
                   <button
                     type="button"
                     onClick={() => toggleFolder(project.id)}
-                    aria-label={
-                      folderOpen
-                        ? `Collapse ${project.name}`
-                        : `Expand ${project.name}`
-                    }
-                    className="flex size-5 shrink-0 items-center justify-center text-fg-tertiary hover:text-fg"
-                  >
-                    {folderOpen ? (
-                      <ChevronDown className="size-3.5" />
-                    ) : (
-                      <ChevronRight className="size-3.5" />
-                    )}
-                  </button>
-                  <Link
-                    href={`/study/project/${project.id}`}
+                    aria-expanded={folderOpen}
                     className={cn(
-                      "flex min-w-0 flex-1 items-center gap-2 py-1.5 pl-1 text-[0.875rem] font-medium",
+                      "flex min-w-0 flex-1 items-center gap-2 py-1.5 text-[0.875rem] font-medium",
                       onProjectPage ? "text-accent-text" : "text-fg",
                     )}
                   >
+                    {folderOpen ? (
+                      <ChevronDown className="size-3.5 shrink-0 text-fg-tertiary" />
+                    ) : (
+                      <ChevronRight className="size-3.5 shrink-0 text-fg-tertiary" />
+                    )}
                     <Folder className="size-3.5 shrink-0 text-fg-tertiary" />
                     <span className="truncate">{project.name}</span>
-                  </Link>
+                  </button>
                   <form action={createStudyThread}>
                     <input type="hidden" name="projectId" value={project.id} />
                     <button
                       type="submit"
                       aria-label={`Start ${project.name} chat`}
                       title={`Start a new chat in ${project.name}`}
-                      className="flex size-6 shrink-0 items-center justify-center rounded text-fg-tertiary opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 hover:text-fg"
+                      className="flex size-6 shrink-0 items-center justify-center rounded text-fg-tertiary hover:text-fg"
                     >
                       <Plus className="size-3.5" />
                     </button>
                   </form>
+                  <ProjectMenu
+                    projectId={project.id}
+                    projectName={project.name}
+                  />
                 </div>
                 {folderOpen && project.threads.length > 0 && (
                   <Rail>

@@ -102,17 +102,18 @@ test("editing project instructions + name applies to later replies and the sideb
   page,
 }) => {
   await page.goto("/study");
-  await page
-    .getByRole("complementary")
-    .getByRole("link", { name: "French", exact: true })
-    .click();
+  // Settings live behind the folder's ⋯ menu (the label only expands).
+  await page.getByRole("button", { name: "French options" }).click();
+  await page.getByRole("menuitem", { name: "Project settings" }).click();
   await page.waitForURL(/\/study\/project\/[0-9a-f-]{36}/);
 
   await page.getByLabel("Name").fill("Français");
   await page.getByLabel(/Custom instructions/).fill("Use emojis.");
   await page.getByRole("button", { name: "Save project" }).click();
   await expect(
-    page.getByRole("complementary").getByRole("link", { name: "Français" }),
+    page
+      .getByRole("complementary")
+      .getByRole("button", { name: "Français", exact: true }),
   ).toBeVisible();
 
   // The updated instructions reach the next reply (mock probe).
@@ -157,12 +158,10 @@ test("deleting a project frees its chats instead of destroying them", async ({
   await page.getByRole("button", { name: "New chat" }).click();
   await page.waitForURL(/\/study\?t=[0-9a-f-]{36}/);
 
-  await page
-    .getByRole("complementary")
-    .getByRole("link", { name: "Temp" })
-    .click();
-  await page.waitForURL(/\/study\/project\/[0-9a-f-]{36}/);
-  await page.getByRole("button", { name: "Delete project" }).click();
+  // Delete straight from the folder's ⋯ menu (confirm dialog).
+  page.on("dialog", (dialog) => void dialog.accept());
+  await page.getByRole("button", { name: "Temp options" }).click();
+  await page.getByRole("menuitem", { name: "Delete project" }).click();
   await page.waitForURL(/\/study$/);
 
   // The chat survived — now a loose chat in the sidebar.
