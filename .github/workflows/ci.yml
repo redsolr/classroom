@@ -13,10 +13,19 @@
 #   WORKOS_API_KEY  WORKOS_CLIENT_ID  WORKOS_COOKIE_PASSWORD
 #   E2E_TEACHER_EMAIL  E2E_TEACHER_PASSWORD
 # (provision the synthetic teacher once with `npm run e2e:user`)
+#
+# Deploy jobs (ported from the crm pipeline): pushes to main deploy
+# production, pushes to develop deploy a Preview aliased to
+# classroom-dev.jurisimus.com — each only after every test job is
+# green. Gated on the RUN_VERCEL_DEPLOY repo variable + the
+# VERCEL_TOKEN repo secret (same team-scoped token as the crm repo),
+# so the workflow lands green before those exist. Vercel's own
+# push-triggered auto-deploys are OFF (vercel.json
+# git.deploymentEnabled:false) — this pipeline is the only deployer.
 name: ci
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
 
 jobs:
@@ -117,3 +126,43 @@ jobs:
         run: npm run db:migrate
       - if: steps.creds.outputs.has == 'true'
         run: npm run test:e2e:real-auth
+
+  deploy:
+    # Production deploy — pushes to main only, after every test job is
+    # green. (e2e-real-auth self-skips its steps when secrets are
+    # missing but still reports success, so it gates cleanly either
+    # way.) Implementation lives in deploy.yml — the same file is the
+    # manual deploy/rollback button in the Actions tab.
+    needs: [verify, e2e-mocked, e2e-real-auth]
+    if: >-
+      ${{ !cancelled() &&
+          github.event_name == 'push' &&
+          github.ref == 'refs/heads/main' &&
+          vars.RUN_VERCEL_DEPLOY == 'true' &&
+          needs.verify.result == 'success' &&
+          needs['e2e-mocked'].result == 'success' &&
+          needs['e2e-real-auth'].result == 'success' }}
+    uses: ./.github/workflows/deploy.yml
+    with:
+      ref: ${{ github.sha }}
+      target: production
+    secrets: inherit
+
+  deploy-dev:
+    # Dev-env deploy — pushes to develop only, same all-green gate.
+    # Deploys a PREVIEW deployment (Vercel's Preview env scope supplies
+    # the dev vars) and aliases classroom-dev.jurisimus.com to it.
+    needs: [verify, e2e-mocked, e2e-real-auth]
+    if: >-
+      ${{ !cancelled() &&
+          github.event_name == 'push' &&
+          github.ref == 'refs/heads/develop' &&
+          vars.RUN_VERCEL_DEPLOY == 'true' &&
+          needs.verify.result == 'success' &&
+          needs['e2e-mocked'].result == 'success' &&
+          needs['e2e-real-auth'].result == 'success' }}
+    uses: ./.github/workflows/deploy.yml
+    with:
+      ref: ${{ github.sha }}
+      target: preview
+    secrets: inherit
