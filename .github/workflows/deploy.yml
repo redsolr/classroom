@@ -73,7 +73,10 @@ jobs:
           else
             target_field=''
           fi
-          resp=$(curl -sf -X POST "https://api.vercel.com/v13/deployments?teamId=$VERCEL_TEAM_ID" \
+          # -s without -f: an HTTP error must land in $resp so the jq
+          # check below can PRINT Vercel's error body — with -f the step
+          # dies at exit 22 and the reason is lost (learned on run 1).
+          resp=$(curl -s -X POST "https://api.vercel.com/v13/deployments?teamId=$VERCEL_TEAM_ID" \
             -H "Authorization: Bearer ${{ secrets.VERCEL_TOKEN }}" \
             -H "Content-Type: application/json" \
             -d '{"name":"class-room","project":"'"$VERCEL_PROJECT_ID"'",'"$target_field"'"gitSource":{"type":"github","repoId":'"$VERCEL_REPO_ID"',"ref":"'"$DEPLOY_REF"'"}}')
@@ -111,7 +114,7 @@ jobs:
       - name: Point the dev domain at this deployment (preview only)
         if: inputs.target != 'production'
         run: |
-          resp=$(curl -sf -X POST "https://api.vercel.com/v2/deployments/$DEPLOYMENT_ID/aliases?teamId=$VERCEL_TEAM_ID" \
+          resp=$(curl -s -X POST "https://api.vercel.com/v2/deployments/$DEPLOYMENT_ID/aliases?teamId=$VERCEL_TEAM_ID" \
             -H "Authorization: Bearer ${{ secrets.VERCEL_TOKEN }}" \
             -H "Content-Type: application/json" \
             -d '{"alias":"classroom-dev.jurisimus.com"}')
