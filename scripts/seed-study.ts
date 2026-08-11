@@ -323,9 +323,10 @@ async function main() {
     FRENCH_VOCAB.filter((v) => v.category === "Verb").map((v) => v.term),
   );
   const verbRows = frenchRows.filter((r) => verbTerms.has(r.term));
+  // Pinned — the sidebar quick-add example book.
   const [list] = await db
     .insert(studyVocabLists)
-    .values({ learnerId: learner.id, name: "Common French verbs" })
+    .values({ learnerId: learner.id, name: "Common French verbs", pinned: true })
     .returning({ id: studyVocabLists.id });
   await db.insert(studyVocabListItems).values(
     verbRows.map((row, position) => ({

@@ -34,6 +34,7 @@ import {
   DropdownTrigger,
 } from "@/components/ui/dropdown";
 import { NewProjectDialog } from "@/components/study/new-project-dialog";
+import { QuickAddVocabDialog } from "@/components/study/quick-add-vocab-dialog";
 import type { SidebarStudy, SidebarThread } from "@/lib/study-sidebar";
 import { threadTitle } from "@/lib/study-display";
 import {
@@ -283,7 +284,7 @@ function StudyChatTree({ study }: { study: SidebarStudy }) {
         </Link>
       </div>
 
-      {study.pinned.length > 0 && (
+      {(study.pinned.length > 0 || study.pinnedBooks.length > 0) && (
         <div>
           <SectionLabel>Pinned</SectionLabel>
           <div className="space-y-0.5">
@@ -293,6 +294,35 @@ function StudyChatTree({ study }: { study: SidebarStudy }) {
                 thread={thread}
                 active={thread.id === activeId}
               />
+            ))}
+            {/* Pinned vocabulary BOOKS — name opens the book, + adds a
+                word straight into it from anywhere. */}
+            {study.pinnedBooks.map((book) => (
+              <div
+                key={book.id}
+                className="group flex items-center rounded-md pr-1 pl-2.5 transition-colors hover:bg-surface-hover"
+              >
+                <Link
+                  href={`/study/vocab?book=${book.id}`}
+                  className="flex min-w-0 flex-1 items-center gap-2 py-1.5 pr-1 text-[0.875rem] text-fg"
+                >
+                  <BookMarked className="size-3.5 shrink-0 text-fg-tertiary" />
+                  <span className="truncate">{book.name}</span>
+                  <span className="text-[0.78rem] text-fg-tertiary">
+                    {book.wordCount}
+                  </span>
+                </Link>
+                <QuickAddVocabDialog bookId={book.id} bookName={book.name}>
+                  <button
+                    type="button"
+                    aria-label={`Add word to ${book.name}`}
+                    title={`Add a word to ${book.name}`}
+                    className={rowActionClass}
+                  >
+                    <Plus className="size-3.5" />
+                  </button>
+                </QuickAddVocabDialog>
+              </div>
             ))}
           </div>
         </div>

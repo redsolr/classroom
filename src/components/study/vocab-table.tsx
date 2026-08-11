@@ -1,14 +1,17 @@
 "use client";
 
 import * as React from "react";
-import { formatDistanceToNow } from "date-fns";
 import {
   ArrowDown,
   ArrowUp,
-  Check,
   Download,
+  Eye,
+  EyeOff,
   ListPlus,
+  MoreHorizontal,
   Pencil,
+  SlidersHorizontal,
+  Trash2,
   X,
 } from "lucide-react";
 import type { StudyVocabItem } from "@/db";
@@ -16,38 +19,69 @@ import {
   addToStudyVocabList,
   createStudyVocabList,
   deleteStudyVocab,
-  deleteStudyVocabList,
   moveStudyVocabListItem,
   removeFromStudyVocabList,
-  renameStudyVocabList,
   updateStudyVocab,
 } from "@/lib/actions/study";
 import { Badge, vocabularyStatusTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ConfirmButton } from "@/components/ui/confirm-button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import {
   Dropdown,
   DropdownContent,
   DropdownItem,
+  DropdownSeparator,
   DropdownTrigger,
 } from "@/components/ui/dropdown";
-import { Input, Select } from "@/components/ui/field";
-import { isCardDue } from "@/lib/srs";
+import { Field, Input, Select } from "@/components/ui/field";
 import { STUDY_LANGUAGES } from "@/lib/study-languages";
 import { STUDY_VOCAB_CATEGORIES } from "@/lib/study-vocab-categories";
 import { cn } from "@/lib/utils";
 
-/** A list with its member ids in the learner's manual order. */
+/** A book with its member ids in the learner's manual order. */
 export type VocabListSummary = {
   id: string;
   name: string;
+  pinned: boolean;
   itemIds: string[];
 };
 
-type SortKey = "term" | "language" | "category" | "status" | "due" | "reps";
-type SortDir = "asc" | "desc";
-type Sort = { key: SortKey; dir: SortDir };
+/**
+ * The dictionary table — compact, Attio-style, ONE layout for every
+ * viewport (it scrolls sideways on phones instead of forking into
+ * cards). A quick-lookup surface: no SRS columns (due/reps live on the
+ * Review page); which columns show is the learner's choice, persisted
+ * locally; quiz mode hides meanings until a row is tapped.
+ */
+
+const OPTIONAL_COLUMNS = [
+  { key: "reading", label: "Reading" },
+  { key: "meaning", label: "Meaning" },
+  { key: "category", label: "Type" },
+  { key: "language", label: "Language" },
+  { key: "status", label: "Status" },
+] as const;
+type ColumnKey = (typeof OPTIONAL_COLUMNS)[number]["key"];
+
+const DEFAULT_COLUMNS: ColumnKey[] = ["reading", "meaning"];
+const COLUMNS_STORAGE_KEY = "classroom-vocab-columns";
+
+function parseStoredColumns(raw: string | null): ColumnKey[] | null {
+  if (!raw) return null;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return null;
+    const valid = OPTIONAL_COLUMNS.map((c) => c.key);
+    return parsed.filter((k): k is ColumnKey =>
+      valid.includes(k as ColumnKey),
+    );
+  } catch {
+    return null;
+  }
+}
+
+type SortKey = "term" | ColumnKey;
+type Sort = { key: SortKey; dir: "asc" | "desc" };
 
 const STATUS_ORDER: Record<StudyVocabItem["status"], number> = {
   new: 0,
@@ -56,55 +90,18 @@ const STATUS_ORDER: Record<StudyVocabItem["status"], number> = {
   mastered: 3,
 };
 
-const SORT_KEYS: SortKey[] = [
-  "term",
-  "language",
-  "category",
-  "status",
-  "due",
-  "reps",
-];
-
-const SORT_LABELS: Record<SortKey, string> = {
-  term: "Term",
-  language: "Language",
-  category: "Category",
-  status: "Status",
-  due: "Due",
-  reps: "Reps",
-};
-
-/**
- * The editable columns. SRS state (status / due / reps) is derived from
- * review evidence and is never hand-edited — it is display-only here.
- *
- * `label` is the accessible name in BOTH layouts (the phone cards and the
- * desktop table render the same field twice, one of them hidden). It is
- * prefixed "Edit " so it never collides with the add form's own labels.
- */
-const EDIT_FIELDS = [
-  { key: "term", label: "Edit term", placeholder: "Term", maxLength: 200 },
-  { key: "reading", label: "Edit reading", placeholder: "Reading", maxLength: 200 },
-  { key: "meaning", label: "Edit meaning", placeholder: "Meaning", maxLength: 500 },
-  { key: "example", label: "Edit example", placeholder: "Example", maxLength: 1000 },
-] as const;
-
-type DraftField = (typeof EDIT_FIELDS)[number]["key"];
-type Draft = Record<DraftField, string> & { language: string; category: string };
-
-/** A null srsDueAt (never reviewed) is always due — sorts first. */
-function dueValue(item: StudyVocabItem): number {
-  return item.srsDueAt ? item.srsDueAt.getTime() : 0;
-}
-
 function compare(a: StudyVocabItem, b: StudyVocabItem, key: SortKey): number {
+  const text = (v: string | null) => v ?? "";
   switch (key) {
     case "term":
       return a.term.localeCompare(b.term);
+    case "reading":
+      return text(a.reading).localeCompare(text(b.reading));
+    case "meaning":
+      return text(a.meaning).localeCompare(text(b.meaning));
     case "language":
       return a.language.localeCompare(b.language);
     case "category": {
-      // Uncategorized sorts last so real categories cluster on top.
       if (!a.category && !b.category) return 0;
       if (!a.category) return 1;
       if (!b.category) return -1;
@@ -112,80 +109,64 @@ function compare(a: StudyVocabItem, b: StudyVocabItem, key: SortKey): number {
     }
     case "status":
       return STATUS_ORDER[a.status] - STATUS_ORDER[b.status];
-    case "due":
-      return dueValue(a) - dueValue(b);
-    case "reps":
-      return a.srsReps - b.srsReps;
   }
 }
 
-function StatusBadge({ item }: { item: StudyVocabItem }) {
-  return (
-    <Badge tone={vocabularyStatusTone[item.status]}>{item.status}</Badge>
-  );
-}
-
-function DueLabel({ item, now }: { item: StudyVocabItem; now: Date }) {
-  if (isCardDue(item.srsDueAt, now)) {
-    return <span className="font-medium text-accent-text">now</span>;
-  }
-  return (
-    <span className="text-fg-secondary">
-      {formatDistanceToNow(item.srsDueAt!, { addSuffix: true })}
-    </span>
-  );
-}
-
-const chipClass = (active: boolean) =>
-  cn(
-    "rounded-md px-2 py-1 text-[0.8125rem] font-medium capitalize transition-colors",
-    active
-      ? "bg-accent-soft text-accent-text"
-      : "text-fg-secondary hover:bg-surface-hover",
-  );
+const toolbarButtonClass =
+  "inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-[0.8125rem] font-medium text-fg-secondary transition-colors hover:bg-surface-hover hover:text-fg";
 
 export function VocabTable({
   items,
   lists,
+  view,
 }: {
   items: StudyVocabItem[];
   lists: VocabListSummary[];
+  view: "all" | { id: string; name: string };
 }) {
+  const book = view === "all" ? null : view;
+  const inBook = book !== null;
+
+  // Column choice — read through useSyncExternalStore so server render
+  // and hydration agree (defaults), then the stored choice applies.
+  const storedColumns = React.useSyncExternalStore(
+    React.useCallback((onChange) => {
+      window.addEventListener("storage", onChange);
+      return () => window.removeEventListener("storage", onChange);
+    }, []),
+    () => window.localStorage.getItem(COLUMNS_STORAGE_KEY),
+    () => null,
+  );
+  const [columnsOverride, setColumnsOverride] = React.useState<
+    ColumnKey[] | null
+  >(null);
+  const columns =
+    columnsOverride ?? parseStoredColumns(storedColumns) ?? DEFAULT_COLUMNS;
+  const setColumns = (next: ColumnKey[]) => {
+    setColumnsOverride(next);
+    window.localStorage.setItem(COLUMNS_STORAGE_KEY, JSON.stringify(next));
+  };
+  const showColumn = (key: ColumnKey) => columns.includes(key);
+
   const [language, setLanguage] = React.useState("all");
   const [category, setCategory] = React.useState("all");
-  /** "all" = the filterable table; a list id = that list, manual order. */
-  const [view, setView] = React.useState("all");
   const [sort, setSort] = React.useState<Sort | null>(null);
-  const [editingId, setEditingId] = React.useState<string | null>(null);
-  const [draft, setDraft] = React.useState<Draft | null>(null);
-  // Per-ROW busy state, not one flag for the table: a save on one word must
-  // never freeze the buttons on every other row.
+  const [quizMode, setQuizMode] = React.useState(false);
+  const [revealed, setRevealed] = React.useState<Set<string>>(() => new Set());
+  const [editing, setEditing] = React.useState<StudyVocabItem | null>(null);
   const [busyId, setBusyId] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
-  const [saveListOpen, setSaveListOpen] = React.useState(false);
-  const [saveListName, setSaveListName] = React.useState("");
-  const [renamingList, setRenamingList] = React.useState(false);
-  const [listNameDraft, setListNameDraft] = React.useState("");
+  const [saveBookOpen, setSaveBookOpen] = React.useState(false);
+  const [saveBookName, setSaveBookName] = React.useState("");
   const [, startTransition] = React.useTransition();
-  const now = new Date();
-
-  const activeList =
-    view === "all" ? null : (lists.find((l) => l.id === view) ?? null);
-  // A deleted list can linger in state for one render — fall back to all.
-  const inListView = activeList !== null;
 
   const languages = [...new Set(items.map((i) => i.language))].sort();
   const categories = [
     ...new Set(items.map((i) => i.category).filter((c): c is string => !!c)),
   ].sort();
 
-  const byId = new Map(items.map((i) => [i.id, i]));
-  let visible: StudyVocabItem[];
-  if (inListView) {
-    visible = activeList.itemIds
-      .map((id) => byId.get(id))
-      .filter((i): i is StudyVocabItem => !!i);
-  } else {
+  let visible = items;
+  if (!inBook) {
     visible = items.filter(
       (i) =>
         (language === "all" || i.language === language) &&
@@ -193,12 +174,27 @@ export function VocabTable({
     );
     if (sort) {
       const factor = sort.dir === "asc" ? 1 : -1;
-      visible.sort((a, b) => factor * compare(a, b, sort.key));
+      visible = [...visible].sort((a, b) => factor * compare(a, b, sort.key));
     }
   }
 
+  const run = (id: string | null, fn: () => Promise<void>, label: string) => {
+    setError(null);
+    if (id) setBusyId(id);
+    startTransition(async () => {
+      try {
+        await fn();
+      } catch (err) {
+        console.error(`vocab table: ${label} failed`, err);
+        setError("That didn't save — please try again.");
+      } finally {
+        if (id) setBusyId(null);
+      }
+    });
+  };
+
   const onSortHeader = (key: SortKey) => {
-    if (inListView) return; // list order is the learner's, not a sort
+    if (inBook) return; // a book's order is the learner's, not a sort
     setSort((prev) =>
       prev?.key === key
         ? prev.dir === "asc"
@@ -208,208 +204,15 @@ export function VocabTable({
     );
   };
 
-  const startEdit = (item: StudyVocabItem) => {
-    setError(null);
-    setEditingId(item.id);
-    setDraft({
-      term: item.term,
-      reading: item.reading ?? "",
-      meaning: item.meaning ?? "",
-      example: item.example ?? "",
-      language: item.language,
-      category: item.category ?? "",
-    });
-  };
-
-  const cancelEdit = () => {
-    setEditingId(null);
-    setDraft(null);
-  };
-
-  const setField = (field: keyof Draft, value: string) =>
-    setDraft((d) => (d ? { ...d, [field]: value } : d));
-
-  const saveEdit = (item: StudyVocabItem) => {
-    if (!draft || !draft.term.trim()) return;
-    const patch = draft;
-    setError(null);
-    setBusyId(item.id);
-    startTransition(async () => {
-      try {
-        await updateStudyVocab(item.id, {
-          language: patch.language,
-          term: patch.term,
-          reading: patch.reading || undefined,
-          meaning: patch.meaning || undefined,
-          example: patch.example || undefined,
-          category: patch.category || undefined,
-        });
-        setEditingId(null);
-        setDraft(null);
-      } catch (err) {
-        // Never silent: a rejected action would otherwise leave the row
-        // sitting in edit mode with no explanation.
-        console.error("vocab table: failed to save word", err);
-        setError(
-          `Couldn't save “${patch.term}” — nothing was changed. Try again.`,
-        );
-      } finally {
-        setBusyId(null);
-      }
-    });
-  };
-
-  const saveAsList = () => {
-    const name = saveListName.trim();
-    if (!name || visible.length === 0) return;
-    const ids = visible.map((i) => i.id);
-    setError(null);
-    startTransition(async () => {
-      try {
-        const { id } = await createStudyVocabList(name, ids);
-        setSaveListOpen(false);
-        setSaveListName("");
-        setView(id);
-      } catch (err) {
-        console.error("vocab table: failed to create list", err);
-        setError(`Couldn't create “${name}” — try again.`);
-      }
-    });
-  };
-
-  const commitListRename = () => {
-    if (!activeList) return;
-    const name = listNameDraft.trim();
-    setRenamingList(false);
-    if (!name || name === activeList.name) return;
-    startTransition(async () => {
-      try {
-        await renameStudyVocabList(activeList.id, name);
-      } catch (err) {
-        console.error("vocab table: failed to rename list", err);
-        setError("Couldn't rename the list — try again.");
-      }
-    });
-  };
-
-  const moveInList = (item: StudyVocabItem, direction: "up" | "down") => {
-    if (!activeList) return;
-    setBusyId(item.id);
-    startTransition(async () => {
-      try {
-        await moveStudyVocabListItem(activeList.id, item.id, direction);
-      } catch (err) {
-        console.error("vocab table: failed to reorder list item", err);
-        setError("Couldn't reorder — try again.");
-      } finally {
-        setBusyId(null);
-      }
-    });
-  };
-
-  const removeFromList = (item: StudyVocabItem) => {
-    if (!activeList) return;
-    setBusyId(item.id);
-    startTransition(async () => {
-      try {
-        await removeFromStudyVocabList(activeList.id, item.id);
-      } catch (err) {
-        console.error("vocab table: failed to remove from list", err);
-        setError("Couldn't remove the word — try again.");
-      } finally {
-        setBusyId(null);
-      }
-    });
-  };
-
-  /**
-   * Enter saves, Escape cancels. The isComposing guard is load-bearing for
-   * this app: committing a Japanese IME candidate fires Enter too, and
-   * without it the first kanji conversion would submit the row.
-   */
-  const onEditKeyDown = (
-    event: React.KeyboardEvent<HTMLElement>,
-    item: StudyVocabItem,
-  ) => {
-    if (event.key === "Escape") {
-      event.preventDefault();
-      cancelEdit();
-      return;
-    }
-    if (event.key === "Enter" && !event.nativeEvent.isComposing) {
-      event.preventDefault();
-      saveEdit(item);
-    }
-  };
-
-  const languageOptions =
-    draft && !(STUDY_LANGUAGES as readonly string[]).includes(draft.language)
-      ? [draft.language, ...STUDY_LANGUAGES]
-      : [...STUDY_LANGUAGES];
-
-  const draftInput = (
-    field: (typeof EDIT_FIELDS)[number],
-    item: StudyVocabItem,
-    className?: string,
-  ) =>
-    draft && (
-      <Input
-        aria-label={field.label}
-        placeholder={field.placeholder}
-        value={draft[field.key]}
-        maxLength={field.maxLength}
-        onChange={(e) => setField(field.key, e.target.value)}
-        onKeyDown={(e) => onEditKeyDown(e, item)}
-        className={className}
-      />
-    );
-
-  const languageSelect = (item: StudyVocabItem, className?: string) =>
-    draft && (
-      <Select
-        aria-label="Edit language"
-        value={draft.language}
-        onChange={(e) => setField("language", e.target.value)}
-        onKeyDown={(e) => onEditKeyDown(e, item)}
-        className={className}
-      >
-        {languageOptions.map((lang) => (
-          <option key={lang} value={lang}>
-            {lang}
-          </option>
-        ))}
-      </Select>
-    );
-
-  const categorySelect = (item: StudyVocabItem, className?: string) =>
-    draft && (
-      <Select
-        aria-label="Edit category"
-        value={draft.category}
-        onChange={(e) => setField("category", e.target.value)}
-        onKeyDown={(e) => onEditKeyDown(e, item)}
-        className={className}
-      >
-        <option value="">No category</option>
-        {STUDY_VOCAB_CATEGORIES.map((c) => (
-          <option key={c} value={c}>
-            {c}
-          </option>
-        ))}
-      </Select>
-    );
-
-  // Rendered by CALLING these (not as <Components/>): a component defined
-  // inside a render would get a new identity every keystroke and remount
-  // the input, losing focus mid-edit.
-  const sortHeader = (key: SortKey) => {
-    const active = !inListView && sort?.key === key;
+  const sortHeader = (key: SortKey, label: string) => {
+    const active = !inBook && sort?.key === key;
     return (
       <th
+        key={key}
         aria-sort={
           active ? (sort!.dir === "asc" ? "ascending" : "descending") : "none"
         }
-        className="px-4 py-2.5 font-medium"
+        className="px-3 py-2 font-medium whitespace-nowrap"
       >
         <button
           type="button"
@@ -419,7 +222,7 @@ export function VocabTable({
             active && "text-fg",
           )}
         >
-          {SORT_LABELS[key]}
+          {label}
           {active &&
             (sort!.dir === "asc" ? (
               <ArrowUp className="size-3" />
@@ -431,333 +234,182 @@ export function VocabTable({
     );
   };
 
-  const editActions = (item: StudyVocabItem) => (
-    <>
-      <button
-        type="button"
-        title="Save word"
-        disabled={busyId === item.id || !draft?.term.trim()}
-        onClick={() => saveEdit(item)}
-        className="flex size-7 items-center justify-center rounded-md text-accent-text transition-colors hover:bg-accent-soft disabled:opacity-50"
-      >
-        <Check className="size-4" />
-      </button>
-      <button
-        type="button"
-        title="Cancel edit"
-        disabled={busyId === item.id}
-        onClick={cancelEdit}
-        className="flex size-7 items-center justify-center rounded-md text-fg-tertiary transition-colors hover:bg-surface-hover hover:text-fg"
-      >
-        <X className="size-4" />
-      </button>
-    </>
-  );
+  const saveAsBook = () => {
+    const name = saveBookName.trim();
+    if (!name || visible.length === 0) return;
+    const ids = visible.map((i) => i.id);
+    run(null, async () => {
+      await createStudyVocabList(name, ids);
+      setSaveBookOpen(false);
+      setSaveBookName("");
+    }, "save as book");
+  };
 
-  const rowActions = (item: StudyVocabItem, index: number) => (
-    <>
-      {inListView && (
-        <>
-          <button
-            type="button"
-            title="Move up"
-            disabled={busyId === item.id || index === 0}
-            onClick={() => moveInList(item, "up")}
-            className="flex size-7 items-center justify-center rounded-md text-fg-tertiary transition-colors hover:bg-surface-hover hover:text-fg disabled:opacity-30"
-          >
-            <ArrowUp className="size-3.5" />
-          </button>
-          <button
-            type="button"
-            title="Move down"
-            disabled={busyId === item.id || index === visible.length - 1}
-            onClick={() => moveInList(item, "down")}
-            className="flex size-7 items-center justify-center rounded-md text-fg-tertiary transition-colors hover:bg-surface-hover hover:text-fg disabled:opacity-30"
-          >
-            <ArrowDown className="size-3.5" />
-          </button>
-          <button
-            type="button"
-            title="Remove from list"
-            disabled={busyId === item.id}
-            onClick={() => removeFromList(item)}
-            className="flex size-7 items-center justify-center rounded-md text-fg-tertiary transition-colors hover:bg-surface-hover hover:text-danger"
-          >
-            <X className="size-4" />
-          </button>
-        </>
-      )}
-      {!inListView && lists.length > 0 && (
-        <Dropdown>
-          <DropdownTrigger asChild>
-            <button
-              type="button"
-              title="Add to list"
-              disabled={busyId === item.id}
-              className="flex size-7 items-center justify-center rounded-md text-fg-tertiary transition-colors hover:bg-surface-hover hover:text-fg"
-            >
-              <ListPlus className="size-3.5" />
-            </button>
-          </DropdownTrigger>
-          <DropdownContent align="start" className="w-48">
-            {lists.map((list) => (
-              <DropdownItem
-                key={list.id}
-                disabled={list.itemIds.includes(item.id)}
-                className={cn(
-                  list.itemIds.includes(item.id) && "opacity-50",
-                )}
-                onSelect={() => {
-                  startTransition(async () => {
-                    try {
-                      await addToStudyVocabList(list.id, item.id);
-                    } catch (err) {
-                      console.error("vocab table: failed to add to list", err);
-                      setError("Couldn't add the word to the list — try again.");
-                    }
-                  });
-                }}
-              >
-                {list.name}
-              </DropdownItem>
-            ))}
-          </DropdownContent>
-        </Dropdown>
-      )}
-      <button
-        type="button"
-        title="Edit word"
-        disabled={busyId === item.id}
-        onClick={() => startEdit(item)}
-        className="flex size-7 items-center justify-center rounded-md text-fg-tertiary transition-colors hover:bg-surface-hover hover:text-fg"
-      >
-        <Pencil className="size-3.5" />
-      </button>
-      {/* Two-step delete (arms, then fires) — the repo's confirm pattern, and
-          the trash icon now sits one tap from the pencil. */}
-      <ConfirmButton
-        title="Delete word"
-        action={() => deleteStudyVocab(item.id)}
-      />
-    </>
-  );
+  const colCount = 1 + columns.length + 1;
 
   return (
     <div>
-      {/* Lists row — the table's saved views. "All words" is the live
-          filterable table; a list is a manual, reorderable selection. */}
-      {(lists.length > 0 || items.length > 0) && (
-        <div className="mb-2 flex flex-wrap items-center gap-1">
+      {/* ── Toolbar: one clean row ── */}
+      <div className="mb-2.5 flex flex-wrap items-center gap-1.5">
+        {!inBook && languages.length > 1 && (
+          <Select
+            aria-label="Filter language"
+            value={language}
+            onChange={(e) => setLanguage(e.target.value)}
+            className="h-8 w-auto text-[0.8125rem]"
+          >
+            <option value="all">All languages</option>
+            {languages.map((l) => (
+              <option key={l} value={l}>
+                {l}
+              </option>
+            ))}
+          </Select>
+        )}
+        {!inBook && categories.length > 0 && (
+          <Select
+            aria-label="Filter type"
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            className="h-8 w-auto text-[0.8125rem]"
+          >
+            <option value="all">Any type</option>
+            {categories.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </Select>
+        )}
+        <div className="ml-auto flex items-center gap-1">
           <button
             type="button"
             onClick={() => {
-              setView("all");
-              setRenamingList(false);
+              setQuizMode((q) => !q);
+              setRevealed(new Set());
             }}
-            className={chipClass(!inListView)}
+            aria-pressed={quizMode}
+            title={
+              quizMode
+                ? "Show meanings"
+                : "Quiz mode — hide meanings, tap a row to peek"
+            }
+            className={cn(
+              toolbarButtonClass,
+              quizMode && "bg-accent-soft text-accent-text",
+            )}
           >
-            All words
-          </button>
-          {lists.map((list) =>
-            activeList?.id === list.id && renamingList ? (
-              <input
-                key={list.id}
-                autoFocus
-                value={listNameDraft}
-                onChange={(e) => setListNameDraft(e.target.value)}
-                onBlur={commitListRename}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.nativeEvent.isComposing) {
-                    e.preventDefault();
-                    commitListRename();
-                  }
-                  if (e.key === "Escape") {
-                    e.preventDefault();
-                    setRenamingList(false);
-                  }
-                }}
-                maxLength={80}
-                aria-label="Rename list"
-                className="h-7 rounded-md border border-accent bg-transparent px-2 text-[0.8125rem] focus:outline-none"
-              />
+            {quizMode ? (
+              <Eye className="size-3.5" />
             ) : (
+              <EyeOff className="size-3.5" />
+            )}
+            Quiz
+          </button>
+          <Dropdown>
+            <DropdownTrigger asChild>
               <button
-                key={list.id}
                 type="button"
-                onClick={() => setView(list.id)}
-                className={chipClass(activeList?.id === list.id)}
+                aria-label="Columns"
+                title="Choose columns"
+                className={toolbarButtonClass}
               >
-                {list.name}
-                <span className="ml-1 text-fg-tertiary">
-                  {list.itemIds.length}
-                </span>
+                <SlidersHorizontal className="size-3.5" />
+                Columns
               </button>
-            ),
-          )}
-          {inListView && !renamingList && (
+            </DropdownTrigger>
+            <DropdownContent className="w-44">
+              {OPTIONAL_COLUMNS.map((col) => (
+                <DropdownItem
+                  key={col.key}
+                  onSelect={(e) => {
+                    e.preventDefault(); // keep the menu open while toggling
+                    setColumns(
+                      showColumn(col.key)
+                        ? columns.filter((k) => k !== col.key)
+                        : [...columns, col.key],
+                    );
+                  }}
+                >
+                  <span
+                    className={cn(
+                      "flex size-4 items-center justify-center rounded border border-border-strong text-[0.7rem]",
+                      showColumn(col.key) &&
+                        "border-accent bg-accent text-white",
+                    )}
+                  >
+                    {showColumn(col.key) ? "✓" : ""}
+                  </span>
+                  {col.label}
+                </DropdownItem>
+              ))}
+            </DropdownContent>
+          </Dropdown>
+          {!inBook && (
             <>
               <button
                 type="button"
-                title="Rename list"
                 onClick={() => {
-                  setListNameDraft(activeList.name);
-                  setRenamingList(true);
+                  setSaveBookName("");
+                  setSaveBookOpen(true);
                 }}
-                className="flex size-7 items-center justify-center rounded-md text-fg-tertiary transition-colors hover:bg-surface-hover hover:text-fg"
+                disabled={visible.length === 0}
+                title="Save the current view as a book"
+                className={toolbarButtonClass}
               >
-                <Pencil className="size-3.5" />
+                <ListPlus className="size-3.5" />
+                Save as book
               </button>
-              <ConfirmButton
-                title="Delete list"
-                action={async () => {
-                  await deleteStudyVocabList(activeList.id);
-                  setView("all");
-                }}
-              />
+              <a
+                href="/study/vocab/export.csv"
+                download
+                title="Export CSV (Anki-ready)"
+                aria-label="Export CSV"
+                className={toolbarButtonClass}
+              >
+                <Download className="size-3.5" />
+                CSV
+              </a>
             </>
           )}
         </div>
-      )}
-
-      {!inListView && (
-        <div className="mb-3 flex flex-wrap items-center gap-2">
-          {languages.length > 1 && (
-            <div className="flex flex-wrap items-center gap-1">
-              {["all", ...languages].map((f) => (
-                <button
-                  key={f}
-                  type="button"
-                  onClick={() => setLanguage(f)}
-                  className={chipClass(language === f)}
-                >
-                  {f}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Category chips — the "show me my verbs" cut. Only offered
-              once at least one word is categorized. */}
-          {categories.length > 0 && (
-            <div className="flex flex-wrap items-center gap-1 border-l border-border pl-2">
-              {["all", ...categories].map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => setCategory(c)}
-                  className={chipClass(category === c)}
-                >
-                  {c === "all" ? "any type" : c}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Phones have no column headers to click — sorting gets its own
-              control inside the viewport branch that needs it. */}
-          <div className="flex items-center gap-1 sm:hidden">
-            <div className="w-32">
-              <Select
-                aria-label="Sort by"
-                value={sort?.key ?? ""}
-                onChange={(e) =>
-                  setSort(
-                    e.target.value
-                      ? { key: e.target.value as SortKey, dir: sort?.dir ?? "asc" }
-                      : null,
-                  )
-                }
-              >
-                <option value="">Newest</option>
-                {SORT_KEYS.map((key) => (
-                  <option key={key} value={key}>
-                    {SORT_LABELS[key]}
-                  </option>
-                ))}
-              </Select>
-            </div>
-            {sort && (
-              <button
-                type="button"
-                title={sort.dir === "asc" ? "Sort descending" : "Sort ascending"}
-                onClick={() =>
-                  setSort({
-                    key: sort.key,
-                    dir: sort.dir === "asc" ? "desc" : "asc",
-                  })
-                }
-                className="flex size-8 items-center justify-center rounded-md border border-border-strong bg-surface text-fg-secondary shadow-sm transition-colors hover:bg-surface-hover"
-              >
-                {sort.dir === "asc" ? (
-                  <ArrowUp className="size-3.5" />
-                ) : (
-                  <ArrowDown className="size-3.5" />
-                )}
-              </button>
-            )}
-          </div>
-
-          <div className="ml-auto flex items-center gap-2">
-            {visible.length > 0 && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSaveListName("");
-                  setSaveListOpen(true);
-                }}
-                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border-strong bg-surface px-3 text-[0.875rem] font-medium shadow-sm transition-colors hover:bg-surface-hover"
-              >
-                <ListPlus className="size-3.5" />
-                Save as list
-              </button>
-            )}
-            <a
-              href="/study/vocab/export.csv"
-              download
-              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border-strong bg-surface px-3 text-[0.875rem] font-medium shadow-sm transition-colors hover:bg-surface-hover"
-            >
-              <Download className="size-3.5" />
-              Export CSV
-            </a>
-          </div>
-        </div>
-      )}
+      </div>
 
       {error && (
         <p
           role="alert"
-          className="mb-3 rounded-md bg-danger-soft px-3 py-2 text-[0.875rem] text-danger"
+          className="mb-2.5 rounded-md bg-danger-soft px-3 py-2 text-[0.875rem] text-danger"
         >
           {error}
         </p>
       )}
 
-      {/* Save-as-list: names the CURRENT view (filters + sort applied) and
-          keeps its order as the list's starting order. */}
-      <Dialog open={saveListOpen} onOpenChange={setSaveListOpen}>
+      {/* Save-as-book: names the CURRENT view (filters + sort applied),
+          keeping its order as the book's starting order. */}
+      <Dialog open={saveBookOpen} onOpenChange={setSaveBookOpen}>
         <DialogContent
-          title="Save as list"
+          title="Save as book"
           description={`The ${visible.length} word${visible.length === 1 ? "" : "s"} in the current view, in this order.`}
         >
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              saveAsList();
+              saveAsBook();
             }}
             className="flex items-center gap-2"
           >
             <Input
               autoFocus
-              value={saveListName}
-              onChange={(e) => setSaveListName(e.target.value)}
+              value={saveBookName}
+              onChange={(e) => setSaveBookName(e.target.value)}
               maxLength={80}
               placeholder="Common French verbs"
-              aria-label="List name"
+              aria-label="Book name"
             />
             <Button
               type="submit"
               variant="primary"
-              disabled={!saveListName.trim()}
+              disabled={!saveBookName.trim()}
             >
               Save
             </Button>
@@ -765,156 +417,224 @@ export function VocabTable({
         </DialogContent>
       </Dialog>
 
-      {/* Phone layout: cards. The table below is display:none here — role
-          queries skip it, but getByText does NOT, so scope text assertions
-          to a card (or a row) rather than the page. */}
-      <ul className="space-y-2 sm:hidden">
-        {visible.map((item, index) => {
-          const editing = editingId === item.id && draft;
-          return (
-            <li key={item.id} className="rounded-lg bg-surface p-3 shadow-card">
-              {editing ? (
-                <div className="space-y-2">
-                  {EDIT_FIELDS.map((field) => (
-                    <div key={field.key}>{draftInput(field, item)}</div>
-                  ))}
-                  {languageSelect(item)}
-                  {categorySelect(item)}
-                  <div className="flex items-center justify-end gap-1">
-                    {editActions(item)}
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <div className="flex items-start gap-2">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[0.9375rem]">
-                        <span className="font-semibold">{item.term}</span>
-                        {item.reading && (
-                          <span className="ml-1.5 text-fg-secondary">
-                            [{item.reading}]
-                          </span>
-                        )}
-                        {item.meaning && (
-                          <span className="text-fg-secondary">
-                            {" "}
-                            — {item.meaning}
-                          </span>
-                        )}
-                      </p>
-                      {item.example && (
-                        <p className="mt-0.5 text-[0.875rem] text-fg-tertiary italic">
-                          {item.example}
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex shrink-0 items-center gap-1">
-                      {rowActions(item, index)}
-                    </div>
-                  </div>
-                  <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.8125rem] text-fg-tertiary">
-                    <StatusBadge item={item} />
-                    <span>{item.language}</span>
-                    {item.category && <span>{item.category}</span>}
-                    <span>
-                      due <DueLabel item={item} now={now} />
-                    </span>
-                    <span>
-                      {item.srsReps} rep{item.srsReps === 1 ? "" : "s"}
-                    </span>
-                  </div>
-                </>
-              )}
-            </li>
-          );
-        })}
-        {visible.length === 0 && (
-          <li className="rounded-lg bg-surface px-4 py-8 text-center text-fg-tertiary shadow-card">
-            {inListView
-              ? "This list is empty — add words from the table."
-              : "No words match this filter."}
-          </li>
-        )}
-      </ul>
+      {editing && (
+        <EditWordDialog
+          item={editing}
+          onOpenChange={(next) => {
+            if (!next) setEditing(null);
+          }}
+        />
+      )}
 
-      <div className="hidden overflow-x-auto rounded-xl bg-surface shadow-card sm:block">
+      <div className="overflow-x-auto rounded-xl bg-surface shadow-card">
         <table className="w-full text-[0.9375rem]">
           <thead>
-            <tr className="border-b border-border text-left text-[0.8125rem] font-medium text-fg-tertiary">
-              {sortHeader("term")}
-              <th className="px-4 py-2.5 font-medium">Reading</th>
-              <th className="px-4 py-2.5 font-medium">Meaning</th>
-              {sortHeader("language")}
-              {sortHeader("category")}
-              {sortHeader("status")}
-              {sortHeader("due")}
-              {sortHeader("reps")}
-              <th className="px-4 py-2.5" />
+            <tr className="border-b border-border text-left text-[0.78rem] font-medium text-fg-tertiary">
+              {sortHeader("term", "Word")}
+              {OPTIONAL_COLUMNS.filter((c) => showColumn(c.key)).map((c) =>
+                sortHeader(c.key, c.label),
+              )}
+              <th className="w-24 px-3 py-2" />
             </tr>
           </thead>
           <tbody>
             {visible.map((item, index) => {
-              const editing = editingId === item.id && draft;
+              const hidden = quizMode && !revealed.has(item.id);
               return (
                 <tr
                   key={item.id}
-                  className="border-b border-border align-top last:border-0"
-                >
-                  {editing ? (
-                    <>
-                      <td className="px-4 py-2">
-                        {draftInput(EDIT_FIELDS[0], item, "min-w-32")}
-                      </td>
-                      <td className="px-4 py-2">
-                        {draftInput(EDIT_FIELDS[1], item, "min-w-24")}
-                      </td>
-                      <td className="px-4 py-2">
-                        {draftInput(EDIT_FIELDS[2], item, "min-w-40")}
-                        <div className="mt-1.5">
-                          {draftInput(EDIT_FIELDS[3], item, "min-w-40")}
-                        </div>
-                      </td>
-                      <td className="px-4 py-2">
-                        {languageSelect(item, "min-w-28")}
-                      </td>
-                      <td className="px-4 py-2">
-                        {categorySelect(item, "min-w-28")}
-                      </td>
-                    </>
-                  ) : (
-                    <>
-                      <td className="px-4 py-2.5 font-medium">{item.term}</td>
-                      <td className="px-4 py-2.5 text-fg-secondary">
-                        {item.reading ?? "—"}
-                      </td>
-                      <td className="max-w-64 px-4 py-2.5 text-fg-secondary">
-                        {item.meaning ?? "—"}
-                        {item.example && (
-                          <span className="mt-0.5 block truncate text-[0.875rem] text-fg-tertiary italic">
-                            {item.example}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-2.5 text-fg-secondary">
-                        {item.language}
-                      </td>
-                      <td className="px-4 py-2.5 text-fg-secondary">
-                        {item.category ?? "—"}
-                      </td>
-                    </>
+                  onClick={
+                    hidden
+                      ? () =>
+                          setRevealed((prev) => new Set(prev).add(item.id))
+                      : undefined
+                  }
+                  className={cn(
+                    "group border-b border-border last:border-0",
+                    hidden && "cursor-pointer",
                   )}
-                  <td className="px-4 py-2.5">
-                    <StatusBadge item={item} />
+                >
+                  <td className="px-3 py-2 font-medium whitespace-nowrap">
+                    {item.term}
                   </td>
-                  <td className="px-4 py-2.5 whitespace-nowrap">
-                    <DueLabel item={item} now={now} />
-                  </td>
-                  <td className="px-4 py-2.5 text-fg-secondary">
-                    {item.srsReps}
-                  </td>
-                  <td className="px-4 py-2.5">
-                    <div className="flex items-center justify-end gap-1">
-                      {editing ? editActions(item) : rowActions(item, index)}
+                  {showColumn("reading") && (
+                    <td className="px-3 py-2 text-fg-secondary">
+                      {hidden ? (
+                        <span className="select-none text-fg-tertiary">···</span>
+                      ) : (
+                        (item.reading ?? "—")
+                      )}
+                    </td>
+                  )}
+                  {showColumn("meaning") && (
+                    <td className="max-w-72 px-3 py-2 text-fg-secondary">
+                      {hidden ? (
+                        <span
+                          className="select-none rounded bg-surface-hover px-2 py-0.5 text-[0.8125rem] text-fg-tertiary"
+                          title="Tap to reveal"
+                        >
+                          tap to reveal
+                        </span>
+                      ) : (
+                        <>
+                          {item.meaning ?? "—"}
+                          {item.example && (
+                            <span className="mt-0.5 block truncate text-[0.8125rem] text-fg-tertiary italic">
+                              {item.example}
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </td>
+                  )}
+                  {showColumn("category") && (
+                    <td className="px-3 py-2 text-fg-secondary whitespace-nowrap">
+                      {item.category ?? "—"}
+                    </td>
+                  )}
+                  {showColumn("language") && (
+                    <td className="px-3 py-2 text-fg-secondary whitespace-nowrap">
+                      {item.language}
+                    </td>
+                  )}
+                  {showColumn("status") && (
+                    <td className="px-3 py-2">
+                      <Badge tone={vocabularyStatusTone[item.status]}>
+                        {item.status}
+                      </Badge>
+                    </td>
+                  )}
+                  <td className="px-2 py-1.5">
+                    <div
+                      className="flex items-center justify-end gap-0.5 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 max-lg:opacity-100"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {inBook && (
+                        <>
+                          <button
+                            type="button"
+                            title="Move up"
+                            disabled={busyId === item.id || index === 0}
+                            onClick={() =>
+                              run(
+                                item.id,
+                                () =>
+                                  moveStudyVocabListItem(
+                                    book!.id,
+                                    item.id,
+                                    "up",
+                                  ),
+                                "move up",
+                              )
+                            }
+                            className="flex size-7 items-center justify-center rounded-md text-fg-tertiary transition-colors hover:bg-surface-hover hover:text-fg disabled:opacity-30"
+                          >
+                            <ArrowUp className="size-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            title="Move down"
+                            disabled={
+                              busyId === item.id || index === visible.length - 1
+                            }
+                            onClick={() =>
+                              run(
+                                item.id,
+                                () =>
+                                  moveStudyVocabListItem(
+                                    book!.id,
+                                    item.id,
+                                    "down",
+                                  ),
+                                "move down",
+                              )
+                            }
+                            className="flex size-7 items-center justify-center rounded-md text-fg-tertiary transition-colors hover:bg-surface-hover hover:text-fg disabled:opacity-30"
+                          >
+                            <ArrowDown className="size-3.5" />
+                          </button>
+                        </>
+                      )}
+                      <Dropdown>
+                        <DropdownTrigger asChild>
+                          <button
+                            type="button"
+                            aria-label={`${item.term} options`}
+                            title="Word options"
+                            className="flex size-7 items-center justify-center rounded-md text-fg-tertiary transition-colors hover:bg-surface-hover hover:text-fg data-[state=open]:text-fg"
+                          >
+                            <MoreHorizontal className="size-3.5" />
+                          </button>
+                        </DropdownTrigger>
+                        <DropdownContent align="start" className="w-48">
+                          <DropdownItem onSelect={() => setEditing(item)}>
+                            <Pencil className="size-4 text-fg-tertiary" />
+                            Edit word
+                          </DropdownItem>
+                          {inBook ? (
+                            <DropdownItem
+                              disabled={busyId === item.id}
+                              onSelect={() =>
+                                run(
+                                  item.id,
+                                  () =>
+                                    removeFromStudyVocabList(
+                                      book!.id,
+                                      item.id,
+                                    ),
+                                  "remove from book",
+                                )
+                              }
+                            >
+                              <X className="size-4 text-fg-tertiary" />
+                              Remove from book
+                            </DropdownItem>
+                          ) : (
+                            lists.map((list) => (
+                              <DropdownItem
+                                key={list.id}
+                                disabled={list.itemIds.includes(item.id)}
+                                className={cn(
+                                  list.itemIds.includes(item.id) &&
+                                    "opacity-50",
+                                )}
+                                onSelect={() =>
+                                  run(
+                                    item.id,
+                                    () =>
+                                      addToStudyVocabList(list.id, item.id),
+                                    "add to book",
+                                  )
+                                }
+                              >
+                                <ListPlus className="size-4 text-fg-tertiary" />
+                                Add to {list.name}
+                              </DropdownItem>
+                            ))
+                          )}
+                          <DropdownSeparator />
+                          <DropdownItem
+                            disabled={busyId === item.id}
+                            className="text-danger"
+                            onSelect={() => {
+                              if (
+                                !window.confirm(
+                                  `Delete “${item.term}” from your dictionary?`,
+                                )
+                              )
+                                return;
+                              run(
+                                item.id,
+                                () => deleteStudyVocab(item.id),
+                                "delete word",
+                              );
+                            }}
+                          >
+                            <Trash2 className="size-4" />
+                            Delete word
+                          </DropdownItem>
+                        </DropdownContent>
+                      </Dropdown>
                     </div>
                   </td>
                 </tr>
@@ -923,11 +643,11 @@ export function VocabTable({
             {visible.length === 0 && (
               <tr>
                 <td
-                  colSpan={9}
+                  colSpan={colCount}
                   className="px-4 py-8 text-center text-fg-tertiary"
                 >
-                  {inListView
-                    ? "This list is empty — add words from the table."
+                  {inBook
+                    ? "This book is empty — add a word or file existing ones into it."
                     : "No words match this filter."}
                 </td>
               </tr>
@@ -936,5 +656,129 @@ export function VocabTable({
         </table>
       </div>
     </div>
+  );
+}
+
+/** Full-field editor — SRS state stays evidence-derived, never shown here. */
+function EditWordDialog({
+  item,
+  onOpenChange,
+}: {
+  item: StudyVocabItem;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const [error, setError] = React.useState<string | null>(null);
+  const [pending, startTransition] = React.useTransition();
+
+  const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const data = new FormData(e.currentTarget);
+    const term = String(data.get("term") ?? "").trim();
+    if (!term) return;
+    setError(null);
+    startTransition(async () => {
+      try {
+        await updateStudyVocab(item.id, {
+          language: String(data.get("language") ?? item.language),
+          term,
+          reading: String(data.get("reading") ?? "") || undefined,
+          meaning: String(data.get("meaning") ?? "") || undefined,
+          example: String(data.get("example") ?? "") || undefined,
+          category: String(data.get("category") ?? "") || undefined,
+        });
+        onOpenChange(false);
+      } catch (err) {
+        console.error("vocab table: failed to save word", err);
+        setError(`Couldn't save “${term}” — nothing was changed. Try again.`);
+      }
+    });
+  };
+
+  const languageOptions = (STUDY_LANGUAGES as readonly string[]).includes(
+    item.language,
+  )
+    ? [...STUDY_LANGUAGES]
+    : [item.language, ...STUDY_LANGUAGES];
+
+  return (
+    <Dialog open onOpenChange={onOpenChange}>
+      <DialogContent title={`Edit “${item.term}”`}>
+        <form onSubmit={onSubmit} className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Word">
+              <Input
+                name="term"
+                required
+                autoFocus
+                defaultValue={item.term}
+                maxLength={200}
+                aria-label="Edit term"
+              />
+            </Field>
+            <Field label="Reading">
+              <Input
+                name="reading"
+                defaultValue={item.reading ?? ""}
+                maxLength={200}
+                aria-label="Edit reading"
+              />
+            </Field>
+          </div>
+          <Field label="Meaning">
+            <Input
+              name="meaning"
+              defaultValue={item.meaning ?? ""}
+              maxLength={500}
+              aria-label="Edit meaning"
+            />
+          </Field>
+          <Field label="Example">
+            <Input
+              name="example"
+              defaultValue={item.example ?? ""}
+              maxLength={1000}
+              aria-label="Edit example"
+            />
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Language">
+              <Select
+                name="language"
+                defaultValue={item.language}
+                aria-label="Edit language"
+              >
+                {languageOptions.map((lang) => (
+                  <option key={lang} value={lang}>
+                    {lang}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Type">
+              <Select
+                name="category"
+                defaultValue={item.category ?? ""}
+                aria-label="Edit category"
+              >
+                <option value="">No category</option>
+                {STUDY_VOCAB_CATEGORIES.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          </div>
+          {error && (
+            <p role="alert" className="text-[0.875rem] text-danger">
+              {error}
+            </p>
+          )}
+          <Button type="submit" variant="primary" loading={pending}>
+            Save word
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

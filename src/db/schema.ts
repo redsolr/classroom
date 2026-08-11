@@ -682,6 +682,8 @@ export const studyVocabLists = pgTable(
       .notNull()
       .references(() => learners.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
+    /** Pinned books surface in the sidebar for one-tap open/quick-add. */
+    pinned: boolean("pinned").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

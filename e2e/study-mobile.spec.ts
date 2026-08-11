@@ -43,44 +43,34 @@ test("chat is fully usable at phone width: new chat, type, send, reply", async (
   await expect(page.getByText(/Happy to help with anything/)).toBeVisible();
 });
 
-test("vocabulary is a usable card list at phone width: add, sort, edit in place", async ({
+test("vocabulary at phone width: books shelf, dialog add, compact table, edit", async ({
   page,
 }) => {
+  // The landing is the bookshelf; adding goes through the dialog.
   await page.goto("/study/vocab");
-  await page.getByLabel("Language").selectOption("French");
-  await page.getByLabel("Word or phrase").fill("chien");
-  await page.getByLabel("Meaning").fill("dog");
-  await page.getByRole("button", { name: "Add word" }).click();
+  await page.getByRole("button", { name: "New word" }).click();
+  const addDialog = page.getByRole("dialog");
+  await addDialog.getByLabel("Language").selectOption("French");
+  await addDialog.getByLabel("Word or phrase").fill("chien");
+  await addDialog.getByLabel("Meaning").fill("dog");
+  await addDialog.getByRole("button", { name: "Add word" }).click();
+  await expect(addDialog).not.toBeVisible();
 
-  // Phones get cards, not the 8-column table (which is display:none here —
-  // role queries skip it, so a listitem match proves the phone branch).
-  const card = page
-    .getByRole("main")
-    .getByRole("listitem")
-    .filter({ hasText: "chien" });
-  await expect(card).toBeVisible();
+  // One compact TABLE on every viewport — usable at 390px, no card fork.
+  await page.getByRole("link", { name: /All words/ }).click();
+  await page.waitForURL(/book=all/);
+  const table = page.getByRole("main").locator("table");
+  const row = table.locator("tbody tr").filter({ hasText: "chien" });
+  await expect(row).toBeVisible();
 
-  // Column headers don't exist on this branch, so sorting has its own
-  // control — it must be reachable, not just present.
-  await page.getByRole("main").getByLabel("Sort by").selectOption("term");
-  await expect(card).toBeVisible();
-
-  // Edit-in-place works with a real tap, not just on desktop.
-  await card.getByTitle("Edit word").click();
-  const editor = page
-    .getByRole("main")
-    .getByRole("listitem")
-    .filter({ has: page.getByLabel("Edit term") });
-  await expect(editor.getByLabel("Edit term")).toHaveValue("chien");
-  await editor.getByLabel("Edit meaning").fill("dog (animal)");
-  await editor.getByTitle("Save word").click();
-
-  await expect(
-    page
-      .getByRole("main")
-      .getByRole("listitem")
-      .filter({ hasText: "chien" }),
-  ).toContainText("dog (animal)");
+  // Row actions are always visible on touch — edit with a real tap.
+  await row.getByRole("button", { name: "chien options" }).click();
+  await page.getByRole("menuitem", { name: "Edit word" }).click();
+  const editDialog = page.getByRole("dialog");
+  await expect(editDialog.getByLabel("Edit term")).toHaveValue("chien");
+  await editDialog.getByLabel("Edit meaning").fill("dog (animal)");
+  await editDialog.getByRole("button", { name: "Save word" }).click();
+  await expect(row).toContainText("dog (animal)");
 });
 
 test("PWA manifest and icons serve", async ({ page }) => {

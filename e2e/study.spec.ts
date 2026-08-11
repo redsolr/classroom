@@ -70,14 +70,11 @@ test("language project with custom instructions: tutor reply is grounded AND fol
   await expect(chip).toHaveAttribute("title", "Added to your vocabulary");
   await expect(chip).toBeDisabled();
 
-  // The saved word is a row in the vocabulary table, filed under French.
-  // (Scope to main — the sidebar chat tree also contains "Bonjour…".)
-  await page.goto("/study/vocab");
-  const row = page
-    .getByRole("main")
-    .locator("tbody tr")
-    .filter({ hasText: "bonjour" });
-  await expect(row.getByRole("cell", { name: "French" })).toBeVisible();
+  // The saved word is a row in the All-words table.
+  await page.goto("/study/vocab?book=all");
+  await expect(
+    page.getByRole("main").locator("tbody tr").filter({ hasText: "bonjour" }),
+  ).toBeVisible();
 });
 
 test("a loose chat is generic: no tutor persona, no instructions tail", async ({
@@ -181,7 +178,7 @@ test("the tutor CRUDs vocabulary from chat: add, list, delete land in the table"
   await expect(page.getByText(/added “fromage”/)).toBeVisible();
 
   // The word is real table data now, not chat prose.
-  await page.goto("/study/vocab");
+  await page.goto("/study/vocab?book=all");
   const table = page.getByRole("main").locator("table");
   await expect(
     table.locator("tbody tr").filter({ hasText: "fromage" }),
@@ -194,7 +191,7 @@ test("the tutor CRUDs vocabulary from chat: add, list, delete land in the table"
   await send("delete vocab: fromage");
   await expect(page.getByText(/Removed “fromage”/)).toBeVisible();
 
-  await page.goto("/study/vocab");
+  await page.goto("/study/vocab?book=all");
   await expect(
     table.locator("tbody tr").filter({ hasText: "fromage" }),
   ).toHaveCount(0);
@@ -395,14 +392,19 @@ test("Ask dock: opens on any study page, chats, and closes on Escape", async ({
 test("manual vocab add + SM-2 review session over the due deck", async ({
   page,
 }) => {
+  // Adding goes through the New word dialog — the landing stays a shelf.
   await page.goto("/study/vocab");
-  await page.getByLabel("Language").selectOption("Japanese");
-  await page.getByLabel("Word or phrase").fill("猫");
-  await page.getByLabel(/Reading/).fill("neko");
-  await page.getByLabel("Meaning").fill("cat");
-  await page.getByRole("button", { name: "Add word" }).click();
+  await page.getByRole("button", { name: "New word" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Language").selectOption("Japanese");
+  await dialog.getByLabel("Word or phrase").fill("猫");
+  await dialog.getByLabel(/Reading/).fill("neko");
+  await dialog.getByLabel("Meaning").fill("cat");
+  await dialog.getByRole("button", { name: "Add word" }).click();
+  await expect(dialog).not.toBeVisible();
+  await page.goto("/study/vocab?book=all");
   await expect(
-    page.getByRole("main").getByRole("cell", { name: "猫" }),
+    page.getByRole("main").getByRole("cell", { name: "猫", exact: true }),
   ).toBeVisible();
 
   // Both saved words are due (never reviewed) — review the whole deck.
@@ -414,67 +416,83 @@ test("manual vocab add + SM-2 review session over the due deck", async ({
   }
   await expect(page.getByText("2 cards reviewed")).toBeVisible();
 
-  // Graded cards moved out of "due" — the list shows pipeline status.
+  // Graded cards moved out of "due" — the landing's Review CTA is gone.
   await page.goto("/study/vocab");
-  await expect(page.getByText("0 due for review")).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: /Review \d+ due/ }),
+  ).not.toBeVisible();
 });
 
-test("vocab table: columns, sort, and language filter", async ({ page }) => {
-  await page.goto("/study/vocab");
-  const table = page.getByRole("main").locator("table");
-  for (const col of [
-    "Term",
-    "Reading",
-    "Meaning",
-    "Language",
-    "Category",
-    "Status",
-    "Due",
-    "Reps",
-  ]) {
+test("table: default columns, customization, quiz mode, sort, filter", async ({
+  page,
+}) => {
+  await page.goto("/study/vocab?book=all");
+  const main = page.getByRole("main");
+  const table = main.locator("table");
+
+  // Lean by default: Word/Reading/Meaning — no SRS noise, no Status.
+  for (const col of ["Word", "Reading", "Meaning"]) {
     await expect(table.getByText(col, { exact: true })).toBeVisible();
   }
+  await expect(table.getByText("Status", { exact: true })).not.toBeVisible();
 
-  // Default order = newest first (猫 was added after bonjour); sorting
-  // by term ascending flips it (latin collates before CJK).
+  // Columns menu adds Language; the header appears.
+  await main.getByRole("button", { name: "Columns" }).click();
+  await page.getByRole("menuitem", { name: "Language" }).click();
+  await page.keyboard.press("Escape");
+  await expect(table.getByText("Language", { exact: true })).toBeVisible();
+  // Put it back for later tests (the choice persists in localStorage).
+  await main.getByRole("button", { name: "Columns" }).click();
+  await page.getByRole("menuitem", { name: "Language" }).click();
+  await page.keyboard.press("Escape");
+
+  // Quiz mode hides meanings; tapping the row reveals just that row.
+  await main.getByRole("button", { name: "Quiz" }).click();
+  const catCell = table.getByRole("cell", { name: "cat", exact: true });
+  await expect(catCell).not.toBeVisible();
+  await table.locator("tbody tr").filter({ hasText: "猫" }).click();
+  await expect(catCell).toBeVisible();
+  await main.getByRole("button", { name: "Quiz" }).click();
+
+  // Default order = newest first (猫 after bonjour); Word sorts it.
   const terms = table.locator("tbody tr td:first-child");
   await expect(terms.first()).toHaveText("猫");
-  await table.getByRole("button", { name: "Term" }).click();
+  await table.getByRole("button", { name: "Word" }).click();
   await expect(terms.first()).toHaveText("bonjour");
 
-  // Language chips narrow the table to one language.
-  const main = page.getByRole("main");
-  await main.getByRole("button", { name: "Japanese", exact: true }).click();
-  await expect(table.getByRole("cell", { name: "bonjour" })).not.toBeVisible();
-  await expect(table.getByRole("cell", { name: "猫" })).toBeVisible();
-  await main.getByRole("button", { name: "all", exact: true }).click();
-  await expect(table.getByRole("cell", { name: "bonjour" })).toBeVisible();
+  // The language filter narrows to one language.
+  await main.getByLabel("Filter language").selectOption("Japanese");
+  await expect(
+    table.getByRole("cell", { name: "bonjour", exact: true }),
+  ).not.toBeVisible();
+  await expect(
+    table.getByRole("cell", { name: "猫", exact: true }),
+  ).toBeVisible();
+  await main.getByLabel("Filter language").selectOption("all");
+  await expect(
+    table.getByRole("cell", { name: "bonjour", exact: true }),
+  ).toBeVisible();
 });
 
-test("edit-in-place updates a word and survives reload", async ({ page }) => {
-  await page.goto("/study/vocab");
+test("editing via the row menu updates a word and survives reload", async ({
+  page,
+}) => {
+  await page.goto("/study/vocab?book=all");
   const table = page.getByRole("main").locator("table");
-  await table
-    .locator("tbody tr")
-    .filter({ hasText: "猫" })
-    .getByTitle("Edit word")
-    .click();
+  const row = table.locator("tbody tr").filter({ hasText: "猫" });
+  await row.hover();
+  await row.getByRole("button", { name: "猫 options" }).click();
+  await page.getByRole("menuitem", { name: "Edit word" }).click();
 
-  // In edit mode the term is an input, so re-locate the row by its
-  // edit fields (hasText no longer sees the term).
-  const editRow = table
-    .locator("tbody tr")
-    .filter({ has: page.getByLabel("Edit term") });
-  await expect(editRow.getByLabel("Edit term")).toHaveValue("猫");
-  await editRow.getByLabel("Edit meaning").fill("cat (animal)");
-  await editRow.getByTitle("Save word").click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByLabel("Edit term")).toHaveValue("猫");
+  await dialog.getByLabel("Edit meaning").fill("cat (animal)");
+  await dialog.getByRole("button", { name: "Save word" }).click();
   await expect(
     table.getByRole("cell", { name: /cat \(animal\)/ }),
   ).toBeVisible();
 
-  // Persisted, not just local state. Scope to the table: the phone card
-  // list renders the same word (hidden at this width, but getByText still
-  // matches it).
+  // Persisted, not just local state.
   await page.reload();
   await expect(
     table.getByRole("cell", { name: /cat \(animal\)/ }),
@@ -482,7 +500,7 @@ test("edit-in-place updates a word and survives reload", async ({ page }) => {
 });
 
 test("CSV export serves the personal list Anki-ready", async ({ page }) => {
-  await page.goto("/study/vocab");
+  await page.goto("/study/vocab?book=all");
   await expect(page.getByRole("link", { name: "Export CSV" })).toBeVisible();
 
   const res = await page.request.get("/study/vocab/export.csv");
@@ -508,97 +526,160 @@ test("CSV export serves the personal list Anki-ready", async ({ page }) => {
   ).toBe(true);
 });
 
-test("Escape cancels an edit, Enter saves it, and delete takes two clicks", async ({
+test("edit dialog: Escape cancels, Enter saves; delete confirms from the row menu", async ({
   page,
 }) => {
   // A throwaway word, so this test leaves the list exactly as it found it.
   await page.goto("/study/vocab");
-  await page.getByLabel("Language").selectOption("Spanish");
-  await page.getByLabel("Word or phrase").fill("perro");
-  await page.getByLabel("Meaning").fill("dog");
-  await page.getByRole("button", { name: "Add word" }).click();
+  await page.getByRole("button", { name: "New word" }).click();
+  const addDialog = page.getByRole("dialog");
+  await addDialog.getByLabel("Language").selectOption("Spanish");
+  await addDialog.getByLabel("Word or phrase").fill("perro");
+  await addDialog.getByLabel("Meaning").fill("dog");
+  await addDialog.getByRole("button", { name: "Add word" }).click();
+  await expect(addDialog).not.toBeVisible();
 
+  await page.goto("/study/vocab?book=all");
   const table = page.getByRole("main").locator("table");
   const row = () => table.locator("tbody tr").filter({ hasText: "perro" });
-  const editRow = table
-    .locator("tbody tr")
-    .filter({ has: page.getByLabel("Edit term") });
+  const openEdit = async () => {
+    await row().hover();
+    await row().getByRole("button", { name: "perro options" }).click();
+    await page.getByRole("menuitem", { name: "Edit word" }).click();
+  };
 
   // Escape abandons the edit — the original meaning survives.
-  await row().getByTitle("Edit word").click();
-  await editRow.getByLabel("Edit meaning").fill("cat");
-  await editRow.getByLabel("Edit meaning").press("Escape");
+  await openEdit();
+  await page.getByLabel("Edit meaning").fill("cat");
+  await page.getByLabel("Edit meaning").press("Escape");
   await expect(row()).toContainText("dog");
   await expect(row()).not.toContainText("cat");
 
   // Enter commits without reaching for the mouse.
-  await row().getByTitle("Edit word").click();
-  await editRow.getByLabel("Edit meaning").fill("dog (Spanish)");
-  await editRow.getByLabel("Edit meaning").press("Enter");
+  await openEdit();
+  await page.getByLabel("Edit meaning").fill("dog (Spanish)");
+  await page.getByLabel("Edit meaning").press("Enter");
   await expect(row()).toContainText("dog (Spanish)");
 
-  // Delete arms first — one stray click next to the pencil can't destroy a word.
-  const del = row().getByTitle("Delete word");
-  await del.click();
-  await expect(del).toContainText("Sure?");
-  await expect(row()).toBeVisible();
-
-  await del.click();
+  // Delete asks for confirmation from the row menu.
+  page.on("dialog", (dialog) => void dialog.accept());
+  await row().hover();
+  await row().getByRole("button", { name: "perro options" }).click();
+  await page.getByRole("menuitem", { name: "Delete word" }).click();
   await expect(row()).toHaveCount(0);
 });
 
-test("categories cut the table; save-as-list, reorder, remove", async ({
+test("categories filter the table; save-as-book, reorder, remove", async ({
   page,
 }) => {
   await page.goto("/study/vocab");
-  const main = page.getByRole("main");
-  const table = main.locator("table");
 
-  // Three categorized words — two verbs, one noun.
+  // Three categorized words — two verbs, one noun — via the dialog.
   const add = async (term: string, meaning: string, category: string) => {
-    await page.getByLabel("Language").selectOption("French");
-    await page.getByLabel("Word or phrase").fill(term);
-    await page.getByLabel("Meaning").fill(meaning);
-    await page.getByLabel("Category").selectOption(category);
-    await page.getByRole("button", { name: "Add word" }).click();
-    await expect(table.getByRole("cell", { name: term })).toBeVisible();
+    await page.getByRole("button", { name: "New word" }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByLabel("Language").selectOption("French");
+    await dialog.getByLabel("Word or phrase").fill(term);
+    await dialog.getByLabel("Meaning").fill(meaning);
+    await dialog.getByLabel("Type").selectOption(category);
+    await dialog.getByRole("button", { name: "Add word" }).click();
+    await expect(dialog).not.toBeVisible();
   };
   await add("aller", "to go", "Verb");
   await add("faire", "to do", "Verb");
   await add("gare", "station", "Noun");
 
-  // The category chip narrows the table to verbs.
-  await main.getByRole("button", { name: "Verb", exact: true }).click();
+  // The type filter narrows the table to verbs.
+  await page.goto("/study/vocab?book=all");
+  const main = page.getByRole("main");
+  const table = main.locator("table");
+  await main.getByLabel("Filter type").selectOption("Verb");
   await expect(table.getByRole("cell", { name: "gare" })).not.toBeVisible();
-  await expect(table.getByRole("cell", { name: "aller" })).toBeVisible();
+  await expect(
+    table.getByRole("cell", { name: "aller", exact: true }),
+  ).toBeVisible();
 
-  // Save the filtered view as a list — lands in the list view.
-  await main.getByRole("button", { name: "Save as list" }).click();
+  // Save the filtered view as a book.
+  await main.getByRole("button", { name: "Save as book" }).click();
   const dialog = page.getByRole("dialog");
-  await dialog.getByLabel("List name").fill("Mes verbes");
+  await dialog.getByLabel("Book name").fill("Mes verbes");
   await dialog.getByRole("button", { name: "Save" }).click();
-  await expect(main.getByRole("button", { name: /Mes verbes/ })).toBeVisible();
+  await expect(dialog).not.toBeVisible();
+
+  // The book is on the shelf; open it — manual order, no gare.
+  await page.goto("/study/vocab");
+  await main.getByRole("link", { name: /Mes verbes/ }).click();
+  await page.waitForURL(/book=/);
+  const rows = table.locator("tbody tr");
   await expect(table.getByRole("cell", { name: "gare" })).not.toBeVisible();
 
-  // Manual reorder: default view order was newest-first (faire before
-  // aller) — move aller up and it takes the top row.
-  const rows = table.locator("tbody tr");
+  // Manual reorder: view order was newest-first (faire before aller) —
+  // move aller up and it takes the top row.
   await expect(rows.first()).toContainText("faire");
   await rows.filter({ hasText: "aller" }).getByTitle("Move up").click();
   await expect(rows.first()).toContainText("aller");
 
-  // Removing from the list never deletes the word itself.
-  await rows.filter({ hasText: "faire" }).getByTitle("Remove from list").click();
-  await expect(table.getByRole("cell", { name: "faire" })).not.toBeVisible();
-  await main.getByRole("button", { name: "All words" }).click();
-  await expect(table.getByRole("cell", { name: "faire" })).toBeVisible();
+  // Removing from the book never deletes the word itself.
+  const faireRow = rows.filter({ hasText: "faire" });
+  await faireRow.hover();
+  await faireRow.getByRole("button", { name: "faire options" }).click();
+  await page.getByRole("menuitem", { name: "Remove from book" }).click();
+  await expect(
+    table.getByRole("cell", { name: "faire", exact: true }),
+  ).not.toBeVisible();
+  await page.goto("/study/vocab?book=all");
+  await expect(
+    table.getByRole("cell", { name: "faire", exact: true }),
+  ).toBeVisible();
 
-  // Survives reload: the list, its order, and its membership are server
-  // state, not client state.
-  await page.reload();
-  await main.getByRole("button", { name: /Mes verbes/ }).click();
+  // Order + membership are server state — they survive a fresh visit.
+  await page.goto("/study/vocab");
+  await main.getByRole("link", { name: /Mes verbes/ }).click();
+  await page.waitForURL(/book=/);
   await expect(rows.first()).toContainText("aller");
   await expect(table.getByRole("cell", { name: "faire" })).not.toBeVisible();
+});
+
+test("pinned book: sidebar row opens it, + quick-adds a word into it", async ({
+  page,
+}) => {
+  // Pin "Mes verbes" from the shelf's row menu.
+  await page.goto("/study/vocab");
+  const main = page.getByRole("main");
+  await main.getByRole("button", { name: "Mes verbes options" }).click();
+  await page.getByRole("menuitem", { name: "Pin to sidebar" }).click();
+
+  const sidebar = page.getByRole("complementary");
+  const bookRow = sidebar
+    .locator("div.group")
+    .filter({ has: page.getByRole("link", { name: /Mes verbes/ }) });
+  await expect(bookRow).toBeVisible();
+
+  // Quick-add straight into the book from the sidebar's + button.
+  await bookRow.hover();
+  await bookRow.getByRole("button", { name: "Add word to Mes verbes" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Language").selectOption("French");
+  await dialog.getByLabel("Word or phrase").fill("manger");
+  await dialog.getByLabel("Meaning").fill("to eat");
+  await dialog.getByRole("button", { name: "Add word" }).click();
+  await expect(dialog).not.toBeVisible();
+
+  // The sidebar row opens the book — the new word is at the end.
+  await sidebar.getByRole("link", { name: /Mes verbes/ }).click();
+  await page.waitForURL(/book=/);
+  const table = page.getByRole("main").locator("table");
+  await expect(
+    table.locator("tbody tr").filter({ hasText: "manger" }),
+  ).toBeVisible();
+
+  // Unpin from the shelf — the sidebar row leaves.
+  await page.goto("/study/vocab");
+  await main.getByRole("button", { name: "Mes verbes options" }).click();
+  await page.getByRole("menuitem", { name: "Unpin from sidebar" }).click();
+  await expect(
+    sidebar.getByRole("link", { name: /Mes verbes/ }),
+  ).not.toBeVisible();
 });
 
 test("curated packs: browse, add one word, import all as a personal list", async ({
@@ -620,14 +701,15 @@ test("curated packs: browse, add one word, import all as a personal list", async
   await expect(
     page.getByRole("button", { name: "commander is in your dictionary" }),
   ).toBeVisible();
-  await page.goto("/study/vocab");
+  await page.goto("/study/vocab?book=all");
   const main = page.getByRole("main");
   const table = main.locator("table");
   await expect(
     table.locator("tbody tr").filter({ hasText: "commander" }),
   ).toBeVisible();
 
-  // Whole pack: every missing word joins + a personal list is created.
+  // Whole pack: every missing word joins + it lands on the SHELF as the
+  // learner's own book.
   await page.goto("/study/packs/cafe-french");
   await page
     .getByRole("button", { name: "Add all to my vocabulary" })
@@ -635,7 +717,8 @@ test("curated packs: browse, add one word, import all as a personal list", async
   await expect(page.getByText(/saved the pack as your/)).toBeVisible();
 
   await page.goto("/study/vocab");
-  await main.getByRole("button", { name: /Café survival French/ }).click();
+  await main.getByRole("link", { name: /Café survival French/ }).click();
+  await page.waitForURL(/book=/);
   await expect(
     table.locator("tbody tr").filter({ hasText: "l'addition" }),
   ).toBeVisible();
@@ -682,13 +765,13 @@ test("chat→vocab bulk extraction: review dialog, bulk save, dedup", async ({
   await dialog.getByRole("link", { name: /Open my vocabulary/ }).click();
 
   // Filed under German (bonjour also exists under French — the term
-  // dedup is per language).
+  // dedup is per language): the German language filter still shows it.
   await page.waitForURL("**/study/vocab");
-  const row = page
-    .getByRole("main")
-    .locator("tbody tr")
-    .filter({ hasText: "German" });
-  await expect(row.getByRole("cell", { name: "bonjour" })).toBeVisible();
+  await page.goto("/study/vocab?book=all");
+  await page.getByLabel("Filter language").selectOption("German");
+  await expect(
+    page.getByRole("main").locator("tbody tr").filter({ hasText: "bonjour" }),
+  ).toBeVisible();
 
   // Round 2 proves dedup: the word is on the list now, so extraction
   // comes back empty instead of proposing it again.

@@ -1,29 +1,35 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { asc, desc, eq } from "drizzle-orm";
-import { BookOpenCheck } from "lucide-react";
+import { ArrowLeft, BookMarked, BookOpenCheck } from "lucide-react";
 import {
   db,
   studyVocab,
   studyVocabListItems,
   studyVocabLists,
 } from "@/db";
-import { addStudyVocab } from "@/lib/actions/study";
 import { requireLearner } from "@/lib/auth";
 import { isCardDue } from "@/lib/srs";
-import { STUDY_LANGUAGES } from "@/lib/study-languages";
-import { STUDY_VOCAB_CATEGORIES } from "@/lib/study-vocab-categories";
-import { Field, Input, Select } from "@/components/ui/field";
-import { SubmitButton } from "@/components/ui/button";
+import { QuickAddVocabDialog } from "@/components/study/quick-add-vocab-dialog";
+import {
+  VocabShelf,
+  AddWordDialogButton,
+} from "@/components/study/vocab-shelf";
 import {
   VocabTable,
   type VocabListSummary,
 } from "@/components/study/vocab-table";
+import { Button } from "@/components/ui/button";
 
 export const metadata: Metadata = { title: "My vocabulary" };
 
-export default async function StudyVocabPage() {
+export default async function StudyVocabPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ book?: string }>;
+}) {
   const learner = await requireLearner();
+  const { book } = await searchParams;
   const now = new Date();
 
   const [items, listRows, listItemRows] = await Promise.all([
@@ -33,7 +39,11 @@ export default async function StudyVocabPage() {
       .where(eq(studyVocab.learnerId, learner.id))
       .orderBy(desc(studyVocab.createdAt)),
     db
-      .select({ id: studyVocabLists.id, name: studyVocabLists.name })
+      .select({
+        id: studyVocabLists.id,
+        name: studyVocabLists.name,
+        pinned: studyVocabLists.pinned,
+      })
       .from(studyVocabLists)
       .where(eq(studyVocabLists.learnerId, learner.id))
       .orderBy(asc(studyVocabLists.createdAt)),
@@ -62,18 +72,72 @@ export default async function StudyVocabPage() {
   }));
 
   const dueCount = items.filter((item) => isCardDue(item.srsDueAt, now)).length;
+  const activeBook =
+    book && book !== "all" ? (lists.find((l) => l.id === book) ?? null) : null;
+  const showTable = book === "all" || activeBook !== null;
 
+  // ── Book / All-words view: the compact table ──
+  if (showTable) {
+    const byId = new Map(items.map((i) => [i.id, i]));
+    const visible = activeBook
+      ? activeBook.itemIds
+          .map((id) => byId.get(id))
+          .filter((i): i is (typeof items)[number] => !!i)
+      : items;
+    const bookLanguage = visible[0]?.language;
+
+    return (
+      <div className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-6">
+        <Link
+          href="/study/vocab"
+          className="mb-3 inline-flex items-center gap-1.5 text-[0.875rem] text-fg-secondary hover:text-fg"
+        >
+          <ArrowLeft className="size-3.5" />
+          My books
+        </Link>
+        <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-[1.375rem] font-semibold tracking-tight">
+              {activeBook?.name ?? "All words"}
+            </h1>
+            <p className="mt-0.5 text-[0.875rem] text-fg-tertiary">
+              {visible.length} word{visible.length === 1 ? "" : "s"}
+            </p>
+          </div>
+          {activeBook ? (
+            <QuickAddVocabDialog
+              bookId={activeBook.id}
+              bookName={activeBook.name}
+              defaultLanguage={bookLanguage}
+            >
+              <Button variant="primary">New word</Button>
+            </QuickAddVocabDialog>
+          ) : (
+            <AddWordDialogButton />
+          )}
+        </header>
+        <VocabTable
+          items={visible}
+          lists={lists}
+          view={activeBook ? { id: activeBook.id, name: activeBook.name } : "all"}
+        />
+      </div>
+    );
+  }
+
+  // ── Landing: the learner's bookshelf ──
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
+    <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6">
       <header className="mb-6 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-[1.625rem] font-semibold tracking-tight">
+          <h1 className="flex items-center gap-2.5 text-[1.625rem] font-semibold tracking-tight">
+            <BookMarked className="size-6 text-accent" />
             My vocabulary
           </h1>
           <p className="mt-1 text-[0.9375rem] text-fg-secondary">
             {items.length === 0
-              ? "Your personal word list — add words here or save them straight from chat."
-              : `${items.length} word${items.length === 1 ? "" : "s"} · ${dueCount} due for review`}
+              ? "Your personal dictionary — organized into books."
+              : `${items.length} word${items.length === 1 ? "" : "s"} across ${lists.length} book${lists.length === 1 ? "" : "s"}`}
           </p>
         </div>
         {dueCount > 0 && (
@@ -87,58 +151,7 @@ export default async function StudyVocabPage() {
         )}
       </header>
 
-      <section className="mb-8 rounded-lg bg-surface p-4 shadow-card sm:p-5">
-        <h2 className="mb-3 text-[0.9375rem] font-semibold">Add a word</h2>
-        <form action={addStudyVocab} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field label="Language">
-            <Select name="language" defaultValue="French">
-              {STUDY_LANGUAGES.map((lang) => (
-                <option key={lang} value={lang}>
-                  {lang}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label="Word or phrase">
-            <Input name="term" required maxLength={200} placeholder="bouquin" />
-          </Field>
-          <Field label="Reading" hint="furigana, romaji, IPA — optional">
-            <Input name="reading" maxLength={200} />
-          </Field>
-          <Field label="Meaning">
-            <Input name="meaning" maxLength={500} placeholder="book (informal)" />
-          </Field>
-          <Field label="Category" hint="verb, noun, phrase — optional">
-            <Select name="category" defaultValue="">
-              <option value="">No category</option>
-              {STUDY_VOCAB_CATEGORIES.map((category) => (
-                <option key={category} value={category}>
-                  {category}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label="Example" className="sm:col-span-2">
-            <Input
-              name="example"
-              maxLength={1000}
-              placeholder="J'ai lu un bon bouquin ce week-end."
-            />
-          </Field>
-          <div className="sm:col-span-2">
-            <SubmitButton>Add word</SubmitButton>
-          </div>
-        </form>
-      </section>
-
-      {items.length === 0 ? (
-        <p className="text-[0.9375rem] text-fg-tertiary">
-          Nothing saved yet. In chat, your tutor suggests words as little
-          “+ word — meaning” chips — one tap adds them here.
-        </p>
-      ) : (
-        <VocabTable items={items} lists={lists} />
-      )}
+      <VocabShelf lists={lists} totalWords={items.length} />
     </div>
   );
 }

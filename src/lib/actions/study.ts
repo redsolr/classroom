@@ -643,14 +643,15 @@ async function requireOwnList(learnerId: string, listId: string) {
 }
 
 /**
- * Create a list from an ordered set of the learner's own words (the
- * table's current view). Rows that aren't the learner's are dropped
- * server-side, not trusted from the client.
+ * Create a book — empty ("New book" on the shelf) or from an ordered
+ * set of the learner's own words (the table's current view). Rows that
+ * aren't the learner's are dropped server-side, not trusted from the
+ * client.
  */
 export async function createStudyVocabList(name: string, vocabIds: string[]) {
   const learner = await requireLearner();
   const parsedName = listNameSchema.parse(name);
-  const ids = z.array(z.string().uuid()).min(1).max(500).parse(vocabIds);
+  const ids = z.array(z.string().uuid()).max(500).parse(vocabIds);
 
   const owned = await db
     .select({ id: studyVocab.id })
@@ -658,19 +659,95 @@ export async function createStudyVocabList(name: string, vocabIds: string[]) {
     .where(eq(studyVocab.learnerId, learner.id));
   const ownedIds = new Set(owned.map((r) => r.id));
   const kept = [...new Set(ids)].filter((id) => ownedIds.has(id));
-  if (kept.length === 0) throw new Error("No words to save");
 
   const [list] = await db
     .insert(studyVocabLists)
     .values({ learnerId: learner.id, name: parsedName })
     .returning({ id: studyVocabLists.id });
 
-  await db.insert(studyVocabListItems).values(
-    kept.map((vocabId, position) => ({ listId: list.id, vocabId, position })),
-  );
+  if (kept.length > 0) {
+    await db.insert(studyVocabListItems).values(
+      kept.map((vocabId, position) => ({ listId: list.id, vocabId, position })),
+    );
+  }
 
+  revalidateStudyTree();
   revalidatePath("/study/vocab");
   return { id: list.id, count: kept.length };
+}
+
+/** Pinned books ride in the sidebar (open + quick-add), ChatGPT-style. */
+export async function toggleStudyVocabListPin(listId: string) {
+  const learner = await requireLearner();
+  const list = await requireOwnList(learner.id, listId);
+
+  await db
+    .update(studyVocabLists)
+    .set({ pinned: !list.pinned, updatedAt: new Date() })
+    .where(eq(studyVocabLists.id, list.id));
+
+  revalidateStudyTree();
+  revalidatePath("/study/vocab");
+}
+
+const bookWordSchema = z.object({
+  language: languageSchema,
+  term: z.string().trim().min(1).max(200),
+  reading: z.string().trim().max(200).optional(),
+  meaning: z.string().trim().max(500).optional(),
+  category: z.enum(STUDY_VOCAB_CATEGORIES).optional(),
+});
+
+/**
+ * The pinned-book quick-add: save a word (or adopt the already-saved
+ * one) and file it at the end of the book, in one tap from anywhere.
+ */
+export async function addStudyVocabToBook(listId: string, formData: FormData) {
+  const learner = await requireLearner();
+  const list = await requireOwnList(learner.id, listId);
+  const parsed = bookWordSchema.parse({
+    language: formData.get("language"),
+    term: formData.get("term"),
+    reading: formData.get("reading") || undefined,
+    meaning: formData.get("meaning") || undefined,
+    category: formData.get("category") || undefined,
+  });
+
+  let word = await db.query.studyVocab.findFirst({
+    where: and(
+      eq(studyVocab.learnerId, learner.id),
+      eq(studyVocab.language, parsed.language),
+      sql`lower(${studyVocab.term}) = lower(${parsed.term})`,
+    ),
+    columns: { id: true },
+  });
+  if (!word) {
+    [word] = await db
+      .insert(studyVocab)
+      .values({
+        learnerId: learner.id,
+        language: parsed.language,
+        term: parsed.term,
+        reading: parsed.reading || null,
+        meaning: parsed.meaning || null,
+        category: parsed.category ?? null,
+      })
+      .returning({ id: studyVocab.id });
+  }
+
+  const [{ max }] = await db
+    .select({
+      max: sql<number>`coalesce(max(${studyVocabListItems.position}), -1)`,
+    })
+    .from(studyVocabListItems)
+    .where(eq(studyVocabListItems.listId, list.id));
+  await db
+    .insert(studyVocabListItems)
+    .values({ listId: list.id, vocabId: word.id, position: Number(max) + 1 })
+    .onConflictDoNothing();
+
+  revalidateStudyTree();
+  revalidatePath("/study/vocab");
 }
 
 export async function renameStudyVocabList(listId: string, name: string) {
@@ -683,6 +760,7 @@ export async function renameStudyVocabList(listId: string, name: string) {
     .set({ name: parsedName, updatedAt: new Date() })
     .where(eq(studyVocabLists.id, list.id));
 
+  revalidateStudyTree();
   revalidatePath("/study/vocab");
 }
 
@@ -692,6 +770,7 @@ export async function deleteStudyVocabList(listId: string) {
 
   await db.delete(studyVocabLists).where(eq(studyVocabLists.id, list.id));
 
+  revalidateStudyTree();
   revalidatePath("/study/vocab");
 }
 
