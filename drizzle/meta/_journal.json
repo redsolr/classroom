@@ -71,6 +71,13 @@
       "when": 1786480812435,
       "tag": "0009_modern_captain_cross",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1786483032496,
+      "tag": "0010_cloudy_elektra",
+      "breakpoints": true
     }
   ]
 }

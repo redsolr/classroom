@@ -18,6 +18,8 @@ import {
   db,
   learners,
   studyMessages,
+  studyPackItems,
+  studyPacks,
   studyProjects,
   studyThreads,
   studyVocab,
@@ -196,6 +198,90 @@ export async function createStudyThread(formData: FormData) {
 
   revalidateStudyTree();
   redirect(`/study?t=${thread.id}`);
+}
+
+/**
+ * The Ask dock's thread supply — a loose GENERIC chat, created without
+ * navigation (the dock lives on top of whatever page the learner is
+ * on). Reuses an empty loose generic thread, same anti-littering rule
+ * as createStudyThread.
+ */
+export async function createStudyAskThread(): Promise<{ id: string }> {
+  const learner = await requireLearner();
+
+  const [existingEmpty] = await db
+    .select({ id: studyThreads.id })
+    .from(studyThreads)
+    .where(
+      and(
+        eq(studyThreads.learnerId, learner.id),
+        isNull(studyThreads.projectId),
+        isNull(studyThreads.language),
+        sql`not exists (select 1 from study_messages m where m.thread_id = ${studyThreads.id})`,
+      ),
+    )
+    .limit(1);
+  if (existingEmpty) return { id: existingEmpty.id };
+
+  const [thread] = await db
+    .insert(studyThreads)
+    .values({ learnerId: learner.id, projectId: null, language: null })
+    .returning({ id: studyThreads.id });
+
+  revalidateStudyTree();
+  return { id: thread.id };
+}
+
+/**
+ * Open (or resume) the Ask dock's conversation: with a thread id, load
+ * that thread's transcript; without one (or if it's gone), fall back to
+ * createStudyAskThread. The dock unmounts when closed — this is how the
+ * transcript survives close/reopen and even a full reload.
+ */
+export async function loadStudyAskThread(threadId: string | null): Promise<{
+  id: string;
+  messages: {
+    id: string;
+    role: "user" | "assistant";
+    content: string;
+    model: string | null;
+  }[];
+}> {
+  const learner = await requireLearner();
+
+  let id: string | null = null;
+  if (threadId) {
+    const parsed = z.string().uuid().parse(threadId);
+    const thread = await db.query.studyThreads.findFirst({
+      where: and(
+        eq(studyThreads.id, parsed),
+        eq(studyThreads.learnerId, learner.id),
+      ),
+      columns: { id: true },
+    });
+    id = thread?.id ?? null;
+  }
+  if (!id) {
+    ({ id } = await createStudyAskThread());
+    return { id, messages: [] };
+  }
+
+  const messages = await db
+    .select({
+      id: studyMessages.id,
+      role: studyMessages.role,
+      content: studyMessages.content,
+      model: studyMessages.model,
+    })
+    .from(studyMessages)
+    .where(
+      and(
+        eq(studyMessages.threadId, id),
+        eq(studyMessages.learnerId, learner.id),
+      ),
+    )
+    .orderBy(asc(studyMessages.createdAt));
+  return { id, messages };
 }
 
 export async function toggleStudyThreadPin(threadId: string) {
@@ -694,6 +780,132 @@ export async function moveStudyVocabListItem(
     .where(eq(studyVocabListItems.id, b.id));
 
   revalidatePath("/study/vocab");
+}
+
+// ---------------------------------------------------------------------------
+// Curated packs — read-only shipped content; these actions COPY pack
+// items into the learner's own vocabulary (dedup per language by term).
+// ---------------------------------------------------------------------------
+
+async function savedTermSetFor(learnerId: string, language: string) {
+  const rows = await db
+    .select({ term: studyVocab.term })
+    .from(studyVocab)
+    .where(
+      and(eq(studyVocab.learnerId, learnerId), eq(studyVocab.language, language)),
+    );
+  return new Set(rows.map((r) => r.term.toLowerCase()));
+}
+
+/** Copy ONE pack item into the learner's vocabulary. */
+export async function addStudyPackItem(
+  itemId: string,
+): Promise<{ added: boolean }> {
+  const learner = await requireLearner();
+  const id = z.string().uuid().parse(itemId);
+
+  const [row] = await db
+    .select({ item: studyPackItems, language: studyPacks.language })
+    .from(studyPackItems)
+    .innerJoin(studyPacks, eq(studyPackItems.packId, studyPacks.id))
+    .where(eq(studyPackItems.id, id));
+  if (!row) throw new Error("Pack item not found");
+
+  const saved = await savedTermSetFor(learner.id, row.language);
+  if (saved.has(row.item.term.toLowerCase())) return { added: false };
+
+  await db.insert(studyVocab).values({
+    learnerId: learner.id,
+    language: row.language,
+    term: row.item.term,
+    reading: row.item.reading,
+    meaning: row.item.meaning,
+    example: row.item.example,
+    category: row.item.category,
+  });
+  revalidatePath("/study/vocab");
+  return { added: true };
+}
+
+/**
+ * Copy the WHOLE pack: every not-yet-saved item joins the learner's
+ * vocabulary, and a personal list named after the pack is created (or
+ * refreshed) carrying the pack's curated order. The learner's list is
+ * theirs afterwards — reorder, prune, extend freely.
+ */
+export async function importStudyPack(
+  packId: string,
+): Promise<{ added: number; list: string }> {
+  const learner = await requireLearner();
+  const id = z.string().uuid().parse(packId);
+
+  const pack = await db.query.studyPacks.findFirst({
+    where: eq(studyPacks.id, id),
+  });
+  if (!pack) throw new Error("Pack not found");
+  const items = await db
+    .select()
+    .from(studyPackItems)
+    .where(eq(studyPackItems.packId, pack.id))
+    .orderBy(asc(studyPackItems.position));
+
+  const saved = await savedTermSetFor(learner.id, pack.language);
+  const fresh = items.filter((i) => !saved.has(i.term.toLowerCase()));
+  if (fresh.length > 0) {
+    await db.insert(studyVocab).values(
+      fresh.map((item) => ({
+        learnerId: learner.id,
+        language: pack.language,
+        term: item.term,
+        reading: item.reading,
+        meaning: item.meaning,
+        example: item.example,
+        category: item.category,
+      })),
+    );
+  }
+
+  // The learner's copy of the pack as a list, in pack order.
+  const vocabRows = await db
+    .select({ id: studyVocab.id, term: studyVocab.term })
+    .from(studyVocab)
+    .where(
+      and(
+        eq(studyVocab.learnerId, learner.id),
+        eq(studyVocab.language, pack.language),
+      ),
+    );
+  const byTerm = new Map(vocabRows.map((r) => [r.term.toLowerCase(), r.id]));
+  const orderedIds = items
+    .map((i) => byTerm.get(i.term.toLowerCase()))
+    .filter((v): v is string => !!v);
+
+  let list = await db.query.studyVocabLists.findFirst({
+    where: and(
+      eq(studyVocabLists.learnerId, learner.id),
+      eq(studyVocabLists.name, pack.name),
+    ),
+  });
+  if (!list) {
+    [list] = await db
+      .insert(studyVocabLists)
+      .values({ learnerId: learner.id, name: pack.name })
+      .returning();
+  } else {
+    await db
+      .delete(studyVocabListItems)
+      .where(eq(studyVocabListItems.listId, list.id));
+  }
+  await db.insert(studyVocabListItems).values(
+    orderedIds.map((vocabId, position) => ({
+      listId: list.id,
+      vocabId,
+      position,
+    })),
+  );
+
+  revalidatePath("/study/vocab");
+  return { added: fresh.length, list: pack.name };
 }
 
 const gradeSchema = z.enum(["again", "hard", "good", "easy"]);

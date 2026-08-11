@@ -38,6 +38,7 @@ export async function resetMockTeacherE2EData(): Promise<void> {
       where teacher_id in
         (select id from teachers where workos_user_id = 'mock_teacher_dev')
         and (name like 'E2E Student %'
+          or name like 'Books E2E %'
           or name like 'Import Maki %'
           or name like 'Import Pedro %')
     `;

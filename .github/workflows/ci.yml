@@ -71,9 +71,12 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npm run db:migrate
       # db:seed goes through tsx --env-file=.env.local, which hard-fails
-      # when the file is absent — call the script directly; DATABASE_URL
+      # when the file is absent — call the scripts directly; DATABASE_URL
       # is already in the job env.
       - run: npx tsx scripts/seed.ts
+      # Curated packs are DB CONTENT, not schema — the packs e2e needs
+      # the catalog synced.
+      - run: npx tsx scripts/seed-packs.ts
       - run: npm run test:e2e
 
   e2e-real-auth:

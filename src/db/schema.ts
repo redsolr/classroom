@@ -319,6 +319,33 @@ export const corrections = pgTable(
 // Vocabulary
 // ---------------------------------------------------------------------------
 
+/**
+ * Teacher-curated vocab BOOKS per student ("JLPT N4 prep", "Restaurant
+ * unit") — a live shared surface: the teacher CRUDs the books, the
+ * student sees them grouped in the portal and progresses through the
+ * same SRS pipeline. Deleting a book frees its words (FK set null).
+ */
+export const vocabularyBooks = pgTable(
+  "vocabulary_books",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    teacherId: uuid("teacher_id")
+      .notNull()
+      .references(() => teachers.id, { onDelete: "cascade" }),
+    studentId: uuid("student_id")
+      .notNull()
+      .references(() => students.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index("vocabulary_books_student_id_idx").on(t.studentId)],
+);
+
 export const vocabularyItems = pgTable(
   "vocabulary_items",
   {
@@ -330,6 +357,10 @@ export const vocabularyItems = pgTable(
       .notNull()
       .references(() => students.id, { onDelete: "cascade" }),
     lessonId: uuid("lesson_id").references(() => lessons.id, {
+      onDelete: "set null",
+    }),
+    /** Null = loose (not filed in a teacher book). */
+    bookId: uuid("book_id").references(() => vocabularyBooks.id, {
       onDelete: "set null",
     }),
     term: text("term").notNull(),
@@ -684,6 +715,52 @@ export const studyVocabListItems = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// Curated packs — product-shipped, read-only vocab collections ("Persona 5
+// kanji", "Anime essentials"). No learner FK: global content, seeded by
+// scripts/seed-packs.ts from src/content/study-packs.ts. Learners copy
+// items (or whole packs) into their own vocab/lists.
+// ---------------------------------------------------------------------------
+
+export const studyPacks = pgTable(
+  "study_packs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    slug: text("slug").notNull(),
+    name: text("name").notNull(),
+    language: text("language").notNull(),
+    description: text("description"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [uniqueIndex("study_packs_slug_idx").on(t.slug)],
+);
+
+export const studyPackItems = pgTable(
+  "study_pack_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    packId: uuid("pack_id")
+      .notNull()
+      .references(() => studyPacks.id, { onDelete: "cascade" }),
+    term: text("term").notNull(),
+    reading: text("reading"),
+    meaning: text("meaning"),
+    example: text("example"),
+    category: text("category"),
+    /** Curated order within the pack. */
+    position: integer("position").notNull(),
+  },
+  (t) => [
+    uniqueIndex("study_pack_items_pack_term_idx").on(t.packId, t.term),
+    index("study_pack_items_pack_position_idx").on(t.packId, t.position),
+  ],
+);
+
+// ---------------------------------------------------------------------------
 // Row types
 // ---------------------------------------------------------------------------
 
@@ -705,3 +782,6 @@ export type StudyMessage = typeof studyMessages.$inferSelect;
 export type StudyVocabItem = typeof studyVocab.$inferSelect;
 export type StudyVocabList = typeof studyVocabLists.$inferSelect;
 export type StudyVocabListItem = typeof studyVocabListItems.$inferSelect;
+export type VocabularyBook = typeof vocabularyBooks.$inferSelect;
+export type StudyPack = typeof studyPacks.$inferSelect;
+export type StudyPackItem = typeof studyPackItems.$inferSelect;

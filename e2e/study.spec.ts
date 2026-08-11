@@ -15,7 +15,7 @@ import { resetMockLearner } from "./helpers";
  * teacher.
  */
 
-const FREE_CAP = 5;
+const FREE_CAP = 10;
 
 test.beforeAll(resetMockLearner);
 
@@ -155,6 +155,49 @@ test("editing project instructions + name applies to later replies and the sideb
   ).toBeVisible();
   // And with “bonjour” saved, the tutor drills the learner's own word.
   await expect(page.getByText(/Try using/).last()).toBeVisible();
+});
+
+test("the tutor CRUDs vocabulary from chat: add, list, delete land in the table", async ({
+  page,
+}) => {
+  // Mock grammar drives the SAME tool executor the real model calls —
+  // this proves chat → DB, not just chat → words on screen.
+  await page.goto("/study");
+  await page
+    .getByRole("complementary")
+    .getByRole("link", { name: "Français", exact: true })
+    .click();
+  await page.waitForURL(/\/study\/project\/[0-9a-f-]{36}/);
+  await page.getByRole("main").getByRole("link", { name: /Bonjour/ }).click();
+  await page.waitForURL(/\/study\?t=[0-9a-f-]{36}/);
+
+  const send = async (text: string) => {
+    await page.getByLabel("Message").fill(text);
+    await page.getByRole("button", { name: "Send" }).click();
+    await expect(page.getByLabel("Message")).toBeFocused();
+  };
+
+  await send("add vocab: fromage — cheese");
+  await expect(page.getByText(/added “fromage”/)).toBeVisible();
+
+  // The word is real table data now, not chat prose.
+  await page.goto("/study/vocab");
+  const table = page.getByRole("main").locator("table");
+  await expect(
+    table.locator("tbody tr").filter({ hasText: "fromage" }),
+  ).toBeVisible();
+
+  // Back in the chat: list reads the same rows, delete removes them.
+  await page.goBack();
+  await send("list my vocab");
+  await expect(page.getByText(/2 saved words: bonjour, fromage/)).toBeVisible();
+  await send("delete vocab: fromage");
+  await expect(page.getByText(/Removed “fromage”/)).toBeVisible();
+
+  await page.goto("/study/vocab");
+  await expect(
+    table.locator("tbody tr").filter({ hasText: "fromage" }),
+  ).toHaveCount(0);
 });
 
 test("deleting a chat removes it after the confirm dialog", async ({
@@ -330,6 +373,23 @@ test("sidebar chat row: rename inline, then delete from the ⋯ menu", async ({
   await expect(
     sidebar.getByRole("link", { name: "My renamed chat" }),
   ).not.toBeVisible();
+});
+
+test("Ask dock: opens on any study page, chats, and closes on Escape", async ({
+  page,
+}) => {
+  await page.goto("/study/vocab");
+  await page.getByRole("button", { name: "Ask AI" }).click();
+
+  // The dock hosts a real chat (thread created lazily) — send through it.
+  await page.getByLabel("Message").fill("help me plan tomorrow");
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(page.getByText(/Happy to help with anything/)).toBeVisible();
+
+  // Escape closes; the launcher returns.
+  await page.keyboard.press("Escape");
+  await expect(page.getByLabel("Message")).not.toBeVisible();
+  await expect(page.getByRole("button", { name: "Ask AI" })).toBeVisible();
 });
 
 test("manual vocab add + SM-2 review session over the due deck", async ({
@@ -541,6 +601,49 @@ test("categories cut the table; save-as-list, reorder, remove", async ({
   await expect(table.getByRole("cell", { name: "faire" })).not.toBeVisible();
 });
 
+test("curated packs: browse, add one word, import all as a personal list", async ({
+  page,
+}) => {
+  await page.goto("/study/packs");
+  await expect(
+    page.getByRole("heading", { name: "Curated lists" }),
+  ).toBeVisible();
+  await expect(page.getByText("Persona 5 essentials")).toBeVisible();
+
+  await page.getByRole("link", { name: /Café survival French/ }).click();
+  await page.waitForURL("**/study/packs/cafe-french");
+
+  // One word first — the row flips to its "in your dictionary" state.
+  await page
+    .getByRole("button", { name: "Add commander to my dictionary" })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "commander is in your dictionary" }),
+  ).toBeVisible();
+  await page.goto("/study/vocab");
+  const main = page.getByRole("main");
+  const table = main.locator("table");
+  await expect(
+    table.locator("tbody tr").filter({ hasText: "commander" }),
+  ).toBeVisible();
+
+  // Whole pack: every missing word joins + a personal list is created.
+  await page.goto("/study/packs/cafe-french");
+  await page
+    .getByRole("button", { name: "Add all to my vocabulary" })
+    .click();
+  await expect(page.getByText(/saved the pack as your/)).toBeVisible();
+
+  await page.goto("/study/vocab");
+  await main.getByRole("button", { name: /Café survival French/ }).click();
+  await expect(
+    table.locator("tbody tr").filter({ hasText: "l'addition" }),
+  ).toBeVisible();
+  await expect(
+    table.locator("tbody tr").filter({ hasText: "une noisette" }),
+  ).toBeVisible();
+});
+
 test("chat→vocab bulk extraction: review dialog, bulk save, dedup", async ({
   page,
 }) => {
@@ -642,7 +745,7 @@ test("account page: free plan, usage meter, billing-not-configured state", async
 }) => {
   await page.goto("/study/account");
   await expect(page.getByRole("heading", { name: "Free plan" })).toBeVisible();
-  await expect(page.getByText(/of 5 tutor messages/)).toBeVisible();
+  await expect(page.getByText(/of 10 tutor messages/)).toBeVisible();
   await expect(page.getByText(/Billing is not configured/)).toBeVisible();
   // Models card names the roster.
   await expect(page.getByText("gpt-5.6-terra")).toBeVisible();

@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
+  BookMarked,
   BookOpenCheck,
   Folder,
   Gauge,
@@ -57,6 +58,7 @@ import { cn } from "@/lib/utils";
 const STATIC_ITEMS = [
   { href: "/study/vocab", label: "Vocabulary", icon: Layers, exact: true },
   { href: "/study/vocab/review", label: "Review", icon: BookOpenCheck },
+  { href: "/study/packs", label: "Curated lists", icon: BookMarked },
   { href: "/study/account", label: "Plan & usage", icon: Gauge },
 ];
 

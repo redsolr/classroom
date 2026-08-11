@@ -1,16 +1,27 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
-import { ArrowRight, BookMarked, ClipboardList, SpellCheck2 } from "lucide-react";
-import type { Correction, Homework, VocabularyItem } from "@/db";
+import {
+  ArrowRight,
+  BookMarked,
+  ClipboardList,
+  Pencil,
+  SpellCheck2,
+} from "lucide-react";
+import type { Correction, Homework, VocabularyBook, VocabularyItem } from "@/db";
 import {
   addCorrection,
   addHomework,
   addVocabulary,
+  createVocabularyBook,
   deleteCorrection,
   deleteHomework,
   deleteVocabulary,
+  deleteVocabularyBook,
+  renameVocabularyBook,
   setHomeworkStatus,
+  setVocabularyBook,
   setVocabularyStatus,
 } from "@/lib/actions/records";
 import {
@@ -122,7 +133,15 @@ export function CorrectionsSection({
 
 const VOCAB_STATUSES = ["new", "learning", "reviewing", "mastered"] as const;
 
-function AddVocabularyDialog({ studentId }: { studentId: string }) {
+function AddVocabularyDialog({
+  studentId,
+  books,
+  defaultBookId,
+}: {
+  studentId: string;
+  books: VocabularyBook[];
+  defaultBookId?: string;
+}) {
   return (
     <FormDialog
       triggerLabel="Add vocabulary"
@@ -144,6 +163,47 @@ function AddVocabularyDialog({ studentId }: { studentId: string }) {
       <Field label="Example sentence">
         <Input name="example" placeholder="Optional" />
       </Field>
+      {books.length > 0 && (
+        <Field label="Book">
+          <Select name="bookId" defaultValue={defaultBookId ?? ""}>
+            <option value="">No book</option>
+            {books.map((book) => (
+              <option key={book.id} value={book.id}>
+                {book.name}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      )}
+    </FormDialog>
+  );
+}
+
+function NewBookDialog({ studentId }: { studentId: string }) {
+  return (
+    <FormDialog
+      triggerLabel="New book"
+      title="New vocabulary book"
+      submitLabel="Create book"
+      action={async (fd) => {
+        await createVocabularyBook(
+          studentId,
+          String(fd.get("name") ?? ""),
+        );
+      }}
+    >
+      <Field
+        label="Book name"
+        hint="A themed collection you and the student work through together."
+      >
+        <Input
+          name="name"
+          required
+          autoFocus
+          maxLength={80}
+          placeholder="JLPT N4 prep · Restaurant unit · …"
+        />
+      </Field>
     </FormDialog>
   );
 }
@@ -151,29 +211,153 @@ function AddVocabularyDialog({ studentId }: { studentId: string }) {
 export function VocabularySection({
   studentId,
   vocabulary,
+  books,
 }: {
   studentId: string;
   vocabulary: VocabularyItem[];
+  books: VocabularyBook[];
 }) {
-  if (vocabulary.length === 0) {
+  /** "all" | "loose" | a book id. */
+  const [filter, setFilter] = React.useState("all");
+  const [renamingBook, setRenamingBook] = React.useState(false);
+  const [nameDraft, setNameDraft] = React.useState("");
+  const [, startTransition] = React.useTransition();
+
+  const activeBook = books.find((b) => b.id === filter) ?? null;
+  const visible = vocabulary.filter((v) => {
+    if (filter === "all") return true;
+    if (filter === "loose") return v.bookId === null;
+    return v.bookId === filter;
+  });
+  const looseCount = vocabulary.filter((v) => v.bookId === null).length;
+  const countFor = (bookId: string) =>
+    vocabulary.filter((v) => v.bookId === bookId).length;
+
+  const commitRename = () => {
+    if (!activeBook) return;
+    const name = nameDraft.trim();
+    setRenamingBook(false);
+    if (!name || name === activeBook.name) return;
+    startTransition(async () => {
+      try {
+        await renameVocabularyBook(activeBook.id, studentId, name);
+      } catch (error) {
+        console.error("vocabulary: failed to rename book", error);
+      }
+    });
+  };
+
+  if (vocabulary.length === 0 && books.length === 0) {
     return (
       <EmptyState
         icon={<BookMarked />}
         title="No vocabulary yet"
-        description="Words and phrases introduced in lessons collect here for review."
-        action={<AddVocabularyDialog studentId={studentId} />}
+        description="Words and phrases introduced in lessons collect here for review — organize them into books the student works through."
+        action={
+          <div className="flex items-center gap-2">
+            <NewBookDialog studentId={studentId} />
+            <AddVocabularyDialog studentId={studentId} books={books} />
+          </div>
+        }
       />
     );
   }
 
+  const chip = (active: boolean) =>
+    active
+      ? "rounded-md bg-accent-soft px-2 py-1 text-[0.8125rem] font-medium text-accent-text"
+      : "rounded-md px-2 py-1 text-[0.8125rem] font-medium text-fg-secondary transition-colors hover:bg-surface-hover";
+
   return (
     <div className="space-y-2">
-      <div className="flex justify-end">
-        <AddVocabularyDialog studentId={studentId} />
+      <div className="flex flex-wrap items-center gap-2">
+        {/* Book chips — the teacher's shelves for this student. */}
+        <div className="flex flex-wrap items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setFilter("all")}
+            className={chip(filter === "all")}
+          >
+            All ({vocabulary.length})
+          </button>
+          {books.map((book) =>
+            activeBook?.id === book.id && renamingBook ? (
+              <input
+                key={book.id}
+                autoFocus
+                value={nameDraft}
+                onChange={(e) => setNameDraft(e.target.value)}
+                onBlur={commitRename}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+                    e.preventDefault();
+                    commitRename();
+                  }
+                  if (e.key === "Escape") {
+                    e.preventDefault();
+                    setRenamingBook(false);
+                  }
+                }}
+                maxLength={80}
+                aria-label="Rename book"
+                className="h-7 rounded-md border border-accent bg-transparent px-2 text-[0.8125rem] focus:outline-none"
+              />
+            ) : (
+              <button
+                key={book.id}
+                type="button"
+                onClick={() => setFilter(book.id)}
+                className={chip(filter === book.id)}
+              >
+                {book.name} ({countFor(book.id)})
+              </button>
+            ),
+          )}
+          {books.length > 0 && looseCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setFilter("loose")}
+              className={chip(filter === "loose")}
+            >
+              Unfiled ({looseCount})
+            </button>
+          )}
+          {activeBook && !renamingBook && (
+            <>
+              <button
+                type="button"
+                title="Rename book"
+                onClick={() => {
+                  setNameDraft(activeBook.name);
+                  setRenamingBook(true);
+                }}
+                className="flex size-7 items-center justify-center rounded-md text-fg-tertiary transition-colors hover:bg-surface-hover hover:text-fg"
+              >
+                <Pencil className="size-3.5" />
+              </button>
+              <ConfirmButton
+                title="Delete book"
+                action={async () => {
+                  await deleteVocabularyBook(activeBook.id, studentId);
+                  setFilter("all");
+                }}
+              />
+            </>
+          )}
+        </div>
+        <div className="ml-auto flex items-center gap-2">
+          <NewBookDialog studentId={studentId} />
+          <AddVocabularyDialog
+            studentId={studentId}
+            books={books}
+            defaultBookId={activeBook?.id}
+          />
+        </div>
       </div>
+
       <Card>
         <ul className="divide-y divide-border">
-          {vocabulary.map((v) => (
+          {visible.map((v) => (
             <li key={v.id} className="flex items-center gap-3 px-4 py-2.5">
               <div className="min-w-0 flex-1">
                 <p className="text-[0.9375rem] font-medium">{v.term}</p>
@@ -188,6 +372,27 @@ export function VocabularySection({
                   </p>
                 )}
               </div>
+              {books.length > 0 && (
+                <Select
+                  value={v.bookId ?? ""}
+                  aria-label={`Book for ${v.term}`}
+                  onChange={(e) =>
+                    void setVocabularyBook(
+                      v.id,
+                      studentId,
+                      e.target.value || null,
+                    )
+                  }
+                  className="h-8 w-32 text-[0.8125rem]"
+                >
+                  <option value="">No book</option>
+                  {books.map((book) => (
+                    <option key={book.id} value={book.id}>
+                      {book.name}
+                    </option>
+                  ))}
+                </Select>
+              )}
               <Select
                 value={v.status}
                 onChange={(e) =>
@@ -211,6 +416,13 @@ export function VocabularySection({
               />
             </li>
           ))}
+          {visible.length === 0 && (
+            <li className="px-4 py-6 text-center text-[0.875rem] text-fg-tertiary">
+              {activeBook
+                ? "This book is empty — add a word or file existing ones into it."
+                : "No words here."}
+            </li>
+          )}
         </ul>
       </Card>
     </div>

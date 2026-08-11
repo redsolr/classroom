@@ -11,6 +11,7 @@ import {
   type TutorContext,
   type TutorTurn,
 } from "@/lib/ai/study-tutor";
+import { createStudyToolExecutor } from "@/lib/ai/study-tools";
 
 const HISTORY_TURNS = 20;
 const VOCAB_CONTEXT_ITEMS = 30;
@@ -129,6 +130,12 @@ export async function POST(req: NextRequest) {
     projectInstructions: project?.instructions ?? null,
   };
   const turns: TutorTurn[] = historyRows.slice(-HISTORY_TURNS);
+  // The tutor's hands: vocabulary CRUD scoped to THIS learner, with the
+  // chat's language as the default filing target.
+  const executeTool = createStudyToolExecutor({
+    learnerId: learner.id,
+    language,
+  });
 
   const encoder = new TextEncoder();
   let full = "";
@@ -158,6 +165,7 @@ export async function POST(req: NextRequest) {
       try {
         for await (const delta of streamTutorReply(context, turns, message, {
           model,
+          executeTool,
         })) {
           // Breaking out also returns the provider iterator — the model
           // stops generating instead of burning tokens nobody reads.

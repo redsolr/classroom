@@ -415,3 +415,59 @@ test("an invalid recap token is a 404, not a data leak", async ({ page }) => {
   const response = await page.goto(`/r/definitely-not-a-real-token-${runId}`);
   expect(response?.status()).toBe(404);
 });
+
+test("vocabulary books: create, file a word, refile, rename, delete frees words", async ({
+  page,
+}) => {
+  // Self-contained: own student, so the test also runs in isolation.
+  await page.goto("/students");
+  await page.getByRole("button", { name: "New student" }).click();
+  await page.getByLabel("Name").fill(`Books E2E ${runId}`);
+  await page.getByLabel("Target language").fill("Japanese");
+  await page.getByLabel("Current level").fill("N5");
+  await page.getByRole("button", { name: "Create student" }).click();
+  await page.waitForURL(/\/students\/[0-9a-f-]{36}/);
+  await page.getByRole("tab", { name: /Vocabulary/ }).click();
+
+  // Create a book, then add a word straight into it.
+  await page.getByRole("button", { name: "New book" }).click();
+  await page.getByLabel("Book name").fill("JLPT N4");
+  await page.getByRole("button", { name: "Create book" }).click();
+  await expect(page.getByRole("button", { name: /JLPT N4 \(0\)/ })).toBeVisible();
+
+  await page.getByRole("button", { name: "Add vocabulary" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Term").fill("勉強");
+  await dialog.getByLabel("Meaning").fill("study");
+  // No `exact` — Field wraps the control in its label, so the label's
+  // matchable text includes the option strings (substring match only).
+  await dialog.getByLabel("Book").selectOption({ label: "JLPT N4" });
+  // Trigger and submit share the label — scope the submit to the dialog.
+  await dialog.getByRole("button", { name: "Add vocabulary" }).click();
+  await expect(page.getByRole("button", { name: /JLPT N4 \(1\)/ })).toBeVisible();
+
+  // The book chip filters to its own words.
+  await page.getByRole("button", { name: /JLPT N4 \(1\)/ }).click();
+  const row = page.locator("li").filter({ hasText: "勉強" });
+  await expect(row).toBeVisible();
+
+  // Refile to loose — the book empties but the word survives.
+  await row.getByLabel("Book for 勉強").selectOption({ label: "No book" });
+  await expect(page.getByRole("button", { name: /JLPT N4 \(0\)/ })).toBeVisible();
+
+  // Rename inline, then two-step delete — the words stay, the shelf goes.
+  await page.getByRole("button", { name: "Rename book" }).click();
+  await page.getByLabel("Rename book").fill("JLPT N5");
+  await page.getByLabel("Rename book").press("Enter");
+  await expect(page.getByRole("button", { name: /JLPT N5 \(0\)/ })).toBeVisible();
+
+  const deleteBook = page.getByTitle("Delete book");
+  await deleteBook.click();
+  await deleteBook.click();
+  await expect(
+    page.getByRole("button", { name: /JLPT N5/ }),
+  ).not.toBeVisible();
+  await expect(
+    page.locator("li").filter({ hasText: "勉強" }).first(),
+  ).toBeVisible();
+});

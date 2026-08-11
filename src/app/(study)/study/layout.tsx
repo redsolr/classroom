@@ -1,5 +1,7 @@
 import { requireLearner, resolveAccount } from "@/lib/auth";
+import { STUDY_MODEL, STUDY_MODELS } from "@/lib/ai/study-tutor";
 import { getSidebarStudy } from "@/lib/study-sidebar";
+import { AskDock } from "@/components/study/ask-dock";
 import { Sidebar } from "@/components/shell/sidebar";
 import { StudentSidebar } from "@/components/shell/student-sidebar";
 
@@ -15,7 +17,7 @@ export default async function StudyLayout({
 }: {
   children: React.ReactNode;
 }) {
-  await requireLearner();
+  const learner = await requireLearner();
   const account = await resolveAccount();
   const study = await getSidebarStudy();
 
@@ -40,6 +42,16 @@ export default async function StudyLayout({
         />
       )}
       <main className="min-w-0 flex-1">{children}</main>
+      {/* The CRM-style Ask drawer — available on every study page. */}
+      <AskDock
+        learnerName={learner.name}
+        models={
+          STUDY_MODELS.includes(STUDY_MODEL)
+            ? STUDY_MODELS
+            : [STUDY_MODEL, ...STUDY_MODELS]
+        }
+        defaultModel={STUDY_MODEL}
+      />
     </div>
   );
 }

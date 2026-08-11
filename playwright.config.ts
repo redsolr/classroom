@@ -73,7 +73,7 @@ export default defineConfig({
     env: REAL_AUTH
       ? {}
       : {
-          STUDY_FREE_DAILY_CAP: "5",
+          STUDY_FREE_DAILY_CAP: "10",
           OPENAI_API_KEY: "",
           ANTHROPIC_API_KEY: "",
           STRIPE_SECRET_KEY: "",

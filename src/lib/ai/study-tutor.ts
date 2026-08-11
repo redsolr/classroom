@@ -1,5 +1,9 @@
 import OpenAI from "openai";
 import type { StudyVocabItem } from "@/db";
+import {
+  STUDY_TOOL_DEFS,
+  type StudyToolExecutor,
+} from "@/lib/ai/study-tools";
 
 /**
  * The self-study tutor (/study) — OpenAI-backed, unlike the roster
@@ -60,6 +64,15 @@ const GENERIC_PROMPT = `You are the learner's personal assistant inside Classroo
 - If the conversation turns into language practice, you may mark a genuinely useful word on its own line as: VOCAB: term — meaning.
 - Never invent facts about the learner's history that are not in the context.`;
 
+const TOOLS_PROMPT = `
+You also MANAGE the learner's personal vocabulary when asked, via tools:
+add_vocab / update_vocab / delete_vocab / list_vocab, and their lists via
+create_vocab_list / add_to_vocab_list / remove_from_vocab_list. Use them
+whenever the learner asks to save, change, remove, or organize words —
+never claim you saved something without calling the tool. Fill in a
+sensible meaning/reading/category yourself when the learner doesn't give
+one. After a tool call, confirm in one short sentence what changed.`;
+
 function renderTutorContext(ctx: TutorContext): string {
   const lines = [`Learner: ${ctx.learnerName ?? "(no name given)"}`];
   if (ctx.language) {
@@ -83,10 +96,10 @@ function renderTutorContext(ctx: TutorContext): string {
   return lines.join("\n");
 }
 
-/** Full instructions block: persona + learner context + project rules. */
+/** Full instructions block: persona + tools + learner context + project rules. */
 function buildInstructions(ctx: TutorContext): string {
   const parts = [
-    ctx.language ? TUTOR_PROMPT : GENERIC_PROMPT,
+    (ctx.language ? TUTOR_PROMPT : GENERIC_PROMPT) + TOOLS_PROMPT,
     `<learner_context>\n${renderTutorContext(ctx)}\n</learner_context>`,
   ];
   if (ctx.projectInstructions?.trim()) {
@@ -124,33 +137,147 @@ function mockTutorReply(ctx: TutorContext, message: string): string {
 }
 
 /**
+ * Deterministic tool commands for the offline mock — same executor the
+ * real model calls, so e2e proves chat → DB for real. Grammar:
+ *   add vocab: term — meaning
+ *   update vocab: term — new meaning
+ *   delete vocab: term
+ *   list my vocab
+ */
+async function mockToolTurn(
+  ctx: TutorContext,
+  message: string,
+  execute: StudyToolExecutor,
+): Promise<string | null> {
+  const dash = /\s*(?:—|–|-)\s*/;
+  const add = new RegExp(`^add vocab:\\s*(.+?)${dash.source}(.+)$`, "i").exec(
+    message,
+  );
+  if (add) {
+    const result = JSON.parse(
+      await execute("add_vocab", { term: add[1], meaning: add[2] }),
+    ) as { saved?: boolean; reason?: string; error?: string };
+    if (result.error) return result.error;
+    if (result.saved === false && result.reason === "already_saved") {
+      return `“${add[1]}” is already on your list.`;
+    }
+    return `Done — added “${add[1]}” (${add[2]}) to your ${ctx.language ?? ""} vocabulary.`;
+  }
+  const update = new RegExp(
+    `^update vocab:\\s*(.+?)${dash.source}(.+)$`,
+    "i",
+  ).exec(message);
+  if (update) {
+    const result = JSON.parse(
+      await execute("update_vocab", { term: update[1], meaning: update[2] }),
+    ) as { updated?: boolean; error?: string };
+    return result.error ?? `Updated “${update[1]}” — it now means “${update[2]}”.`;
+  }
+  const del = /^delete vocab:\s*(.+)$/i.exec(message);
+  if (del) {
+    const result = JSON.parse(
+      await execute("delete_vocab", { term: del[1] }),
+    ) as { deleted?: boolean; error?: string };
+    return result.error ?? `Removed “${del[1]}” from your vocabulary.`;
+  }
+  if (/^list my vocab/i.test(message)) {
+    const result = JSON.parse(await execute("list_vocab", {})) as {
+      count: number;
+      words: { term: string }[];
+    };
+    return result.count === 0
+      ? "Your vocabulary list is empty."
+      : `You have ${result.count} saved word${result.count === 1 ? "" : "s"}: ${result.words.map((w) => w.term).join(", ")}.`;
+  }
+  return null;
+}
+
+/** How many tool-call → tool-result rounds one turn may take. */
+const MAX_TOOL_ROUNDS = 5;
+
+/**
  * Stream the tutor's reply as text deltas. The caller owns persistence —
  * it accumulates the full text and stores it when the stream ends.
+ * With `executeTool`, the model gets the vocabulary CRUD tools; calls
+ * are executed between streaming rounds (Responses API
+ * previous_response_id chaining) until a round produces no calls.
  */
 export async function* streamTutorReply(
   ctx: TutorContext,
   history: TutorTurn[],
   message: string,
-  options: { model: string },
+  options: { model: string; executeTool?: StudyToolExecutor },
 ): AsyncGenerator<string> {
   const model = options.model;
   if (model === "mock" || !process.env.OPENAI_API_KEY) {
+    if (options.executeTool) {
+      const toolReply = await mockToolTurn(ctx, message, options.executeTool);
+      if (toolReply !== null) {
+        yield toolReply;
+        return;
+      }
+    }
     yield mockTutorReply(ctx, message);
     return;
   }
 
   const client = new OpenAI();
-  const stream = await client.responses.create({
-    model,
-    stream: true,
-    max_output_tokens: 1200,
-    instructions: buildInstructions(ctx),
-    input: [...history, { role: "user" as const, content: message }],
-  });
+  let input: OpenAI.Responses.ResponseInput = [
+    ...history,
+    { role: "user" as const, content: message },
+  ];
+  let previousResponseId: string | undefined;
 
-  for await (const event of stream) {
-    if (event.type === "response.output_text.delta") {
-      yield event.delta;
+  for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+    const stream = await client.responses.create({
+      model,
+      stream: true,
+      max_output_tokens: 1200,
+      instructions: buildInstructions(ctx),
+      input,
+      ...(options.executeTool ? { tools: STUDY_TOOL_DEFS } : {}),
+      ...(previousResponseId
+        ? { previous_response_id: previousResponseId }
+        : {}),
+    });
+
+    const calls: { callId: string; name: string; args: string }[] = [];
+    for await (const event of stream) {
+      if (event.type === "response.output_text.delta") {
+        yield event.delta;
+      } else if (event.type === "response.completed") {
+        previousResponseId = event.response.id;
+        for (const item of event.response.output) {
+          if (item.type === "function_call") {
+            calls.push({
+              callId: item.call_id,
+              name: item.name,
+              args: item.arguments,
+            });
+          }
+        }
+      }
     }
+
+    if (calls.length === 0 || !options.executeTool) return;
+
+    // Execute this round's calls and hand the results back as the next
+    // round's only input (the conversation so far rides on
+    // previous_response_id).
+    const outputs: OpenAI.Responses.ResponseInputItem.FunctionCallOutput[] = [];
+    for (const call of calls) {
+      let parsedArgs: unknown = {};
+      try {
+        parsedArgs = JSON.parse(call.args) as unknown;
+      } catch (error) {
+        console.error("study tutor: unparsable tool arguments", error);
+      }
+      outputs.push({
+        type: "function_call_output",
+        call_id: call.callId,
+        output: await options.executeTool(call.name, parsedArgs),
+      });
+    }
+    input = outputs;
   }
 }
