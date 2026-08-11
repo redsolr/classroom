@@ -146,7 +146,9 @@ export function SidebarShell({
 
       {/* Desktop static column — the section list scrolls when it
           outgrows the viewport (the "Plan & usage cut off" bug). */}
-      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-border bg-surface px-3 py-5 lg:flex">
+      {/* w-72: the chat tree (titles + hover actions) needs more room
+          than the old w-64 nav-only column. */}
+      <aside className="sticky top-0 hidden h-screen w-72 shrink-0 flex-col border-r border-border bg-surface px-3 py-5 lg:flex">
         <div className="mb-6 px-2">
           <Brand homeHref={homeHref} />
         </div>

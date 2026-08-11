@@ -8,8 +8,8 @@ import { STUDY_MODEL, STUDY_MODELS } from "@/lib/ai/study-tutor";
 import { requireLearner } from "@/lib/auth";
 import { threadTitle } from "@/lib/study-display";
 import { StudyChat } from "@/components/study/study-chat";
-import { DeleteThreadButton } from "@/components/study/delete-thread-button";
-import { ExtractVocabButton } from "@/components/study/extract-vocab-dialog";
+import { ChatMenu } from "@/components/study/chat-menu";
+import { NewProjectDialog } from "@/components/study/new-project-dialog";
 import { SubmitButton } from "@/components/ui/button";
 
 export const metadata: Metadata = { title: "Study chat" };
@@ -61,7 +61,9 @@ export default async function StudyChatPage({
     : [];
 
   return (
-    <div className="mx-auto flex h-[calc(100dvh-3rem)] w-full max-w-3xl flex-col lg:h-dvh">
+    // Chrome (header, scroll region, composer) spans the full pane —
+    // the readable column is capped INSIDE StudyChat, ChatGPT-style.
+    <div className="flex h-[calc(100dvh-3rem)] w-full flex-col lg:h-dvh">
       {active ? (
         <>
           <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-2.5 sm:px-6">
@@ -82,14 +84,13 @@ export default async function StudyChatPage({
                 )}
               </p>
             </div>
-            <div className="flex shrink-0 items-center gap-1">
-              {/* Extraction needs a language to file words under and a
-                  conversation to read — generic or empty chats hide it. */}
-              {chatLanguage && messages.length > 0 && (
-                <ExtractVocabButton threadId={active.id} />
-              )}
-              <DeleteThreadButton threadId={active.id} />
-            </div>
+            {/* One ⋯ menu, nothing else — extraction (language chats
+                with a conversation) and deletion live inside it. */}
+            <ChatMenu
+              threadId={active.id}
+              pinned={active.pinned}
+              canExtract={Boolean(chatLanguage) && messages.length > 0}
+            />
           </header>
           <StudyChat
             key={active.id}
@@ -126,13 +127,15 @@ export default async function StudyChatPage({
                   New chat
                 </SubmitButton>
               </form>
-              <Link
-                href="/study/project/new"
-                className="inline-flex items-center gap-1.5 text-[0.9375rem] font-medium text-accent-text hover:underline"
-              >
-                <FolderPlus className="size-4" />
-                New project
-              </Link>
+              <NewProjectDialog>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1.5 text-[0.9375rem] font-medium text-accent-text hover:underline"
+                >
+                  <FolderPlus className="size-4" />
+                  New project
+                </button>
+              </NewProjectDialog>
             </div>
           </div>
         </div>

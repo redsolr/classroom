@@ -132,36 +132,67 @@ export async function POST(req: NextRequest) {
 
   const encoder = new TextEncoder();
   let full = "";
+  // Flips when the client stops the reply (composer Stop button or a
+  // dropped connection) — cancel() then owns persistence of the partial.
+  let cancelled = false;
+  let persisted = false;
+  const persistReply = async () => {
+    // The sync check-and-set makes start()/cancel() racing on the same
+    // turn insert at most one assistant row.
+    if (persisted) return;
+    persisted = true;
+    try {
+      await db.insert(studyMessages).values({
+        learnerId: learner.id,
+        threadId: thread.id,
+        role: "assistant",
+        content: full,
+        model,
+      });
+    } catch (error) {
+      console.error("study chat: failed to persist assistant reply", error);
+    }
+  };
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       try {
         for await (const delta of streamTutorReply(context, turns, message, {
           model,
         })) {
+          // Breaking out also returns the provider iterator — the model
+          // stops generating instead of burning tokens nobody reads.
+          if (cancelled) break;
           full += delta;
           controller.enqueue(encoder.encode(delta));
         }
-        if (!full.trim()) throw new Error("Tutor returned no text");
+        if (!cancelled && !full.trim())
+          throw new Error("Tutor returned no text");
       } catch (error) {
+        if (cancelled) return;
         console.error("study chat: tutor stream failed", error);
         const fallback = full
           ? "\n\n(The reply was cut off — please ask again.)"
           : "Sorry — I had trouble thinking just now. Please try again in a moment.";
         full += fallback;
-        controller.enqueue(encoder.encode(fallback));
+        try {
+          controller.enqueue(encoder.encode(fallback));
+        } catch (enqueueError) {
+          // The client went away between the failure and the fallback.
+          console.error(
+            "study chat: could not deliver fallback text",
+            enqueueError,
+          );
+        }
       }
-      try {
-        await db.insert(studyMessages).values({
-          learnerId: learner.id,
-          threadId: thread.id,
-          role: "assistant",
-          content: full,
-          model,
-        });
-      } catch (error) {
-        console.error("study chat: failed to persist assistant reply", error);
-      }
+      if (cancelled) return;
+      await persistReply();
       controller.close();
+    },
+    async cancel() {
+      cancelled = true;
+      // Keep what already streamed — the turn survives a refresh the
+      // same way ChatGPT keeps a stopped reply.
+      if (full.trim()) await persistReply();
     },
   });
 

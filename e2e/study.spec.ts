@@ -29,15 +29,26 @@ test("study space opens on the new-chat hero", async ({ page }) => {
 test("language project with custom instructions: tutor reply is grounded AND follows instructions", async ({
   page,
 }) => {
-  await page.goto("/study/project/new");
-  await page.getByLabel("Name").fill("French");
-  await page.getByLabel(/Language/).selectOption("French");
-  await page.getByLabel(/Custom instructions/).fill("Always be brief.");
-  await page.getByRole("button", { name: "Create project" }).click();
-  await page.waitForURL(/\/study\/project\/[0-9a-f-]{36}/);
+  // New project is a DIALOG (ChatGPT shape): create → it closes, the
+  // folder lands in the sidebar, and the learner stays put — no
+  // redirect to a settings page.
+  await page.goto("/study");
+  await page
+    .getByRole("complementary")
+    .getByRole("button", { name: "New project" })
+    .click();
+  const projectDialog = page.getByRole("dialog");
+  await projectDialog.getByLabel("Name").fill("French");
+  await projectDialog.getByLabel(/Language/).selectOption("French");
+  await projectDialog
+    .getByLabel(/Custom instructions/)
+    .fill("Always be brief.");
+  await projectDialog.getByRole("button", { name: "Create project" }).click();
+  await expect(projectDialog).not.toBeVisible();
+  expect(new URL(page.url()).pathname).toBe("/study");
 
-  // New chat from the project page inherits language + instructions.
-  await page.getByRole("button", { name: "New chat" }).click();
+  // A chat started from the new folder inherits language + instructions.
+  await page.getByRole("button", { name: "Start French chat" }).click();
   await page.waitForURL(/\/study\?t=[0-9a-f-]{36}/);
 
   await page.getByLabel("Message").fill("Bonjour! Je veux apprendre.");
@@ -86,30 +97,40 @@ test("a loose chat is generic: no tutor persona, no instructions tail", async ({
   ).not.toBeVisible();
 });
 
-test("pin floats a chat into Pinned; unpin returns it to its project", async ({
+test("pin from the chat header floats the chat into Pinned; unpin returns it home", async ({
   page,
 }) => {
+  // Project chats live on the PROJECT PAGE, not the sidebar (ChatGPT
+  // shape) — so pinning happens from the chat header's ⋯ menu.
   await page.goto("/study");
   const sidebar = page.getByRole("complementary");
+  await sidebar.getByRole("link", { name: "French", exact: true }).click();
+  await page.waitForURL(/\/study\/project\/[0-9a-f-]{36}/);
+  await page.getByRole("main").getByRole("link", { name: /Bonjour/ }).click();
+  await page.waitForURL(/\/study\?t=[0-9a-f-]{36}/);
+
+  await page.getByRole("button", { name: "Chat options" }).click();
+  await page.getByRole("menuitem", { name: "Pin chat" }).click();
+  await expect(sidebar.getByText("Pinned", { exact: true })).toBeVisible();
+  await expect(sidebar.getByRole("link", { name: /Bonjour/ })).toBeVisible();
+
+  // Unpin from the pinned row's own ⋯ menu — the row leaves the sidebar
+  // (its home is the project page).
   const row = sidebar
     .locator("div.group")
     .filter({ has: page.getByRole("link", { name: /Bonjour/ }) });
-
   await row.hover();
-  await row.getByRole("button", { name: "Pin chat" }).click();
-  await expect(sidebar.getByText("Pinned", { exact: true })).toBeVisible();
-
-  await row.hover();
-  await row.getByRole("button", { name: "Unpin chat" }).click();
+  await row.getByRole("button", { name: /options/ }).click();
+  await page.getByRole("menuitem", { name: "Unpin" }).click();
   await expect(sidebar.getByText("Pinned", { exact: true })).not.toBeVisible();
-  await expect(sidebar.getByRole("link", { name: /Bonjour/ })).toBeVisible();
+  await expect(sidebar.getByRole("link", { name: /Bonjour/ })).not.toBeVisible();
 });
 
 test("editing project instructions + name applies to later replies and the sidebar", async ({
   page,
 }) => {
   await page.goto("/study");
-  // Settings live behind the folder's ⋯ menu (the label only expands).
+  // Settings live behind the project row's ⋯ menu (the label navigates).
   await page.getByRole("button", { name: "French options" }).click();
   await page.getByRole("menuitem", { name: "Project settings" }).click();
   await page.waitForURL(/\/study\/project\/[0-9a-f-]{36}/);
@@ -120,11 +141,12 @@ test("editing project instructions + name applies to later replies and the sideb
   await expect(
     page
       .getByRole("complementary")
-      .getByRole("button", { name: "Français", exact: true }),
+      .getByRole("link", { name: "Français", exact: true }),
   ).toBeVisible();
 
-  // The updated instructions reach the next reply (mock probe).
-  await page.getByRole("link", { name: /Bonjour/ }).first().click();
+  // The updated instructions reach the next reply (mock probe) — the
+  // chat opens from the project page's own list.
+  await page.getByRole("main").getByRole("link", { name: /Bonjour/ }).click();
   await page.waitForURL(/\/study\?t=[0-9a-f-]{36}/);
   await page.getByLabel("Message").fill("encore une fois");
   await page.getByRole("button", { name: "Send" }).click();
@@ -145,24 +167,111 @@ test("deleting a chat removes it after the confirm dialog", async ({
   await loose.click();
   await page.waitForURL(/\/study\?t=[0-9a-f-]{36}/);
 
+  // Deletion lives behind the header's single ⋯ menu now.
   page.on("dialog", (dialog) => void dialog.accept());
-  await page.getByRole("button", { name: "Delete chat" }).click();
+  await page.getByRole("button", { name: "Chat options" }).click();
+  await page.getByRole("menuitem", { name: "Delete chat" }).click();
   await page.waitForURL(/\/study$/);
   await expect(
     page.getByRole("complementary").getByRole("link", { name: /help me plan/ }),
   ).not.toBeVisible();
 });
 
+test("branch in new chat copies the conversation up to that reply", async ({
+  page,
+}) => {
+  // The French thread carries 4 turns by now (Bonjour + reply, encore +
+  // reply). Branching from the FIRST reply must copy exactly two.
+  await page.goto("/study");
+  await page
+    .getByRole("complementary")
+    .getByRole("link", { name: "Français", exact: true })
+    .click();
+  await page.waitForURL(/\/study\/project\/[0-9a-f-]{36}/);
+  const projectUrl = page.url();
+  await page.getByRole("main").getByRole("link", { name: /Bonjour/ }).click();
+  await page.waitForURL(/\/study\?t=[0-9a-f-]{36}/);
+  const sourceUrl = page.url();
+  const sourceThread = new URL(sourceUrl).searchParams.get("t");
+
+  const firstReply = page
+    .getByRole("main")
+    .getByText(/Let's practice your/)
+    .first();
+  await firstReply.hover();
+  await page.getByRole("button", { name: "More actions" }).first().click();
+  await page.getByRole("menuitem", { name: "Branch in new chat" }).click();
+  // The current URL already matches /study?t=… — wait for the thread id
+  // to actually CHANGE, not just for the pattern.
+  await page.waitForURL(
+    (url) =>
+      url.pathname === "/study" &&
+      url.searchParams.get("t") !== null &&
+      url.searchParams.get("t") !== sourceThread,
+  );
+
+  // The copied prefix is there; everything after the cut point is not.
+  // (.first(): the title, the user bubble, and the reply's quote of it
+  // all contain the phrase.)
+  const main = page.getByRole("main");
+  await expect(main.getByText(/Je veux apprendre/).first()).toBeVisible();
+  await expect(main.getByText(/Let's practice your/).first()).toBeVisible();
+  await expect(main.getByText(/encore une fois/)).not.toBeVisible();
+
+  // Both threads live on — the project page now lists the pair.
+  await page.goto(projectUrl);
+  await expect(
+    page.getByRole("main").getByRole("link", { name: /Bonjour/ }),
+  ).toHaveCount(2);
+});
+
+test("desktop: chat chrome spans the pane while the column stays readable", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1920, height: 1000 });
+  await page.goto("/study");
+  await page
+    .getByRole("complementary")
+    .getByRole("link", { name: "Français", exact: true })
+    .click();
+  await page.waitForURL(/\/study\/project\/[0-9a-f-]{36}/);
+  await page
+    .getByRole("main")
+    .getByRole("link", { name: /Bonjour/ })
+    .first()
+    .click();
+  await page.waitForURL(/\/study\?t=[0-9a-f-]{36}/);
+
+  const main = await page.getByRole("main").boundingBox();
+  const header = await page.locator("main header").boundingBox();
+  const composer = await page.getByLabel("Message").boundingBox();
+  expect(main && header && composer).toBeTruthy();
+
+  // Header (chrome) bleeds edge to edge of the pane…
+  expect(header!.width).toBeGreaterThan(main!.width - 2);
+  // …while the composer column is capped (max-w-3xl) and centered, so
+  // messages don't stretch across a 1920px monitor.
+  expect(composer!.width).toBeLessThanOrEqual(768);
+  const mainCenter = main!.x + main!.width / 2;
+  const composerCenter = composer!.x + composer!.width / 2;
+  expect(Math.abs(mainCenter - composerCenter)).toBeLessThan(8);
+});
+
 test("deleting a project frees its chats instead of destroying them", async ({
   page,
 }) => {
-  await page.goto("/study/project/new");
-  await page.getByLabel("Name").fill("Temp");
-  await page.getByRole("button", { name: "Create project" }).click();
-  await page.waitForURL(/\/study\/project\/[0-9a-f-]{36}/);
+  await page.goto("/study");
+  await page
+    .getByRole("complementary")
+    .getByRole("button", { name: "New project" })
+    .click();
+  const projectDialog = page.getByRole("dialog");
+  await projectDialog.getByLabel("Name").fill("Temp");
+  await projectDialog.getByRole("button", { name: "Create project" }).click();
+  await expect(projectDialog).not.toBeVisible();
 
   // A chat inside it (no message sent — stays "New chat").
-  await page.getByRole("button", { name: "New chat" }).click();
+  await page.getByRole("button", { name: "Start Temp chat" }).click();
   await page.waitForURL(/\/study\?t=[0-9a-f-]{36}/);
   const emptyChatUrl = page.url();
 
@@ -187,6 +296,40 @@ test("deleting a project frees its chats instead of destroying them", async ({
   await expect(
     page.getByRole("complementary").getByText("Chats", { exact: true }),
   ).toBeVisible();
+});
+
+test("sidebar chat row: rename inline, then delete from the ⋯ menu", async ({
+  page,
+}) => {
+  // The Temp deletion above left an empty loose "New chat" in the
+  // sidebar — adopt it (the hero button reuses empty chats).
+  await page.goto("/study");
+  const sidebar = page.getByRole("complementary");
+  const row = sidebar
+    .locator("div.group")
+    .filter({ has: page.getByRole("link", { name: "New chat" }) });
+  await row.hover();
+  await row.getByRole("button", { name: "New chat options" }).click();
+  await page.getByRole("menuitem", { name: "Rename" }).click();
+  await page.getByLabel("Rename chat").fill("My renamed chat");
+  await page.getByLabel("Rename chat").press("Enter");
+  await expect(
+    sidebar.getByRole("link", { name: "My renamed chat" }),
+  ).toBeVisible();
+
+  // Delete from the row menu — the row disappears, no navigation.
+  page.on("dialog", (dialog) => void dialog.accept());
+  const renamed = sidebar
+    .locator("div.group")
+    .filter({ has: page.getByRole("link", { name: "My renamed chat" }) });
+  await renamed.hover();
+  await renamed
+    .getByRole("button", { name: "My renamed chat options" })
+    .click();
+  await page.getByRole("menuitem", { name: "Delete" }).click();
+  await expect(
+    sidebar.getByRole("link", { name: "My renamed chat" }),
+  ).not.toBeVisible();
 });
 
 test("manual vocab add + SM-2 review session over the due deck", async ({
@@ -224,6 +367,7 @@ test("vocab table: columns, sort, and language filter", async ({ page }) => {
     "Reading",
     "Meaning",
     "Language",
+    "Category",
     "Status",
     "Due",
     "Reps",
@@ -343,18 +487,77 @@ test("Escape cancels an edit, Enter saves it, and delete takes two clicks", asyn
   await expect(row()).toHaveCount(0);
 });
 
+test("categories cut the table; save-as-list, reorder, remove", async ({
+  page,
+}) => {
+  await page.goto("/study/vocab");
+  const main = page.getByRole("main");
+  const table = main.locator("table");
+
+  // Three categorized words — two verbs, one noun.
+  const add = async (term: string, meaning: string, category: string) => {
+    await page.getByLabel("Language").selectOption("French");
+    await page.getByLabel("Word or phrase").fill(term);
+    await page.getByLabel("Meaning").fill(meaning);
+    await page.getByLabel("Category").selectOption(category);
+    await page.getByRole("button", { name: "Add word" }).click();
+    await expect(table.getByRole("cell", { name: term })).toBeVisible();
+  };
+  await add("aller", "to go", "Verb");
+  await add("faire", "to do", "Verb");
+  await add("gare", "station", "Noun");
+
+  // The category chip narrows the table to verbs.
+  await main.getByRole("button", { name: "Verb", exact: true }).click();
+  await expect(table.getByRole("cell", { name: "gare" })).not.toBeVisible();
+  await expect(table.getByRole("cell", { name: "aller" })).toBeVisible();
+
+  // Save the filtered view as a list — lands in the list view.
+  await main.getByRole("button", { name: "Save as list" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("List name").fill("Mes verbes");
+  await dialog.getByRole("button", { name: "Save" }).click();
+  await expect(main.getByRole("button", { name: /Mes verbes/ })).toBeVisible();
+  await expect(table.getByRole("cell", { name: "gare" })).not.toBeVisible();
+
+  // Manual reorder: default view order was newest-first (faire before
+  // aller) — move aller up and it takes the top row.
+  const rows = table.locator("tbody tr");
+  await expect(rows.first()).toContainText("faire");
+  await rows.filter({ hasText: "aller" }).getByTitle("Move up").click();
+  await expect(rows.first()).toContainText("aller");
+
+  // Removing from the list never deletes the word itself.
+  await rows.filter({ hasText: "faire" }).getByTitle("Remove from list").click();
+  await expect(table.getByRole("cell", { name: "faire" })).not.toBeVisible();
+  await main.getByRole("button", { name: "All words" }).click();
+  await expect(table.getByRole("cell", { name: "faire" })).toBeVisible();
+
+  // Survives reload: the list, its order, and its membership are server
+  // state, not client state.
+  await page.reload();
+  await main.getByRole("button", { name: /Mes verbes/ }).click();
+  await expect(rows.first()).toContainText("aller");
+  await expect(table.getByRole("cell", { name: "faire" })).not.toBeVisible();
+});
+
 test("chat→vocab bulk extraction: review dialog, bulk save, dedup", async ({
   page,
 }) => {
   // A German project: its vocab list is empty, so the mock tutor
   // suggests its starter word as a VOCAB line.
-  await page.goto("/study/project/new");
-  await page.getByLabel("Name").fill("German");
-  await page.getByLabel(/Language/).selectOption("German");
-  await page.getByRole("button", { name: "Create project" }).click();
-  await page.waitForURL(/\/study\/project\/[0-9a-f-]{36}/);
+  await page.goto("/study");
+  await page
+    .getByRole("complementary")
+    .getByRole("button", { name: "New project" })
+    .click();
+  const projectDialog = page.getByRole("dialog");
+  await projectDialog.getByLabel("Name").fill("German");
+  await projectDialog.getByLabel(/Language/).selectOption("German");
+  await projectDialog.getByRole("button", { name: "Create project" }).click();
+  await expect(projectDialog).not.toBeVisible();
 
-  await page.getByRole("button", { name: "New chat" }).click();
+  await page.getByRole("button", { name: "Start German chat" }).click();
   await page.waitForURL(/\/study\?t=[0-9a-f-]{36}/);
   const threadUrl = page.url();
 
@@ -364,8 +567,11 @@ test("chat→vocab bulk extraction: review dialog, bulk save, dedup", async ({
   await expect(page.getByText(/Let's practice your German/)).toBeVisible();
 
   // The tutor marked a word; do NOT tap its chip — extraction must find
-  // it by reading the transcript.
-  await page.getByTitle("Save words from this chat").click();
+  // it by reading the transcript (via the header's ⋯ menu).
+  await page.getByRole("button", { name: "Chat options" }).click();
+  await page
+    .getByRole("menuitem", { name: "Save words from this chat" })
+    .click();
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByText("bonjour")).toBeVisible();
   await dialog.getByRole("button", { name: "Add 1 word" }).click();
@@ -384,7 +590,10 @@ test("chat→vocab bulk extraction: review dialog, bulk save, dedup", async ({
   // Round 2 proves dedup: the word is on the list now, so extraction
   // comes back empty instead of proposing it again.
   await page.goto(threadUrl);
-  await page.getByTitle("Save words from this chat").click();
+  await page.getByRole("button", { name: "Chat options" }).click();
+  await page
+    .getByRole("menuitem", { name: "Save words from this chat" })
+    .click();
   await expect(
     page.getByRole("dialog").getByText(/No new words found/),
   ).toBeVisible();
@@ -394,9 +603,18 @@ test("free daily cap blocks the tutor and points at the upgrade", async ({
   page,
 }) => {
   await page.goto("/study");
-  // Reuse the French thread via the sidebar chat tree (titled by its
-  // first message). 4 of the 5 free messages are already spent.
-  await page.getByRole("link", { name: /Bonjour/ }).first().click();
+  // Reuse the French thread via its project page (project chats aren't
+  // sidebar rows). 4 of the 5 free messages are already spent.
+  await page
+    .getByRole("complementary")
+    .getByRole("link", { name: "Français", exact: true })
+    .click();
+  await page.waitForURL(/\/study\/project\/[0-9a-f-]{36}/);
+  await page
+    .getByRole("main")
+    .getByRole("link", { name: /Bonjour/ })
+    .first()
+    .click();
   await page.waitForURL(/\/study\?t=[0-9a-f-]{36}/);
 
   // Send until the API answers 429 — must happen within the cap budget.

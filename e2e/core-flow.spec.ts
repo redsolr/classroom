@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { resetMockTeacherE2EData } from "./helpers";
 
 /**
  * The MVP success criteria from the product spec, end-to-end:
@@ -8,6 +9,11 @@ import { expect, test } from "@playwright/test";
  */
 
 const runId = Date.now().toString(36);
+
+// Sweep previous runs' students (cascading their lessons) — accumulation
+// on the persistent local DB eventually pushed this run's agenda lesson
+// past the schedule page's 30-row window.
+test.beforeAll(resetMockTeacherE2EData);
 const studentName = `E2E Student ${runId}`;
 const privateSecret = `private-note-secret-${runId}`;
 

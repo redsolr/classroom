@@ -64,6 +64,13 @@
       "when": 1786233266864,
       "tag": "0008_funny_wasp",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1786480812435,
+      "tag": "0009_modern_captain_cross",
+      "breakpoints": true
     }
   ]
 }

@@ -1,15 +1,24 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { desc, eq } from "drizzle-orm";
+import { asc, desc, eq } from "drizzle-orm";
 import { BookOpenCheck } from "lucide-react";
-import { db, studyVocab } from "@/db";
+import {
+  db,
+  studyVocab,
+  studyVocabListItems,
+  studyVocabLists,
+} from "@/db";
 import { addStudyVocab } from "@/lib/actions/study";
 import { requireLearner } from "@/lib/auth";
 import { isCardDue } from "@/lib/srs";
 import { STUDY_LANGUAGES } from "@/lib/study-languages";
+import { STUDY_VOCAB_CATEGORIES } from "@/lib/study-vocab-categories";
 import { Field, Input, Select } from "@/components/ui/field";
 import { SubmitButton } from "@/components/ui/button";
-import { VocabTable } from "@/components/study/vocab-table";
+import {
+  VocabTable,
+  type VocabListSummary,
+} from "@/components/study/vocab-table";
 
 export const metadata: Metadata = { title: "My vocabulary" };
 
@@ -17,11 +26,40 @@ export default async function StudyVocabPage() {
   const learner = await requireLearner();
   const now = new Date();
 
-  const items = await db
-    .select()
-    .from(studyVocab)
-    .where(eq(studyVocab.learnerId, learner.id))
-    .orderBy(desc(studyVocab.createdAt));
+  const [items, listRows, listItemRows] = await Promise.all([
+    db
+      .select()
+      .from(studyVocab)
+      .where(eq(studyVocab.learnerId, learner.id))
+      .orderBy(desc(studyVocab.createdAt)),
+    db
+      .select({ id: studyVocabLists.id, name: studyVocabLists.name })
+      .from(studyVocabLists)
+      .where(eq(studyVocabLists.learnerId, learner.id))
+      .orderBy(asc(studyVocabLists.createdAt)),
+    db
+      .select({
+        listId: studyVocabListItems.listId,
+        vocabId: studyVocabListItems.vocabId,
+      })
+      .from(studyVocabListItems)
+      .innerJoin(
+        studyVocabLists,
+        eq(studyVocabListItems.listId, studyVocabLists.id),
+      )
+      .where(eq(studyVocabLists.learnerId, learner.id))
+      .orderBy(
+        asc(studyVocabListItems.listId),
+        asc(studyVocabListItems.position),
+      ),
+  ]);
+
+  const lists: VocabListSummary[] = listRows.map((list) => ({
+    ...list,
+    itemIds: listItemRows
+      .filter((row) => row.listId === list.id)
+      .map((row) => row.vocabId),
+  }));
 
   const dueCount = items.filter((item) => isCardDue(item.srsDueAt, now)).length;
 
@@ -70,6 +108,16 @@ export default async function StudyVocabPage() {
           <Field label="Meaning">
             <Input name="meaning" maxLength={500} placeholder="book (informal)" />
           </Field>
+          <Field label="Category" hint="verb, noun, phrase — optional">
+            <Select name="category" defaultValue="">
+              <option value="">No category</option>
+              {STUDY_VOCAB_CATEGORIES.map((category) => (
+                <option key={category} value={category}>
+                  {category}
+                </option>
+              ))}
+            </Select>
+          </Field>
           <Field label="Example" className="sm:col-span-2">
             <Input
               name="example"
@@ -89,7 +137,7 @@ export default async function StudyVocabPage() {
           “+ word — meaning” chips — one tap adds them here.
         </p>
       ) : (
-        <VocabTable items={items} />
+        <VocabTable items={items} lists={lists} />
       )}
     </div>
   );

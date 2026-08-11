@@ -3,8 +3,24 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, CornerDownLeft, Plus, Sparkles } from "lucide-react";
-import { addStudyVocab } from "@/lib/actions/study";
+import {
+  Check,
+  Copy,
+  CornerDownLeft,
+  GitBranch,
+  MoreHorizontal,
+  Plus,
+  Sparkles,
+  Square,
+  Volume2,
+} from "lucide-react";
+import { addStudyVocab, branchStudyThread } from "@/lib/actions/study";
+import {
+  Dropdown,
+  DropdownContent,
+  DropdownItem,
+  DropdownTrigger,
+} from "@/components/ui/dropdown";
 import { cn } from "@/lib/utils";
 import { parseVocabLine, type VocabLine } from "@/lib/vocab-lines";
 
@@ -16,6 +32,20 @@ type ChatMessage = {
 };
 
 type CapHit = { cap: number; pro: boolean };
+
+/** BCP-47 hints for read-aloud, keyed by the study-language roster. */
+const SPEECH_LANGS: Record<string, string> = {
+  French: "fr-FR",
+  Japanese: "ja-JP",
+  English: "en-US",
+  Spanish: "es-ES",
+  German: "de-DE",
+  Italian: "it-IT",
+  Korean: "ko-KR",
+  Chinese: "zh-CN",
+  Thai: "th-TH",
+  Portuguese: "pt-PT",
+};
 
 /**
  * One assistant reply can carry vocabulary suggestions on their own
@@ -101,6 +131,9 @@ function modelLabel(model: string): string {
   return tail.length > 2 ? tail[0].toUpperCase() + tail.slice(1) : model;
 }
 
+const messageActionClass =
+  "flex size-7 items-center justify-center rounded-md text-fg-tertiary transition-colors hover:bg-surface-hover hover:text-fg";
+
 export function StudyChat({
   threadId,
   language,
@@ -124,8 +157,22 @@ export function StudyChat({
   const [model, setModel] = React.useState(defaultModel);
   const [capHit, setCapHit] = React.useState<CapHit | null>(null);
   const [sendError, setSendError] = React.useState<string | null>(null);
+  const [copiedId, setCopiedId] = React.useState<string | null>(null);
+  const [speakingId, setSpeakingId] = React.useState<string | null>(null);
+  // False on the server snapshot, real capability on the client — the
+  // store never changes, so the subscribe is a no-op.
+  const ttsSupported = React.useSyncExternalStore(
+    React.useCallback(() => () => {}, []),
+    () => "speechSynthesis" in window,
+    () => false,
+  );
+  const [, startBranch] = React.useTransition();
   const endRef = React.useRef<HTMLDivElement>(null);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+  const abortRef = React.useRef<AbortController | null>(null);
+  const copiedTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
 
   const firstName = learnerName?.split(" ")[0] ?? null;
   const suggestions = language
@@ -150,6 +197,16 @@ export function StudyChat({
     endRef.current?.scrollIntoView({ block: "end" });
   }, [messages]);
 
+  React.useEffect(() => {
+    return () => {
+      // Leaving the chat mid-read-aloud must not keep the voice going.
+      if ("speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
+      if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
+    };
+  }, []);
+
   const send = async () => {
     const message = input.trim();
     if (!message || streaming) return;
@@ -157,6 +214,8 @@ export function StudyChat({
     setSendError(null);
     setInput("");
     setStreaming(true);
+    const controller = new AbortController();
+    abortRef.current = controller;
     const localUserId = `local-user-${messages.length}`;
     setMessages((prev) => [
       ...prev,
@@ -168,6 +227,7 @@ export function StudyChat({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ threadId, message, model }),
+        signal: controller.signal,
       });
 
       if (res.status === 429) {
@@ -205,14 +265,67 @@ export function StudyChat({
       // Refresh server components (thread titles) without touching state.
       router.refresh();
     } catch (error) {
-      console.error("study chat: send failed", error);
-      setSendError("Something went wrong sending that — please try again.");
-      setMessages((prev) => prev.filter((m) => m.id !== localUserId));
-      setInput(message);
+      if (controller.signal.aborted) {
+        // The learner hit Stop — the user turn and the partial reply are
+        // persisted server-side, so keep them on screen. Refresh syncs
+        // thread titles the same way a completed turn does.
+        router.refresh();
+      } else {
+        console.error("study chat: send failed", error);
+        setSendError("Something went wrong sending that — please try again.");
+        setMessages((prev) => prev.filter((m) => m.id !== localUserId));
+        setInput(message);
+      }
     } finally {
+      abortRef.current = null;
       setStreaming(false);
       textareaRef.current?.focus();
     }
+  };
+
+  const stop = () => {
+    abortRef.current?.abort();
+  };
+
+  const copyMessage = (message: ChatMessage, text: string) => {
+    void navigator.clipboard
+      .writeText(text)
+      .then(() => {
+        setCopiedId(message.id);
+        if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
+        copiedTimerRef.current = setTimeout(() => setCopiedId(null), 1500);
+      })
+      .catch((error: unknown) => {
+        console.error("study chat: clipboard write failed", error);
+      });
+  };
+
+  const readAloud = (message: ChatMessage, text: string) => {
+    if (!ttsSupported) return;
+    window.speechSynthesis.cancel();
+    if (speakingId === message.id) {
+      setSpeakingId(null);
+      return;
+    }
+    const utterance = new SpeechSynthesisUtterance(text);
+    const speechLang = language ? SPEECH_LANGS[language] : undefined;
+    if (speechLang) utterance.lang = speechLang;
+    utterance.onend = () => setSpeakingId(null);
+    utterance.onerror = () => setSpeakingId(null);
+    setSpeakingId(message.id);
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const branchAt = (index: number) => {
+    startBranch(async () => {
+      try {
+        await branchStudyThread(threadId, index + 1);
+      } catch (error) {
+        // The action redirects to the new chat on success (NEXT_REDIRECT
+        // is handled by Next itself); anything reaching here is real.
+        console.error("study chat: branch failed", error);
+      }
+    });
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -227,139 +340,242 @@ export function StudyChat({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-5 sm:px-6">
-        {messages.length === 0 && (
-          <div className="flex h-full flex-col items-center justify-center gap-1.5 text-center">
-            <Sparkles className="mb-1 size-5 text-accent" />
-            <p className="text-[1.25rem] font-semibold tracking-tight">
-              {greeting}
-            </p>
-            <p className="max-w-sm text-[0.9375rem] text-fg-secondary">
-              {subline}
-            </p>
-            <div className="mt-4 flex flex-wrap justify-center gap-2">
-              {suggestions.map((suggestion) => (
-                <button
-                  key={suggestion}
-                  type="button"
-                  onClick={() => {
-                    setInput(suggestion);
-                    textareaRef.current?.focus();
-                  }}
-                  className="rounded-full border border-border-strong bg-surface px-3 py-1.5 text-[0.875rem] text-fg-secondary transition-colors hover:bg-surface-hover hover:text-fg"
-                >
-                  {suggestion}
-                </button>
-              ))}
+      {/* The scroll region spans the full pane (scrollbar at the window
+          edge); the readable column inside stays capped and centered. */}
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div
+          className={cn(
+            "mx-auto w-full max-w-3xl px-4 py-5 sm:px-6",
+            messages.length === 0 ? "flex h-full flex-col" : "space-y-4",
+          )}
+        >
+          {messages.length === 0 && (
+            <div className="flex flex-1 flex-col items-center justify-center gap-1.5 text-center">
+              <Sparkles className="mb-1 size-5 text-accent" />
+              <p className="text-[1.25rem] font-semibold tracking-tight">
+                {greeting}
+              </p>
+              <p className="max-w-sm text-[0.9375rem] text-fg-secondary">
+                {subline}
+              </p>
+              <div className="mt-4 flex flex-wrap justify-center gap-2">
+                {suggestions.map((suggestion) => (
+                  <button
+                    key={suggestion}
+                    type="button"
+                    onClick={() => {
+                      setInput(suggestion);
+                      textareaRef.current?.focus();
+                    }}
+                    className="rounded-full border border-border-strong bg-surface px-3 py-1.5 text-[0.875rem] text-fg-secondary transition-colors hover:bg-surface-hover hover:text-fg"
+                  >
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {messages.map((m) => {
-          if (m.role === "user") {
+          {messages.map((m, index) => {
+            // The in-flight reply has no persisted row yet — its actions
+            // appear when the stream settles (matching ChatGPT).
+            const settled = !(streaming && index === messages.length - 1);
+            if (m.role === "user") {
+              return (
+                <div key={m.id} className="group">
+                  <div className="ml-10 rounded-lg bg-accent-soft px-4 py-2.5 sm:ml-16">
+                    <p className="whitespace-pre-wrap text-[0.9375rem] leading-relaxed">
+                      {m.content}
+                    </p>
+                  </div>
+                  {settled && (
+                    <div className="mt-1 flex justify-end opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 max-lg:opacity-100">
+                      <button
+                        type="button"
+                        onClick={() => copyMessage(m, m.content)}
+                        aria-label="Copy"
+                        title="Copy"
+                        className={messageActionClass}
+                      >
+                        {copiedId === m.id ? (
+                          <Check className="size-3.5" />
+                        ) : (
+                          <Copy className="size-3.5" />
+                        )}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            }
+            // VOCAB chips need a language to file the word under — generic
+            // chats render replies verbatim.
+            const { text, vocab } = language
+              ? parseReply(m.content)
+              : { text: m.content, vocab: [] };
             return (
-              <div key={m.id} className="ml-10 rounded-lg bg-accent-soft px-4 py-2.5 sm:ml-16">
-                <p className="whitespace-pre-wrap text-[0.9375rem] leading-relaxed">
-                  {m.content}
-                </p>
+              <div key={m.id} className="group">
+                <div className="mr-10 rounded-lg bg-surface px-4 py-2.5 shadow-card sm:mr-16">
+                  <p className="whitespace-pre-wrap text-[0.9375rem] leading-relaxed">
+                    {text || (streaming ? "…" : "")}
+                  </p>
+                  {language && vocab.length > 0 && (
+                    <div className="mt-2.5 flex flex-wrap gap-1.5">
+                      {vocab.map((v) => (
+                        <VocabChip
+                          key={`${m.id}-${v.term}`}
+                          term={v.term}
+                          meaning={v.meaning}
+                          language={language}
+                        />
+                      ))}
+                    </div>
+                  )}
+                  {m.model && m.model !== "mock" && (
+                    <p className="mt-1.5 text-[0.72rem] text-fg-tertiary">
+                      {m.model}
+                    </p>
+                  )}
+                </div>
+                {settled && (
+                  <div className="mt-1 flex items-center gap-0.5 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 max-lg:opacity-100">
+                    <button
+                      type="button"
+                      onClick={() => copyMessage(m, text)}
+                      aria-label="Copy"
+                      title="Copy"
+                      className={messageActionClass}
+                    >
+                      {copiedId === m.id ? (
+                        <Check className="size-3.5" />
+                      ) : (
+                        <Copy className="size-3.5" />
+                      )}
+                    </button>
+                    {ttsSupported && (
+                      <button
+                        type="button"
+                        onClick={() => readAloud(m, text)}
+                        aria-label={
+                          speakingId === m.id ? "Stop reading" : "Read aloud"
+                        }
+                        title={
+                          speakingId === m.id ? "Stop reading" : "Read aloud"
+                        }
+                        className={cn(
+                          messageActionClass,
+                          speakingId === m.id && "text-accent-text",
+                        )}
+                      >
+                        <Volume2 className="size-3.5" />
+                      </button>
+                    )}
+                    <Dropdown>
+                      <DropdownTrigger asChild>
+                        <button
+                          type="button"
+                          aria-label="More actions"
+                          title="More"
+                          className={cn(
+                            messageActionClass,
+                            "data-[state=open]:text-fg",
+                          )}
+                        >
+                          <MoreHorizontal className="size-3.5" />
+                        </button>
+                      </DropdownTrigger>
+                      <DropdownContent align="start" className="w-52">
+                        <DropdownItem onSelect={() => branchAt(index)}>
+                          <GitBranch className="size-4 text-fg-tertiary" />
+                          Branch in new chat
+                        </DropdownItem>
+                      </DropdownContent>
+                    </Dropdown>
+                  </div>
+                )}
               </div>
             );
-          }
-          // VOCAB chips need a language to file the word under — generic
-          // chats render replies verbatim.
-          const { text, vocab } = language
-            ? parseReply(m.content)
-            : { text: m.content, vocab: [] };
-          return (
-            <div key={m.id} className="mr-10 rounded-lg bg-surface px-4 py-2.5 shadow-card sm:mr-16">
-              <p className="whitespace-pre-wrap text-[0.9375rem] leading-relaxed">
-                {text || (streaming ? "…" : "")}
-              </p>
-              {language && vocab.length > 0 && (
-                <div className="mt-2.5 flex flex-wrap gap-1.5">
-                  {vocab.map((v) => (
-                    <VocabChip
-                      key={`${m.id}-${v.term}`}
-                      term={v.term}
-                      meaning={v.meaning}
-                      language={language}
-                    />
-                  ))}
-                </div>
-              )}
-              {m.model && m.model !== "mock" && (
-                <p className="mt-1.5 text-[0.72rem] text-fg-tertiary">
-                  {m.model}
-                </p>
-              )}
-            </div>
-          );
-        })}
-        <div ref={endRef} />
+          })}
+          <div ref={endRef} />
+        </div>
       </div>
 
       <div className="px-4 pt-1 pb-4 sm:px-6">
-        {capHit && (
-          <div className="mb-2.5 rounded-md border border-border-strong bg-surface px-3 py-2.5 text-[0.875rem]">
-            {capHit.pro ? (
-              <span>
-                You&rsquo;ve hit today&rsquo;s practice brake ({capHit.cap}{" "}
-                messages in 24h). It resets on its own — rest your brain! 🌙
-              </span>
-            ) : (
-              <span>
-                You&rsquo;ve used your {capHit.cap} free messages for today.{" "}
-                <Link
-                  href="/study/account"
-                  className="font-medium text-accent-text underline underline-offset-2"
-                >
-                  Upgrade to keep practicing
-                </Link>
-                .
-              </span>
-            )}
-          </div>
-        )}
-        {sendError && (
-          <p className="mb-2.5 text-[0.875rem] text-danger">{sendError}</p>
-        )}
+        <div className="mx-auto w-full max-w-3xl">
+          {capHit && (
+            <div className="mb-2.5 rounded-md border border-border-strong bg-surface px-3 py-2.5 text-[0.875rem]">
+              {capHit.pro ? (
+                <span>
+                  You&rsquo;ve hit today&rsquo;s practice brake ({capHit.cap}{" "}
+                  messages in 24h). It resets on its own — rest your brain! 🌙
+                </span>
+              ) : (
+                <span>
+                  You&rsquo;ve used your {capHit.cap} free messages for today.{" "}
+                  <Link
+                    href="/study/account"
+                    className="font-medium text-accent-text underline underline-offset-2"
+                  >
+                    Upgrade to keep practicing
+                  </Link>
+                  .
+                </span>
+              )}
+            </div>
+          )}
+          {sendError && (
+            <p className="mb-2.5 text-[0.875rem] text-danger">{sendError}</p>
+          )}
 
-        {/* ChatGPT-style pill composer: textarea on top, controls below. */}
-        <div className="rounded-2xl border border-border-strong bg-surface px-3 pt-2.5 pb-2 shadow-sm transition-colors focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/20">
-          <textarea
-            ref={textareaRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={onKeyDown}
-            rows={Math.min(5, Math.max(1, input.split("\n").length))}
-            maxLength={4000}
-            placeholder={language ? `Practice your ${language}…` : "Ask anything…"}
-            aria-label="Message"
-            className="max-h-40 w-full resize-none border-0 bg-transparent text-[0.9375rem] leading-relaxed placeholder:text-fg-tertiary focus:outline-none"
-          />
-          <div className="mt-1 flex items-center justify-between">
-            <select
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              title="Model for the next message"
-              aria-label="Model"
-              className="h-7 rounded-md bg-transparent px-1 text-[0.8125rem] font-medium text-fg-secondary transition-colors hover:bg-surface-hover focus:outline-none"
-            >
-              {models.map((m) => (
-                <option key={m} value={m}>
-                  {modelLabel(m)}
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              onClick={() => void send()}
-              disabled={streaming || input.trim().length === 0}
-              aria-label="Send"
-              className="flex size-8 items-center justify-center rounded-full bg-accent text-white shadow-sm transition-colors hover:bg-accent-hover disabled:pointer-events-none disabled:opacity-40"
-            >
-              <CornerDownLeft className="size-4" />
-            </button>
+          {/* ChatGPT-style pill composer: textarea on top, controls below. */}
+          <div className="rounded-2xl border border-border-strong bg-surface px-3 pt-2.5 pb-2 shadow-sm transition-colors focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/20">
+            <textarea
+              ref={textareaRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={onKeyDown}
+              rows={Math.min(5, Math.max(1, input.split("\n").length))}
+              maxLength={4000}
+              placeholder={language ? `Practice your ${language}…` : "Ask anything…"}
+              aria-label="Message"
+              className="max-h-40 w-full resize-none border-0 bg-transparent text-[0.9375rem] leading-relaxed placeholder:text-fg-tertiary focus:outline-none"
+            />
+            <div className="mt-1 flex items-center justify-between">
+              <select
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                title="Model for the next message"
+                aria-label="Model"
+                className="h-7 rounded-md bg-transparent px-1 text-[0.8125rem] font-medium text-fg-secondary transition-colors hover:bg-surface-hover focus:outline-none"
+              >
+                {models.map((m) => (
+                  <option key={m} value={m}>
+                    {modelLabel(m)}
+                  </option>
+                ))}
+              </select>
+              {streaming ? (
+                <button
+                  type="button"
+                  onClick={stop}
+                  aria-label="Stop"
+                  title="Stop generating"
+                  className="flex size-8 items-center justify-center rounded-full bg-accent text-white shadow-sm transition-colors hover:bg-accent-hover"
+                >
+                  <Square className="size-3 fill-current" />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => void send()}
+                  disabled={input.trim().length === 0}
+                  aria-label="Send"
+                  className="flex size-8 items-center justify-center rounded-full bg-accent text-white shadow-sm transition-colors hover:bg-accent-hover disabled:pointer-events-none disabled:opacity-40"
+                >
+                  <CornerDownLeft className="size-4" />
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>

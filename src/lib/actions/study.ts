@@ -21,7 +21,10 @@ import {
   studyProjects,
   studyThreads,
   studyVocab,
+  studyVocabListItems,
+  studyVocabLists,
 } from "@/db";
+import { STUDY_VOCAB_CATEGORIES } from "@/lib/study-vocab-categories";
 import {
   extractVocabCandidates,
   vocabCandidateSchema,
@@ -68,7 +71,14 @@ function parseProjectForm(formData: FormData) {
   });
 }
 
-export async function createStudyProject(formData: FormData) {
+/**
+ * ChatGPT behavior: creating a project just adds the folder to the
+ * sidebar — the caller (a dialog) closes and the learner stays where
+ * they are. No redirect to the settings page.
+ */
+export async function createStudyProject(
+  formData: FormData,
+): Promise<{ id: string }> {
   const learner = await requireLearner();
   const parsed = parseProjectForm(formData);
 
@@ -83,7 +93,7 @@ export async function createStudyProject(formData: FormData) {
     .returning({ id: studyProjects.id });
 
   revalidateStudyTree();
-  redirect(`/study/project/${project.id}`);
+  return { id: project.id };
 }
 
 export async function updateStudyProject(
@@ -208,6 +218,11 @@ export async function toggleStudyThreadPin(threadId: string) {
   revalidateStudyTree();
 }
 
+/**
+ * No redirect here — the sidebar deletes chats the learner isn't even
+ * viewing (ChatGPT-style row menus), and yanking them to /study would be
+ * hostile. The chat header's own menu navigates after deleting.
+ */
 export async function deleteStudyThread(threadId: string) {
   const learner = await requireLearner();
   const id = z.string().uuid().parse(threadId);
@@ -219,7 +234,90 @@ export async function deleteStudyThread(threadId: string) {
     );
 
   revalidateStudyTree();
-  redirect("/study");
+}
+
+export async function renameStudyThread(threadId: string, title: string) {
+  const learner = await requireLearner();
+  const id = z.string().uuid().parse(threadId);
+  const parsedTitle = z.string().trim().min(1).max(120).parse(title);
+
+  const updated = await db
+    .update(studyThreads)
+    .set({ title: parsedTitle, updatedAt: new Date() })
+    .where(
+      and(eq(studyThreads.id, id), eq(studyThreads.learnerId, learner.id)),
+    )
+    .returning({ id: studyThreads.id });
+  if (updated.length === 0) throw new Error("Chat not found");
+
+  revalidateStudyTree();
+}
+
+/**
+ * ChatGPT's "Branch in new chat": a new thread in the same container
+ * (project, language, title) carrying the conversation up to and
+ * including the branched-from message. The cut point is the message's
+ * position in createdAt order — the client's list mirrors it because
+ * the stream route persists the assistant turn before closing.
+ * No model call happens here, so the daily cap doesn't apply.
+ */
+export async function branchStudyThread(
+  threadId: string,
+  messageCount: number,
+) {
+  const learner = await requireLearner();
+  const id = z.string().uuid().parse(threadId);
+  const count = z.number().int().min(1).max(1000).parse(messageCount);
+
+  const thread = await db.query.studyThreads.findFirst({
+    where: and(eq(studyThreads.id, id), eq(studyThreads.learnerId, learner.id)),
+    columns: { id: true, projectId: true, language: true, title: true },
+  });
+  if (!thread) throw new Error("Chat not found");
+
+  const rows = await db
+    .select({
+      role: studyMessages.role,
+      content: studyMessages.content,
+      model: studyMessages.model,
+    })
+    .from(studyMessages)
+    .where(
+      and(
+        eq(studyMessages.threadId, thread.id),
+        eq(studyMessages.learnerId, learner.id),
+      ),
+    )
+    .orderBy(asc(studyMessages.createdAt))
+    .limit(count);
+  if (rows.length === 0) throw new Error("Nothing to branch yet");
+
+  const [branch] = await db
+    .insert(studyThreads)
+    .values({
+      learnerId: learner.id,
+      projectId: thread.projectId,
+      language: thread.language,
+      title: thread.title,
+    })
+    .returning({ id: studyThreads.id });
+
+  // Explicit millisecond-stepped timestamps — a single defaultNow()
+  // batch insert would leave the copied turns unordered.
+  const base = Date.now();
+  await db.insert(studyMessages).values(
+    rows.map((row, i) => ({
+      learnerId: learner.id,
+      threadId: branch.id,
+      role: row.role,
+      content: row.content,
+      model: row.model,
+      createdAt: new Date(base + i),
+    })),
+  );
+
+  revalidateStudyTree();
+  redirect(`/study?t=${branch.id}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -232,6 +330,7 @@ const vocabSchema = z.object({
   reading: z.string().trim().max(200).optional(),
   meaning: z.string().trim().max(500).optional(),
   example: z.string().trim().max(1000).optional(),
+  category: z.enum(STUDY_VOCAB_CATEGORIES).optional(),
 });
 
 export async function addStudyVocab(formData: FormData) {
@@ -242,6 +341,7 @@ export async function addStudyVocab(formData: FormData) {
     reading: formData.get("reading") || undefined,
     meaning: formData.get("meaning") || undefined,
     example: formData.get("example") || undefined,
+    category: formData.get("category") || undefined,
   });
 
   await db.insert(studyVocab).values({
@@ -251,6 +351,7 @@ export async function addStudyVocab(formData: FormData) {
     reading: parsed.reading || null,
     meaning: parsed.meaning || null,
     example: parsed.example || null,
+    category: parsed.category ?? null,
   });
 
   revalidatePath("/study/vocab");
@@ -269,11 +370,15 @@ export async function updateStudyVocab(
     reading?: string;
     meaning?: string;
     example?: string;
+    category?: string;
   },
 ) {
   const learner = await requireLearner();
   const id = z.string().uuid().parse(vocabId);
-  const parsed = vocabSchema.parse(patch);
+  const parsed = vocabSchema.parse({
+    ...patch,
+    category: patch.category || undefined,
+  });
 
   const updated = await db
     .update(studyVocab)
@@ -283,6 +388,7 @@ export async function updateStudyVocab(
       reading: parsed.reading || null,
       meaning: parsed.meaning || null,
       example: parsed.example || null,
+      category: parsed.category ?? null,
       updatedAt: new Date(),
     })
     .where(and(eq(studyVocab.id, id), eq(studyVocab.learnerId, learner.id)))
@@ -427,6 +533,167 @@ export async function addStudyVocabBulk(
   }
 
   return { added: fresh.length };
+}
+
+// ---------------------------------------------------------------------------
+// Vocabulary lists — learner-curated ordered collections ("Common French
+// verbs"). Created from the table's current filter/sort view, then
+// managed item-by-item: add, remove, reorder.
+// ---------------------------------------------------------------------------
+
+const listNameSchema = z.string().trim().min(1).max(80);
+
+/** The learner's list, or throw — every list mutation goes through this. */
+async function requireOwnList(learnerId: string, listId: string) {
+  const id = z.string().uuid().parse(listId);
+  const list = await db.query.studyVocabLists.findFirst({
+    where: and(
+      eq(studyVocabLists.id, id),
+      eq(studyVocabLists.learnerId, learnerId),
+    ),
+  });
+  if (!list) throw new Error("List not found");
+  return list;
+}
+
+/**
+ * Create a list from an ordered set of the learner's own words (the
+ * table's current view). Rows that aren't the learner's are dropped
+ * server-side, not trusted from the client.
+ */
+export async function createStudyVocabList(name: string, vocabIds: string[]) {
+  const learner = await requireLearner();
+  const parsedName = listNameSchema.parse(name);
+  const ids = z.array(z.string().uuid()).min(1).max(500).parse(vocabIds);
+
+  const owned = await db
+    .select({ id: studyVocab.id })
+    .from(studyVocab)
+    .where(eq(studyVocab.learnerId, learner.id));
+  const ownedIds = new Set(owned.map((r) => r.id));
+  const kept = [...new Set(ids)].filter((id) => ownedIds.has(id));
+  if (kept.length === 0) throw new Error("No words to save");
+
+  const [list] = await db
+    .insert(studyVocabLists)
+    .values({ learnerId: learner.id, name: parsedName })
+    .returning({ id: studyVocabLists.id });
+
+  await db.insert(studyVocabListItems).values(
+    kept.map((vocabId, position) => ({ listId: list.id, vocabId, position })),
+  );
+
+  revalidatePath("/study/vocab");
+  return { id: list.id, count: kept.length };
+}
+
+export async function renameStudyVocabList(listId: string, name: string) {
+  const learner = await requireLearner();
+  const parsedName = listNameSchema.parse(name);
+  const list = await requireOwnList(learner.id, listId);
+
+  await db
+    .update(studyVocabLists)
+    .set({ name: parsedName, updatedAt: new Date() })
+    .where(eq(studyVocabLists.id, list.id));
+
+  revalidatePath("/study/vocab");
+}
+
+export async function deleteStudyVocabList(listId: string) {
+  const learner = await requireLearner();
+  const list = await requireOwnList(learner.id, listId);
+
+  await db.delete(studyVocabLists).where(eq(studyVocabLists.id, list.id));
+
+  revalidatePath("/study/vocab");
+}
+
+export async function addToStudyVocabList(listId: string, vocabId: string) {
+  const learner = await requireLearner();
+  const list = await requireOwnList(learner.id, listId);
+  const id = z.string().uuid().parse(vocabId);
+
+  const word = await db.query.studyVocab.findFirst({
+    where: and(eq(studyVocab.id, id), eq(studyVocab.learnerId, learner.id)),
+    columns: { id: true },
+  });
+  if (!word) throw new Error("Word not found");
+
+  const items = await db
+    .select({ vocabId: studyVocabListItems.vocabId, position: studyVocabListItems.position })
+    .from(studyVocabListItems)
+    .where(eq(studyVocabListItems.listId, list.id));
+  if (items.some((i) => i.vocabId === id)) return; // already on the list
+
+  const nextPosition = items.reduce((max, i) => Math.max(max, i.position), -1) + 1;
+  await db.insert(studyVocabListItems).values({
+    listId: list.id,
+    vocabId: id,
+    position: nextPosition,
+  });
+
+  revalidatePath("/study/vocab");
+}
+
+export async function removeFromStudyVocabList(
+  listId: string,
+  vocabId: string,
+) {
+  const learner = await requireLearner();
+  const list = await requireOwnList(learner.id, listId);
+  const id = z.string().uuid().parse(vocabId);
+
+  await db
+    .delete(studyVocabListItems)
+    .where(
+      and(
+        eq(studyVocabListItems.listId, list.id),
+        eq(studyVocabListItems.vocabId, id),
+      ),
+    );
+
+  revalidatePath("/study/vocab");
+}
+
+/** Swap the item with its neighbor — one step up or down per call. */
+export async function moveStudyVocabListItem(
+  listId: string,
+  vocabId: string,
+  direction: "up" | "down",
+) {
+  const learner = await requireLearner();
+  const list = await requireOwnList(learner.id, listId);
+  const id = z.string().uuid().parse(vocabId);
+  const dir = z.enum(["up", "down"]).parse(direction);
+
+  const items = await db
+    .select({
+      id: studyVocabListItems.id,
+      vocabId: studyVocabListItems.vocabId,
+      position: studyVocabListItems.position,
+    })
+    .from(studyVocabListItems)
+    .where(eq(studyVocabListItems.listId, list.id))
+    .orderBy(asc(studyVocabListItems.position));
+
+  const index = items.findIndex((i) => i.vocabId === id);
+  if (index === -1) throw new Error("Word is not on this list");
+  const swapWith = dir === "up" ? index - 1 : index + 1;
+  if (swapWith < 0 || swapWith >= items.length) return; // already at the edge
+
+  const a = items[index];
+  const b = items[swapWith];
+  await db
+    .update(studyVocabListItems)
+    .set({ position: b.position })
+    .where(eq(studyVocabListItems.id, a.id));
+  await db
+    .update(studyVocabListItems)
+    .set({ position: a.position })
+    .where(eq(studyVocabListItems.id, b.id));
+
+  revalidatePath("/study/vocab");
 }
 
 const gradeSchema = z.enum(["again", "hard", "good", "easy"]);

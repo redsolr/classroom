@@ -615,6 +615,9 @@ export const studyVocab = pgTable(
     meaning: text("meaning"),
     example: text("example"),
     notes: text("notes"),
+    /** Word class (Verb, Noun, Phrase, … — lib/study-vocab-categories.ts).
+     * Null = uncategorized; filterable/sortable in the vocab table. */
+    category: text("category"),
     status: vocabularyStatusEnum("status").notNull().default("new"),
     srsReps: integer("srs_reps").notNull().default(0),
     srsEaseFactor: real("srs_ease_factor").notNull().default(2.5),
@@ -631,6 +634,52 @@ export const studyVocab = pgTable(
   (t) => [
     index("study_vocab_learner_language_idx").on(t.learnerId, t.language),
     index("study_vocab_learner_due_idx").on(t.learnerId, t.srsDueAt),
+  ],
+);
+
+// ---------------------------------------------------------------------------
+// Vocabulary lists — learner-curated, ORDERED collections of their own
+// vocab ("Common French verbs", "Restaurant phrases", …). Position is the
+// learner's manual order; deleting a word cascades it out of every list.
+// ---------------------------------------------------------------------------
+
+export const studyVocabLists = pgTable(
+  "study_vocab_lists",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    learnerId: uuid("learner_id")
+      .notNull()
+      .references(() => learners.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index("study_vocab_lists_learner_id_idx").on(t.learnerId)],
+);
+
+export const studyVocabListItems = pgTable(
+  "study_vocab_list_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    listId: uuid("list_id")
+      .notNull()
+      .references(() => studyVocabLists.id, { onDelete: "cascade" }),
+    vocabId: uuid("vocab_id")
+      .notNull()
+      .references(() => studyVocab.id, { onDelete: "cascade" }),
+    /** Manual order within the list — contiguous from 0 per list. */
+    position: integer("position").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("study_vocab_list_items_list_vocab_idx").on(t.listId, t.vocabId),
+    index("study_vocab_list_items_list_position_idx").on(t.listId, t.position),
   ],
 );
 
@@ -654,3 +703,5 @@ export type StudyProject = typeof studyProjects.$inferSelect;
 export type StudyThread = typeof studyThreads.$inferSelect;
 export type StudyMessage = typeof studyMessages.$inferSelect;
 export type StudyVocabItem = typeof studyVocab.$inferSelect;
+export type StudyVocabList = typeof studyVocabLists.$inferSelect;
+export type StudyVocabListItem = typeof studyVocabListItems.$inferSelect;

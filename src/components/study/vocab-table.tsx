@@ -2,17 +2,50 @@
 
 import * as React from "react";
 import { formatDistanceToNow } from "date-fns";
-import { ArrowDown, ArrowUp, Check, Download, Pencil, X } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  Check,
+  Download,
+  ListPlus,
+  Pencil,
+  X,
+} from "lucide-react";
 import type { StudyVocabItem } from "@/db";
-import { deleteStudyVocab, updateStudyVocab } from "@/lib/actions/study";
+import {
+  addToStudyVocabList,
+  createStudyVocabList,
+  deleteStudyVocab,
+  deleteStudyVocabList,
+  moveStudyVocabListItem,
+  removeFromStudyVocabList,
+  renameStudyVocabList,
+  updateStudyVocab,
+} from "@/lib/actions/study";
 import { Badge, vocabularyStatusTone } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { ConfirmButton } from "@/components/ui/confirm-button";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import {
+  Dropdown,
+  DropdownContent,
+  DropdownItem,
+  DropdownTrigger,
+} from "@/components/ui/dropdown";
 import { Input, Select } from "@/components/ui/field";
 import { isCardDue } from "@/lib/srs";
 import { STUDY_LANGUAGES } from "@/lib/study-languages";
+import { STUDY_VOCAB_CATEGORIES } from "@/lib/study-vocab-categories";
 import { cn } from "@/lib/utils";
 
-type SortKey = "term" | "language" | "status" | "due" | "reps";
+/** A list with its member ids in the learner's manual order. */
+export type VocabListSummary = {
+  id: string;
+  name: string;
+  itemIds: string[];
+};
+
+type SortKey = "term" | "language" | "category" | "status" | "due" | "reps";
 type SortDir = "asc" | "desc";
 type Sort = { key: SortKey; dir: SortDir };
 
@@ -23,11 +56,19 @@ const STATUS_ORDER: Record<StudyVocabItem["status"], number> = {
   mastered: 3,
 };
 
-const SORT_KEYS: SortKey[] = ["term", "language", "status", "due", "reps"];
+const SORT_KEYS: SortKey[] = [
+  "term",
+  "language",
+  "category",
+  "status",
+  "due",
+  "reps",
+];
 
 const SORT_LABELS: Record<SortKey, string> = {
   term: "Term",
   language: "Language",
+  category: "Category",
   status: "Status",
   due: "Due",
   reps: "Reps",
@@ -49,7 +90,7 @@ const EDIT_FIELDS = [
 ] as const;
 
 type DraftField = (typeof EDIT_FIELDS)[number]["key"];
-type Draft = Record<DraftField, string> & { language: string };
+type Draft = Record<DraftField, string> & { language: string; category: string };
 
 /** A null srsDueAt (never reviewed) is always due — sorts first. */
 function dueValue(item: StudyVocabItem): number {
@@ -62,6 +103,13 @@ function compare(a: StudyVocabItem, b: StudyVocabItem, key: SortKey): number {
       return a.term.localeCompare(b.term);
     case "language":
       return a.language.localeCompare(b.language);
+    case "category": {
+      // Uncategorized sorts last so real categories cluster on top.
+      if (!a.category && !b.category) return 0;
+      if (!a.category) return 1;
+      if (!b.category) return -1;
+      return a.category.localeCompare(b.category);
+    }
     case "status":
       return STATUS_ORDER[a.status] - STATUS_ORDER[b.status];
     case "due":
@@ -88,8 +136,25 @@ function DueLabel({ item, now }: { item: StudyVocabItem; now: Date }) {
   );
 }
 
-export function VocabTable({ items }: { items: StudyVocabItem[] }) {
+const chipClass = (active: boolean) =>
+  cn(
+    "rounded-md px-2 py-1 text-[0.8125rem] font-medium capitalize transition-colors",
+    active
+      ? "bg-accent-soft text-accent-text"
+      : "text-fg-secondary hover:bg-surface-hover",
+  );
+
+export function VocabTable({
+  items,
+  lists,
+}: {
+  items: StudyVocabItem[];
+  lists: VocabListSummary[];
+}) {
   const [language, setLanguage] = React.useState("all");
+  const [category, setCategory] = React.useState("all");
+  /** "all" = the filterable table; a list id = that list, manual order. */
+  const [view, setView] = React.useState("all");
   const [sort, setSort] = React.useState<Sort | null>(null);
   const [editingId, setEditingId] = React.useState<string | null>(null);
   const [draft, setDraft] = React.useState<Draft | null>(null);
@@ -97,20 +162,43 @@ export function VocabTable({ items }: { items: StudyVocabItem[] }) {
   // never freeze the buttons on every other row.
   const [busyId, setBusyId] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+  const [saveListOpen, setSaveListOpen] = React.useState(false);
+  const [saveListName, setSaveListName] = React.useState("");
+  const [renamingList, setRenamingList] = React.useState(false);
+  const [listNameDraft, setListNameDraft] = React.useState("");
   const [, startTransition] = React.useTransition();
   const now = new Date();
 
-  const languages = [...new Set(items.map((i) => i.language))].sort();
+  const activeList =
+    view === "all" ? null : (lists.find((l) => l.id === view) ?? null);
+  // A deleted list can linger in state for one render — fall back to all.
+  const inListView = activeList !== null;
 
-  const visible = items.filter(
-    (i) => language === "all" || i.language === language,
-  );
-  if (sort) {
-    const factor = sort.dir === "asc" ? 1 : -1;
-    visible.sort((a, b) => factor * compare(a, b, sort.key));
+  const languages = [...new Set(items.map((i) => i.language))].sort();
+  const categories = [
+    ...new Set(items.map((i) => i.category).filter((c): c is string => !!c)),
+  ].sort();
+
+  const byId = new Map(items.map((i) => [i.id, i]));
+  let visible: StudyVocabItem[];
+  if (inListView) {
+    visible = activeList.itemIds
+      .map((id) => byId.get(id))
+      .filter((i): i is StudyVocabItem => !!i);
+  } else {
+    visible = items.filter(
+      (i) =>
+        (language === "all" || i.language === language) &&
+        (category === "all" || i.category === category),
+    );
+    if (sort) {
+      const factor = sort.dir === "asc" ? 1 : -1;
+      visible.sort((a, b) => factor * compare(a, b, sort.key));
+    }
   }
 
   const onSortHeader = (key: SortKey) => {
+    if (inListView) return; // list order is the learner's, not a sort
     setSort((prev) =>
       prev?.key === key
         ? prev.dir === "asc"
@@ -129,6 +217,7 @@ export function VocabTable({ items }: { items: StudyVocabItem[] }) {
       meaning: item.meaning ?? "",
       example: item.example ?? "",
       language: item.language,
+      category: item.category ?? "",
     });
   };
 
@@ -153,6 +242,7 @@ export function VocabTable({ items }: { items: StudyVocabItem[] }) {
           reading: patch.reading || undefined,
           meaning: patch.meaning || undefined,
           example: patch.example || undefined,
+          category: patch.category || undefined,
         });
         setEditingId(null);
         setDraft(null);
@@ -163,6 +253,69 @@ export function VocabTable({ items }: { items: StudyVocabItem[] }) {
         setError(
           `Couldn't save “${patch.term}” — nothing was changed. Try again.`,
         );
+      } finally {
+        setBusyId(null);
+      }
+    });
+  };
+
+  const saveAsList = () => {
+    const name = saveListName.trim();
+    if (!name || visible.length === 0) return;
+    const ids = visible.map((i) => i.id);
+    setError(null);
+    startTransition(async () => {
+      try {
+        const { id } = await createStudyVocabList(name, ids);
+        setSaveListOpen(false);
+        setSaveListName("");
+        setView(id);
+      } catch (err) {
+        console.error("vocab table: failed to create list", err);
+        setError(`Couldn't create “${name}” — try again.`);
+      }
+    });
+  };
+
+  const commitListRename = () => {
+    if (!activeList) return;
+    const name = listNameDraft.trim();
+    setRenamingList(false);
+    if (!name || name === activeList.name) return;
+    startTransition(async () => {
+      try {
+        await renameStudyVocabList(activeList.id, name);
+      } catch (err) {
+        console.error("vocab table: failed to rename list", err);
+        setError("Couldn't rename the list — try again.");
+      }
+    });
+  };
+
+  const moveInList = (item: StudyVocabItem, direction: "up" | "down") => {
+    if (!activeList) return;
+    setBusyId(item.id);
+    startTransition(async () => {
+      try {
+        await moveStudyVocabListItem(activeList.id, item.id, direction);
+      } catch (err) {
+        console.error("vocab table: failed to reorder list item", err);
+        setError("Couldn't reorder — try again.");
+      } finally {
+        setBusyId(null);
+      }
+    });
+  };
+
+  const removeFromList = (item: StudyVocabItem) => {
+    if (!activeList) return;
+    setBusyId(item.id);
+    startTransition(async () => {
+      try {
+        await removeFromStudyVocabList(activeList.id, item.id);
+      } catch (err) {
+        console.error("vocab table: failed to remove from list", err);
+        setError("Couldn't remove the word — try again.");
       } finally {
         setBusyId(null);
       }
@@ -228,15 +381,33 @@ export function VocabTable({ items }: { items: StudyVocabItem[] }) {
       </Select>
     );
 
+  const categorySelect = (item: StudyVocabItem, className?: string) =>
+    draft && (
+      <Select
+        aria-label="Edit category"
+        value={draft.category}
+        onChange={(e) => setField("category", e.target.value)}
+        onKeyDown={(e) => onEditKeyDown(e, item)}
+        className={className}
+      >
+        <option value="">No category</option>
+        {STUDY_VOCAB_CATEGORIES.map((c) => (
+          <option key={c} value={c}>
+            {c}
+          </option>
+        ))}
+      </Select>
+    );
+
   // Rendered by CALLING these (not as <Components/>): a component defined
   // inside a render would get a new identity every keystroke and remount
   // the input, losing focus mid-edit.
   const sortHeader = (key: SortKey) => {
-    const active = sort?.key === key;
+    const active = !inListView && sort?.key === key;
     return (
       <th
         aria-sort={
-          active ? (sort.dir === "asc" ? "ascending" : "descending") : "none"
+          active ? (sort!.dir === "asc" ? "ascending" : "descending") : "none"
         }
         className="px-4 py-2.5 font-medium"
       >
@@ -250,7 +421,7 @@ export function VocabTable({ items }: { items: StudyVocabItem[] }) {
         >
           {SORT_LABELS[key]}
           {active &&
-            (sort.dir === "asc" ? (
+            (sort!.dir === "asc" ? (
               <ArrowUp className="size-3" />
             ) : (
               <ArrowDown className="size-3" />
@@ -283,8 +454,76 @@ export function VocabTable({ items }: { items: StudyVocabItem[] }) {
     </>
   );
 
-  const rowActions = (item: StudyVocabItem) => (
+  const rowActions = (item: StudyVocabItem, index: number) => (
     <>
+      {inListView && (
+        <>
+          <button
+            type="button"
+            title="Move up"
+            disabled={busyId === item.id || index === 0}
+            onClick={() => moveInList(item, "up")}
+            className="flex size-7 items-center justify-center rounded-md text-fg-tertiary transition-colors hover:bg-surface-hover hover:text-fg disabled:opacity-30"
+          >
+            <ArrowUp className="size-3.5" />
+          </button>
+          <button
+            type="button"
+            title="Move down"
+            disabled={busyId === item.id || index === visible.length - 1}
+            onClick={() => moveInList(item, "down")}
+            className="flex size-7 items-center justify-center rounded-md text-fg-tertiary transition-colors hover:bg-surface-hover hover:text-fg disabled:opacity-30"
+          >
+            <ArrowDown className="size-3.5" />
+          </button>
+          <button
+            type="button"
+            title="Remove from list"
+            disabled={busyId === item.id}
+            onClick={() => removeFromList(item)}
+            className="flex size-7 items-center justify-center rounded-md text-fg-tertiary transition-colors hover:bg-surface-hover hover:text-danger"
+          >
+            <X className="size-4" />
+          </button>
+        </>
+      )}
+      {!inListView && lists.length > 0 && (
+        <Dropdown>
+          <DropdownTrigger asChild>
+            <button
+              type="button"
+              title="Add to list"
+              disabled={busyId === item.id}
+              className="flex size-7 items-center justify-center rounded-md text-fg-tertiary transition-colors hover:bg-surface-hover hover:text-fg"
+            >
+              <ListPlus className="size-3.5" />
+            </button>
+          </DropdownTrigger>
+          <DropdownContent align="start" className="w-48">
+            {lists.map((list) => (
+              <DropdownItem
+                key={list.id}
+                disabled={list.itemIds.includes(item.id)}
+                className={cn(
+                  list.itemIds.includes(item.id) && "opacity-50",
+                )}
+                onSelect={() => {
+                  startTransition(async () => {
+                    try {
+                      await addToStudyVocabList(list.id, item.id);
+                    } catch (err) {
+                      console.error("vocab table: failed to add to list", err);
+                      setError("Couldn't add the word to the list — try again.");
+                    }
+                  });
+                }}
+              >
+                {list.name}
+              </DropdownItem>
+            ))}
+          </DropdownContent>
+        </Dropdown>
+      )}
       <button
         type="button"
         title="Edit word"
@@ -305,80 +544,184 @@ export function VocabTable({ items }: { items: StudyVocabItem[] }) {
 
   return (
     <div>
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        {languages.length > 1 && (
-          <div className="flex flex-wrap items-center gap-1">
-            {["all", ...languages].map((f) => (
+      {/* Lists row — the table's saved views. "All words" is the live
+          filterable table; a list is a manual, reorderable selection. */}
+      {(lists.length > 0 || items.length > 0) && (
+        <div className="mb-2 flex flex-wrap items-center gap-1">
+          <button
+            type="button"
+            onClick={() => {
+              setView("all");
+              setRenamingList(false);
+            }}
+            className={chipClass(!inListView)}
+          >
+            All words
+          </button>
+          {lists.map((list) =>
+            activeList?.id === list.id && renamingList ? (
+              <input
+                key={list.id}
+                autoFocus
+                value={listNameDraft}
+                onChange={(e) => setListNameDraft(e.target.value)}
+                onBlur={commitListRename}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+                    e.preventDefault();
+                    commitListRename();
+                  }
+                  if (e.key === "Escape") {
+                    e.preventDefault();
+                    setRenamingList(false);
+                  }
+                }}
+                maxLength={80}
+                aria-label="Rename list"
+                className="h-7 rounded-md border border-accent bg-transparent px-2 text-[0.8125rem] focus:outline-none"
+              />
+            ) : (
               <button
-                key={f}
+                key={list.id}
                 type="button"
-                onClick={() => setLanguage(f)}
-                className={cn(
-                  "rounded-md px-2 py-1 text-[0.8125rem] font-medium capitalize transition-colors",
-                  language === f
-                    ? "bg-accent-soft text-accent-text"
-                    : "text-fg-secondary hover:bg-surface-hover",
-                )}
+                onClick={() => setView(list.id)}
+                className={chipClass(activeList?.id === list.id)}
               >
-                {f}
+                {list.name}
+                <span className="ml-1 text-fg-tertiary">
+                  {list.itemIds.length}
+                </span>
               </button>
-            ))}
-          </div>
-        )}
-
-        {/* Phones have no column headers to click — sorting gets its own
-            control inside the viewport branch that needs it. */}
-        <div className="flex items-center gap-1 sm:hidden">
-          <div className="w-32">
-            <Select
-              aria-label="Sort by"
-              value={sort?.key ?? ""}
-              onChange={(e) =>
-                setSort(
-                  e.target.value
-                    ? { key: e.target.value as SortKey, dir: sort?.dir ?? "asc" }
-                    : null,
-                )
-              }
-            >
-              <option value="">Newest</option>
-              {SORT_KEYS.map((key) => (
-                <option key={key} value={key}>
-                  {SORT_LABELS[key]}
-                </option>
-              ))}
-            </Select>
-          </div>
-          {sort && (
-            <button
-              type="button"
-              title={sort.dir === "asc" ? "Sort descending" : "Sort ascending"}
-              onClick={() =>
-                setSort({
-                  key: sort.key,
-                  dir: sort.dir === "asc" ? "desc" : "asc",
-                })
-              }
-              className="flex size-8 items-center justify-center rounded-md border border-border-strong bg-surface text-fg-secondary shadow-sm transition-colors hover:bg-surface-hover"
-            >
-              {sort.dir === "asc" ? (
-                <ArrowUp className="size-3.5" />
-              ) : (
-                <ArrowDown className="size-3.5" />
-              )}
-            </button>
+            ),
+          )}
+          {inListView && !renamingList && (
+            <>
+              <button
+                type="button"
+                title="Rename list"
+                onClick={() => {
+                  setListNameDraft(activeList.name);
+                  setRenamingList(true);
+                }}
+                className="flex size-7 items-center justify-center rounded-md text-fg-tertiary transition-colors hover:bg-surface-hover hover:text-fg"
+              >
+                <Pencil className="size-3.5" />
+              </button>
+              <ConfirmButton
+                title="Delete list"
+                action={async () => {
+                  await deleteStudyVocabList(activeList.id);
+                  setView("all");
+                }}
+              />
+            </>
           )}
         </div>
+      )}
 
-        <a
-          href="/study/vocab/export.csv"
-          download
-          className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-md border border-border-strong bg-surface px-3 text-[0.875rem] font-medium shadow-sm transition-colors hover:bg-surface-hover"
-        >
-          <Download className="size-3.5" />
-          Export CSV
-        </a>
-      </div>
+      {!inListView && (
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          {languages.length > 1 && (
+            <div className="flex flex-wrap items-center gap-1">
+              {["all", ...languages].map((f) => (
+                <button
+                  key={f}
+                  type="button"
+                  onClick={() => setLanguage(f)}
+                  className={chipClass(language === f)}
+                >
+                  {f}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Category chips — the "show me my verbs" cut. Only offered
+              once at least one word is categorized. */}
+          {categories.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1 border-l border-border pl-2">
+              {["all", ...categories].map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setCategory(c)}
+                  className={chipClass(category === c)}
+                >
+                  {c === "all" ? "any type" : c}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Phones have no column headers to click — sorting gets its own
+              control inside the viewport branch that needs it. */}
+          <div className="flex items-center gap-1 sm:hidden">
+            <div className="w-32">
+              <Select
+                aria-label="Sort by"
+                value={sort?.key ?? ""}
+                onChange={(e) =>
+                  setSort(
+                    e.target.value
+                      ? { key: e.target.value as SortKey, dir: sort?.dir ?? "asc" }
+                      : null,
+                  )
+                }
+              >
+                <option value="">Newest</option>
+                {SORT_KEYS.map((key) => (
+                  <option key={key} value={key}>
+                    {SORT_LABELS[key]}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            {sort && (
+              <button
+                type="button"
+                title={sort.dir === "asc" ? "Sort descending" : "Sort ascending"}
+                onClick={() =>
+                  setSort({
+                    key: sort.key,
+                    dir: sort.dir === "asc" ? "desc" : "asc",
+                  })
+                }
+                className="flex size-8 items-center justify-center rounded-md border border-border-strong bg-surface text-fg-secondary shadow-sm transition-colors hover:bg-surface-hover"
+              >
+                {sort.dir === "asc" ? (
+                  <ArrowUp className="size-3.5" />
+                ) : (
+                  <ArrowDown className="size-3.5" />
+                )}
+              </button>
+            )}
+          </div>
+
+          <div className="ml-auto flex items-center gap-2">
+            {visible.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSaveListName("");
+                  setSaveListOpen(true);
+                }}
+                className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border-strong bg-surface px-3 text-[0.875rem] font-medium shadow-sm transition-colors hover:bg-surface-hover"
+              >
+                <ListPlus className="size-3.5" />
+                Save as list
+              </button>
+            )}
+            <a
+              href="/study/vocab/export.csv"
+              download
+              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border-strong bg-surface px-3 text-[0.875rem] font-medium shadow-sm transition-colors hover:bg-surface-hover"
+            >
+              <Download className="size-3.5" />
+              Export CSV
+            </a>
+          </div>
+        </div>
+      )}
 
       {error && (
         <p
@@ -389,11 +732,44 @@ export function VocabTable({ items }: { items: StudyVocabItem[] }) {
         </p>
       )}
 
+      {/* Save-as-list: names the CURRENT view (filters + sort applied) and
+          keeps its order as the list's starting order. */}
+      <Dialog open={saveListOpen} onOpenChange={setSaveListOpen}>
+        <DialogContent
+          title="Save as list"
+          description={`The ${visible.length} word${visible.length === 1 ? "" : "s"} in the current view, in this order.`}
+        >
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              saveAsList();
+            }}
+            className="flex items-center gap-2"
+          >
+            <Input
+              autoFocus
+              value={saveListName}
+              onChange={(e) => setSaveListName(e.target.value)}
+              maxLength={80}
+              placeholder="Common French verbs"
+              aria-label="List name"
+            />
+            <Button
+              type="submit"
+              variant="primary"
+              disabled={!saveListName.trim()}
+            >
+              Save
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+
       {/* Phone layout: cards. The table below is display:none here — role
           queries skip it, but getByText does NOT, so scope text assertions
           to a card (or a row) rather than the page. */}
       <ul className="space-y-2 sm:hidden">
-        {visible.map((item) => {
+        {visible.map((item, index) => {
           const editing = editingId === item.id && draft;
           return (
             <li key={item.id} className="rounded-lg bg-surface p-3 shadow-card">
@@ -403,6 +779,7 @@ export function VocabTable({ items }: { items: StudyVocabItem[] }) {
                     <div key={field.key}>{draftInput(field, item)}</div>
                   ))}
                   {languageSelect(item)}
+                  {categorySelect(item)}
                   <div className="flex items-center justify-end gap-1">
                     {editActions(item)}
                   </div>
@@ -432,12 +809,13 @@ export function VocabTable({ items }: { items: StudyVocabItem[] }) {
                       )}
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
-                      {rowActions(item)}
+                      {rowActions(item, index)}
                     </div>
                   </div>
                   <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.8125rem] text-fg-tertiary">
                     <StatusBadge item={item} />
                     <span>{item.language}</span>
+                    {item.category && <span>{item.category}</span>}
                     <span>
                       due <DueLabel item={item} now={now} />
                     </span>
@@ -452,7 +830,9 @@ export function VocabTable({ items }: { items: StudyVocabItem[] }) {
         })}
         {visible.length === 0 && (
           <li className="rounded-lg bg-surface px-4 py-8 text-center text-fg-tertiary shadow-card">
-            No words match this filter.
+            {inListView
+              ? "This list is empty — add words from the table."
+              : "No words match this filter."}
           </li>
         )}
       </ul>
@@ -465,6 +845,7 @@ export function VocabTable({ items }: { items: StudyVocabItem[] }) {
               <th className="px-4 py-2.5 font-medium">Reading</th>
               <th className="px-4 py-2.5 font-medium">Meaning</th>
               {sortHeader("language")}
+              {sortHeader("category")}
               {sortHeader("status")}
               {sortHeader("due")}
               {sortHeader("reps")}
@@ -472,7 +853,7 @@ export function VocabTable({ items }: { items: StudyVocabItem[] }) {
             </tr>
           </thead>
           <tbody>
-            {visible.map((item) => {
+            {visible.map((item, index) => {
               const editing = editingId === item.id && draft;
               return (
                 <tr
@@ -496,6 +877,9 @@ export function VocabTable({ items }: { items: StudyVocabItem[] }) {
                       <td className="px-4 py-2">
                         {languageSelect(item, "min-w-28")}
                       </td>
+                      <td className="px-4 py-2">
+                        {categorySelect(item, "min-w-28")}
+                      </td>
                     </>
                   ) : (
                     <>
@@ -514,6 +898,9 @@ export function VocabTable({ items }: { items: StudyVocabItem[] }) {
                       <td className="px-4 py-2.5 text-fg-secondary">
                         {item.language}
                       </td>
+                      <td className="px-4 py-2.5 text-fg-secondary">
+                        {item.category ?? "—"}
+                      </td>
                     </>
                   )}
                   <td className="px-4 py-2.5">
@@ -527,7 +914,7 @@ export function VocabTable({ items }: { items: StudyVocabItem[] }) {
                   </td>
                   <td className="px-4 py-2.5">
                     <div className="flex items-center justify-end gap-1">
-                      {editing ? editActions(item) : rowActions(item)}
+                      {editing ? editActions(item) : rowActions(item, index)}
                     </div>
                   </td>
                 </tr>
@@ -536,10 +923,12 @@ export function VocabTable({ items }: { items: StudyVocabItem[] }) {
             {visible.length === 0 && (
               <tr>
                 <td
-                  colSpan={8}
+                  colSpan={9}
                   className="px-4 py-8 text-center text-fg-tertiary"
                 >
-                  No words match this filter.
+                  {inListView
+                    ? "This list is empty — add words from the table."
+                    : "No words match this filter."}
                 </td>
               </tr>
             )}
