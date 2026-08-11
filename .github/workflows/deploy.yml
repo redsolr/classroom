@@ -1,11 +1,10 @@
 # Vercel deploy — the single deploy implementation for BOTH targets,
 # ported from the crm repo's proven pipeline:
-#   production  target:"production" → dev-classroom.jurisimus.com
-#               (the app's current prod hostname — rename deferred)
+#   production  target:"production" → classroom.jurisimus.com
 #   preview     no target → a Preview deployment; aliased explicitly to
-#               classroom-dev.jurisimus.com (Vercel's Preview env scope
-#               supplies the dev vars: Neon dev-branch DATABASE_URL,
-#               dev URLs)
+#               dev-classroom.jurisimus.com (portfolio convention:
+#               dev-<product>; Vercel's Preview env scope supplies the
+#               dev vars: Neon dev-branch DATABASE_URL, dev URLs)
 #
 # Two entry points:
 #   workflow_call      ci.yml's deploy jobs invoke this after every
@@ -117,10 +116,10 @@ jobs:
           resp=$(curl -s -X POST "https://api.vercel.com/v2/deployments/$DEPLOYMENT_ID/aliases?teamId=$VERCEL_TEAM_ID" \
             -H "Authorization: Bearer ${{ secrets.VERCEL_TOKEN }}" \
             -H "Content-Type: application/json" \
-            -d '{"alias":"classroom-dev.jurisimus.com"}')
+            -d '{"alias":"dev-classroom.jurisimus.com"}')
           if ! echo "$resp" | jq -e '.uid // .alias' > /dev/null; then
             echo "alias assignment failed:" >&2
             echo "$resp" | jq . >&2
             exit 1
           fi
-          echo "classroom-dev.jurisimus.com -> $DEPLOYMENT_ID"
+          echo "dev-classroom.jurisimus.com -> $DEPLOYMENT_ID"

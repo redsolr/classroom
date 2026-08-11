@@ -16,7 +16,7 @@
 #
 # Deploy jobs (ported from the crm pipeline): pushes to main deploy
 # production, pushes to develop deploy a Preview aliased to
-# classroom-dev.jurisimus.com — each only after every test job is
+# dev-classroom.jurisimus.com — each only after every test job is
 # green. Gated on the RUN_VERCEL_DEPLOY repo variable + the
 # VERCEL_TOKEN repo secret (same team-scoped token as the crm repo),
 # so the workflow lands green before those exist. Vercel's own
@@ -151,7 +151,7 @@ jobs:
   deploy-dev:
     # Dev-env deploy — pushes to develop only, same all-green gate.
     # Deploys a PREVIEW deployment (Vercel's Preview env scope supplies
-    # the dev vars) and aliases classroom-dev.jurisimus.com to it.
+    # the dev vars) and aliases dev-classroom.jurisimus.com to it.
     needs: [verify, e2e-mocked, e2e-real-auth]
     if: >-
       ${{ !cancelled() &&
