@@ -30,9 +30,9 @@ import {
   DropdownSeparator,
   DropdownTrigger,
 } from "@/components/ui/dropdown";
-import { Field, Input, Select } from "@/components/ui/field";
-import { STUDY_LANGUAGES } from "@/lib/study-languages";
-import { STUDY_VOCAB_CATEGORIES } from "@/lib/study-vocab-categories";
+import { Input } from "@/components/ui/field";
+import { InlineRenameInput } from "@/components/ui/inline-rename-input";
+import { WordFormDialog } from "@/components/study/word-form-dialog";
 import type { VocabListSummary } from "@/components/study/vocab-table";
 
 /**
@@ -42,86 +42,15 @@ import type { VocabListSummary } from "@/components/study/vocab-table";
  * rename inline, delete) lives on each row's ⋯ menu.
  */
 
-/** "New word" for the general dictionary — the old add form, as a dialog. */
+/** "New word" for the general dictionary — the shared form, as a dialog. */
 export function AddWordDialogButton() {
-  const [open, setOpen] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
-  const [pending, startTransition] = React.useTransition();
-
-  const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const data = new FormData(e.currentTarget);
-    setError(null);
-    startTransition(async () => {
-      try {
-        await addStudyVocab(data);
-        setOpen(false);
-      } catch (err) {
-        console.error("vocab: failed to add word", err);
-        setError("Couldn't add the word — please try again.");
-      }
-    });
-  };
-
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next);
-        if (!next) setError(null);
-      }}
-    >
-      <DialogTrigger asChild>
-        <Button variant="primary">New word</Button>
-      </DialogTrigger>
-      <DialogContent title="New word" description="Added to your dictionary.">
-        <form onSubmit={onSubmit} className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Language">
-              <Select name="language" defaultValue="French">
-                {STUDY_LANGUAGES.map((lang) => (
-                  <option key={lang} value={lang}>
-                    {lang}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Type">
-              <Select name="category" defaultValue="">
-                <option value="">No category</option>
-                {STUDY_VOCAB_CATEGORIES.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-          </div>
-          <Field label="Word or phrase">
-            <Input name="term" required autoFocus maxLength={200} />
-          </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Reading" hint="furigana, romaji, IPA">
-              <Input name="reading" maxLength={200} placeholder="Optional" />
-            </Field>
-            <Field label="Meaning">
-              <Input name="meaning" maxLength={500} placeholder="Optional" />
-            </Field>
-          </div>
-          <Field label="Example">
-            <Input name="example" maxLength={1000} placeholder="Optional" />
-          </Field>
-          {error && (
-            <p role="alert" className="text-[0.875rem] text-danger">
-              {error}
-            </p>
-          )}
-          <Button type="submit" variant="primary" loading={pending}>
-            Add word
-          </Button>
-        </form>
-      </DialogContent>
-    </Dialog>
+    <WordFormDialog
+      title="New word"
+      description="Added to your dictionary."
+      trigger={<Button variant="primary">New word</Button>}
+      action={addStudyVocab}
+    />
   );
 }
 
@@ -178,13 +107,9 @@ function NewBookDialog() {
 function BookRow({ list }: { list: VocabListSummary }) {
   const router = useRouter();
   const [renaming, setRenaming] = React.useState(false);
-  const [draft, setDraft] = React.useState("");
   const [pending, startTransition] = React.useTransition();
 
-  const commitRename = () => {
-    const name = draft.trim();
-    setRenaming(false);
-    if (!name || name === list.name) return;
+  const commitRename = (name: string) => {
     startTransition(async () => {
       try {
         await renameStudyVocabList(list.id, name);
@@ -198,24 +123,12 @@ function BookRow({ list }: { list: VocabListSummary }) {
     <li className="group flex items-center gap-3 px-4 py-3 transition-colors hover:bg-surface-hover">
       <BookMarked className="size-4 shrink-0 text-accent" />
       {renaming ? (
-        <input
-          autoFocus
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={commitRename}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.nativeEvent.isComposing) {
-              e.preventDefault();
-              commitRename();
-            }
-            if (e.key === "Escape") {
-              e.preventDefault();
-              setRenaming(false);
-            }
-          }}
-          maxLength={80}
-          aria-label="Rename book"
-          className="min-w-0 flex-1 rounded border border-accent bg-transparent px-1.5 py-0.5 text-[0.9375rem] focus:outline-none"
+        <InlineRenameInput
+          initialValue={list.name}
+          ariaLabel="Rename book"
+          onCommit={commitRename}
+          onClose={() => setRenaming(false)}
+          className="min-w-0 flex-1 text-[0.9375rem]"
         />
       ) : (
         <Link
@@ -265,13 +178,7 @@ function BookRow({ list }: { list: VocabListSummary }) {
             )}
             {list.pinned ? "Unpin from sidebar" : "Pin to sidebar"}
           </DropdownItem>
-          <DropdownItem
-            disabled={pending}
-            onSelect={() => {
-              setDraft(list.name);
-              setRenaming(true);
-            }}
-          >
+          <DropdownItem disabled={pending} onSelect={() => setRenaming(true)}>
             <Pencil className="size-4 text-fg-tertiary" />
             Rename
           </DropdownItem>

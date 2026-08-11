@@ -134,6 +134,26 @@ function modelLabel(model: string): string {
 const messageActionClass =
   "flex size-7 items-center justify-center rounded-md text-fg-tertiary transition-colors hover:bg-surface-hover hover:text-fg";
 
+function CopyMessageButton({
+  copied,
+  onCopy,
+}: {
+  copied: boolean;
+  onCopy: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onCopy}
+      aria-label="Copy"
+      title="Copy"
+      className={messageActionClass}
+    >
+      {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+    </button>
+  );
+}
+
 export function StudyChat({
   threadId,
   language,
@@ -390,19 +410,10 @@ export function StudyChat({
                   </div>
                   {settled && (
                     <div className="mt-1 flex justify-end opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 max-lg:opacity-100">
-                      <button
-                        type="button"
-                        onClick={() => copyMessage(m, m.content)}
-                        aria-label="Copy"
-                        title="Copy"
-                        className={messageActionClass}
-                      >
-                        {copiedId === m.id ? (
-                          <Check className="size-3.5" />
-                        ) : (
-                          <Copy className="size-3.5" />
-                        )}
-                      </button>
+                      <CopyMessageButton
+                        copied={copiedId === m.id}
+                        onCopy={() => copyMessage(m, m.content)}
+                      />
                     </div>
                   )}
                 </div>
@@ -439,19 +450,10 @@ export function StudyChat({
                 </div>
                 {settled && (
                   <div className="mt-1 flex items-center gap-0.5 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 max-lg:opacity-100">
-                    <button
-                      type="button"
-                      onClick={() => copyMessage(m, text)}
-                      aria-label="Copy"
-                      title="Copy"
-                      className={messageActionClass}
-                    >
-                      {copiedId === m.id ? (
-                        <Check className="size-3.5" />
-                      ) : (
-                        <Copy className="size-3.5" />
-                      )}
-                    </button>
+                    <CopyMessageButton
+                      copied={copiedId === m.id}
+                      onCopy={() => copyMessage(m, text)}
+                    />
                     {ttsSupported && (
                       <button
                         type="button"

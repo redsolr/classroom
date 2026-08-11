@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/badge";
 import { ConfirmButton } from "@/components/ui/confirm-button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { InlineRenameInput } from "@/components/ui/inline-rename-input";
 import { Field, Input, Select, Textarea } from "@/components/ui/field";
 import { FormDialog } from "@/components/ui/form-dialog";
 import { Card } from "@/components/ui/page-header";
@@ -220,7 +221,6 @@ export function VocabularySection({
   /** "all" | "loose" | a book id. */
   const [filter, setFilter] = React.useState("all");
   const [renamingBook, setRenamingBook] = React.useState(false);
-  const [nameDraft, setNameDraft] = React.useState("");
   const [, startTransition] = React.useTransition();
 
   const activeBook = books.find((b) => b.id === filter) ?? null;
@@ -233,11 +233,8 @@ export function VocabularySection({
   const countFor = (bookId: string) =>
     vocabulary.filter((v) => v.bookId === bookId).length;
 
-  const commitRename = () => {
+  const commitRename = (name: string) => {
     if (!activeBook) return;
-    const name = nameDraft.trim();
-    setRenamingBook(false);
-    if (!name || name === activeBook.name) return;
     startTransition(async () => {
       try {
         await renameVocabularyBook(activeBook.id, studentId, name);
@@ -282,25 +279,13 @@ export function VocabularySection({
           </button>
           {books.map((book) =>
             activeBook?.id === book.id && renamingBook ? (
-              <input
+              <InlineRenameInput
                 key={book.id}
-                autoFocus
-                value={nameDraft}
-                onChange={(e) => setNameDraft(e.target.value)}
-                onBlur={commitRename}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.nativeEvent.isComposing) {
-                    e.preventDefault();
-                    commitRename();
-                  }
-                  if (e.key === "Escape") {
-                    e.preventDefault();
-                    setRenamingBook(false);
-                  }
-                }}
-                maxLength={80}
-                aria-label="Rename book"
-                className="h-7 rounded-md border border-accent bg-transparent px-2 text-[0.8125rem] focus:outline-none"
+                initialValue={book.name}
+                ariaLabel="Rename book"
+                onCommit={commitRename}
+                onClose={() => setRenamingBook(false)}
+                className="h-7 px-2 text-[0.8125rem]"
               />
             ) : (
               <button
@@ -327,10 +312,7 @@ export function VocabularySection({
               <button
                 type="button"
                 title="Rename book"
-                onClick={() => {
-                  setNameDraft(activeBook.name);
-                  setRenamingBook(true);
-                }}
+                onClick={() => setRenamingBook(true)}
                 className="flex size-7 items-center justify-center rounded-md text-fg-tertiary transition-colors hover:bg-surface-hover hover:text-fg"
               >
                 <Pencil className="size-3.5" />

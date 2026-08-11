@@ -33,9 +33,8 @@ import {
   DropdownSeparator,
   DropdownTrigger,
 } from "@/components/ui/dropdown";
-import { Field, Input, Select } from "@/components/ui/field";
-import { STUDY_LANGUAGES } from "@/lib/study-languages";
-import { STUDY_VOCAB_CATEGORIES } from "@/lib/study-vocab-categories";
+import { Input, Select } from "@/components/ui/field";
+import { WordFormDialog } from "@/components/study/word-form-dialog";
 import { cn } from "@/lib/utils";
 
 /** A book with its member ids in the learner's manual order. */
@@ -659,7 +658,8 @@ export function VocabTable({
   );
 }
 
-/** Full-field editor — SRS state stays evidence-derived, never shown here. */
+/** Full-field editor — the shared word form, controlled. SRS state
+ * stays evidence-derived and never appears here. */
 function EditWordDialog({
   item,
   onOpenChange,
@@ -667,118 +667,23 @@ function EditWordDialog({
   item: StudyVocabItem;
   onOpenChange: (open: boolean) => void;
 }) {
-  const [error, setError] = React.useState<string | null>(null);
-  const [pending, startTransition] = React.useTransition();
-
-  const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const data = new FormData(e.currentTarget);
-    const term = String(data.get("term") ?? "").trim();
-    if (!term) return;
-    setError(null);
-    startTransition(async () => {
-      try {
-        await updateStudyVocab(item.id, {
-          language: String(data.get("language") ?? item.language),
-          term,
-          reading: String(data.get("reading") ?? "") || undefined,
-          meaning: String(data.get("meaning") ?? "") || undefined,
-          example: String(data.get("example") ?? "") || undefined,
-          category: String(data.get("category") ?? "") || undefined,
-        });
-        onOpenChange(false);
-      } catch (err) {
-        console.error("vocab table: failed to save word", err);
-        setError(`Couldn't save “${term}” — nothing was changed. Try again.`);
-      }
-    });
-  };
-
-  const languageOptions = (STUDY_LANGUAGES as readonly string[]).includes(
-    item.language,
-  )
-    ? [...STUDY_LANGUAGES]
-    : [item.language, ...STUDY_LANGUAGES];
-
   return (
-    <Dialog open onOpenChange={onOpenChange}>
-      <DialogContent title={`Edit “${item.term}”`}>
-        <form onSubmit={onSubmit} className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Word">
-              <Input
-                name="term"
-                required
-                autoFocus
-                defaultValue={item.term}
-                maxLength={200}
-                aria-label="Edit term"
-              />
-            </Field>
-            <Field label="Reading">
-              <Input
-                name="reading"
-                defaultValue={item.reading ?? ""}
-                maxLength={200}
-                aria-label="Edit reading"
-              />
-            </Field>
-          </div>
-          <Field label="Meaning">
-            <Input
-              name="meaning"
-              defaultValue={item.meaning ?? ""}
-              maxLength={500}
-              aria-label="Edit meaning"
-            />
-          </Field>
-          <Field label="Example">
-            <Input
-              name="example"
-              defaultValue={item.example ?? ""}
-              maxLength={1000}
-              aria-label="Edit example"
-            />
-          </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Language">
-              <Select
-                name="language"
-                defaultValue={item.language}
-                aria-label="Edit language"
-              >
-                {languageOptions.map((lang) => (
-                  <option key={lang} value={lang}>
-                    {lang}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Type">
-              <Select
-                name="category"
-                defaultValue={item.category ?? ""}
-                aria-label="Edit category"
-              >
-                <option value="">No category</option>
-                {STUDY_VOCAB_CATEGORIES.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-          </div>
-          {error && (
-            <p role="alert" className="text-[0.875rem] text-danger">
-              {error}
-            </p>
-          )}
-          <Button type="submit" variant="primary" loading={pending}>
-            Save word
-          </Button>
-        </form>
-      </DialogContent>
-    </Dialog>
+    <WordFormDialog
+      open
+      onOpenChange={onOpenChange}
+      title={`Edit “${item.term}”`}
+      submitLabel="Save word"
+      defaults={item}
+      action={async (fd) => {
+        await updateStudyVocab(item.id, {
+          language: String(fd.get("language") ?? item.language),
+          term: String(fd.get("term") ?? "").trim(),
+          reading: String(fd.get("reading") ?? "") || undefined,
+          meaning: String(fd.get("meaning") ?? "") || undefined,
+          example: String(fd.get("example") ?? "") || undefined,
+          category: String(fd.get("category") ?? "") || undefined,
+        });
+      }}
+    />
   );
 }

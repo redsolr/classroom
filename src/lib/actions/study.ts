@@ -629,6 +629,17 @@ export async function addStudyVocabBulk(
 
 const listNameSchema = z.string().trim().min(1).max(80);
 
+/** Append slot at the end of a book — max(position) + 1. */
+async function nextListPosition(listId: string): Promise<number> {
+  const [{ max }] = await db
+    .select({
+      max: sql<number>`coalesce(max(${studyVocabListItems.position}), -1)`,
+    })
+    .from(studyVocabListItems)
+    .where(eq(studyVocabListItems.listId, listId));
+  return Number(max) + 1;
+}
+
 /** The learner's list, or throw — every list mutation goes through this. */
 async function requireOwnList(learnerId: string, listId: string) {
   const id = z.string().uuid().parse(listId);
@@ -735,15 +746,13 @@ export async function addStudyVocabToBook(listId: string, formData: FormData) {
       .returning({ id: studyVocab.id });
   }
 
-  const [{ max }] = await db
-    .select({
-      max: sql<number>`coalesce(max(${studyVocabListItems.position}), -1)`,
-    })
-    .from(studyVocabListItems)
-    .where(eq(studyVocabListItems.listId, list.id));
   await db
     .insert(studyVocabListItems)
-    .values({ listId: list.id, vocabId: word.id, position: Number(max) + 1 })
+    .values({
+      listId: list.id,
+      vocabId: word.id,
+      position: await nextListPosition(list.id),
+    })
     .onConflictDoNothing();
 
   revalidateStudyTree();
@@ -785,18 +794,14 @@ export async function addToStudyVocabList(listId: string, vocabId: string) {
   });
   if (!word) throw new Error("Word not found");
 
-  const items = await db
-    .select({ vocabId: studyVocabListItems.vocabId, position: studyVocabListItems.position })
-    .from(studyVocabListItems)
-    .where(eq(studyVocabListItems.listId, list.id));
-  if (items.some((i) => i.vocabId === id)) return; // already on the list
-
-  const nextPosition = items.reduce((max, i) => Math.max(max, i.position), -1) + 1;
-  await db.insert(studyVocabListItems).values({
-    listId: list.id,
-    vocabId: id,
-    position: nextPosition,
-  });
+  await db
+    .insert(studyVocabListItems)
+    .values({
+      listId: list.id,
+      vocabId: id,
+      position: await nextListPosition(list.id),
+    })
+    .onConflictDoNothing(); // already on the list = no-op
 
   revalidatePath("/study/vocab");
 }
@@ -866,16 +871,6 @@ export async function moveStudyVocabListItem(
 // items into the learner's own vocabulary (dedup per language by term).
 // ---------------------------------------------------------------------------
 
-async function savedTermSetFor(learnerId: string, language: string) {
-  const rows = await db
-    .select({ term: studyVocab.term })
-    .from(studyVocab)
-    .where(
-      and(eq(studyVocab.learnerId, learnerId), eq(studyVocab.language, language)),
-    );
-  return new Set(rows.map((r) => r.term.toLowerCase()));
-}
-
 /** Copy ONE pack item into the learner's vocabulary. */
 export async function addStudyPackItem(
   itemId: string,
@@ -890,7 +885,7 @@ export async function addStudyPackItem(
     .where(eq(studyPackItems.id, id));
   if (!row) throw new Error("Pack item not found");
 
-  const saved = await savedTermSetFor(learner.id, row.language);
+  const saved = await savedTermsFor(learner.id, row.language);
   if (saved.has(row.item.term.toLowerCase())) return { added: false };
 
   await db.insert(studyVocab).values({
@@ -928,7 +923,7 @@ export async function importStudyPack(
     .where(eq(studyPackItems.packId, pack.id))
     .orderBy(asc(studyPackItems.position));
 
-  const saved = await savedTermSetFor(learner.id, pack.language);
+  const saved = await savedTermsFor(learner.id, pack.language);
   const fresh = items.filter((i) => !saved.has(i.term.toLowerCase()));
   if (fresh.length > 0) {
     await db.insert(studyVocab).values(

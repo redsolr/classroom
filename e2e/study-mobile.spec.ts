@@ -67,8 +67,8 @@ test("vocabulary at phone width: books shelf, dialog add, compact table, edit", 
   await row.getByRole("button", { name: "chien options" }).click();
   await page.getByRole("menuitem", { name: "Edit word" }).click();
   const editDialog = page.getByRole("dialog");
-  await expect(editDialog.getByLabel("Edit term")).toHaveValue("chien");
-  await editDialog.getByLabel("Edit meaning").fill("dog (animal)");
+  await expect(editDialog.getByLabel("Word or phrase")).toHaveValue("chien");
+  await editDialog.getByLabel("Meaning").fill("dog (animal)");
   await editDialog.getByRole("button", { name: "Save word" }).click();
   await expect(row).toContainText("dog (animal)");
 });

@@ -485,8 +485,8 @@ test("editing via the row menu updates a word and survives reload", async ({
   await page.getByRole("menuitem", { name: "Edit word" }).click();
 
   const dialog = page.getByRole("dialog");
-  await expect(dialog.getByLabel("Edit term")).toHaveValue("猫");
-  await dialog.getByLabel("Edit meaning").fill("cat (animal)");
+  await expect(dialog.getByLabel("Word or phrase")).toHaveValue("猫");
+  await dialog.getByLabel("Meaning").fill("cat (animal)");
   await dialog.getByRole("button", { name: "Save word" }).click();
   await expect(
     table.getByRole("cell", { name: /cat \(animal\)/ }),
@@ -550,15 +550,15 @@ test("edit dialog: Escape cancels, Enter saves; delete confirms from the row men
 
   // Escape abandons the edit — the original meaning survives.
   await openEdit();
-  await page.getByLabel("Edit meaning").fill("cat");
-  await page.getByLabel("Edit meaning").press("Escape");
+  await page.getByLabel("Meaning").fill("cat");
+  await page.getByLabel("Meaning").press("Escape");
   await expect(row()).toContainText("dog");
   await expect(row()).not.toContainText("cat");
 
   // Enter commits without reaching for the mouse.
   await openEdit();
-  await page.getByLabel("Edit meaning").fill("dog (Spanish)");
-  await page.getByLabel("Edit meaning").press("Enter");
+  await page.getByLabel("Meaning").fill("dog (Spanish)");
+  await page.getByLabel("Meaning").press("Enter");
   await expect(row()).toContainText("dog (Spanish)");
 
   // Delete asks for confirmation from the row menu.

@@ -33,6 +33,7 @@ import {
   DropdownSeparator,
   DropdownTrigger,
 } from "@/components/ui/dropdown";
+import { InlineRenameInput } from "@/components/ui/inline-rename-input";
 import { NewProjectDialog } from "@/components/study/new-project-dialog";
 import { QuickAddVocabDialog } from "@/components/study/quick-add-vocab-dialog";
 import type { SidebarStudy, SidebarThread } from "@/lib/study-sidebar";
@@ -77,8 +78,6 @@ function ThreadRow({
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
   const [renaming, setRenaming] = React.useState(false);
-  const [draft, setDraft] = React.useState("");
-  const inputRef = React.useRef<HTMLInputElement>(null);
 
   const title = threadTitle(thread);
 
@@ -93,18 +92,7 @@ function ThreadRow({
     });
   };
 
-  const startRename = () => {
-    setDraft(title);
-    setRenaming(true);
-    // Radix returns focus to the menu trigger on close — steal it back
-    // to the input after that happens.
-    setTimeout(() => inputRef.current?.select(), 0);
-  };
-
-  const commitRename = () => {
-    const next = draft.trim();
-    setRenaming(false);
-    if (!next || next === title) return;
+  const commitRename = (next: string) => {
     startTransition(async () => {
       try {
         await renameStudyThread(thread.id, next);
@@ -131,24 +119,13 @@ function ThreadRow({
     return (
       <div className="flex items-center gap-2 rounded-md py-1 pl-2.5">
         <MessageCircle className="size-3.5 shrink-0 text-fg-tertiary" />
-        <input
-          ref={inputRef}
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={commitRename}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.nativeEvent.isComposing) {
-              e.preventDefault();
-              commitRename();
-            }
-            if (e.key === "Escape") {
-              e.preventDefault();
-              setRenaming(false);
-            }
-          }}
+        <InlineRenameInput
+          initialValue={title}
+          ariaLabel="Rename chat"
           maxLength={120}
-          aria-label="Rename chat"
-          className="w-full min-w-0 rounded border border-accent bg-transparent px-1 py-0.5 text-[0.875rem] focus:outline-none"
+          onCommit={commitRename}
+          onClose={() => setRenaming(false)}
+          className="w-full min-w-0 text-[0.875rem]"
         />
       </div>
     );
@@ -191,7 +168,7 @@ function ThreadRow({
             )}
             {thread.pinned ? "Unpin" : "Pin"}
           </DropdownItem>
-          <DropdownItem disabled={pending} onSelect={startRename}>
+          <DropdownItem disabled={pending} onSelect={() => setRenaming(true)}>
             <Pencil className="size-4 text-fg-tertiary" />
             Rename
           </DropdownItem>
