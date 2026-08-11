@@ -2,6 +2,7 @@ import { and, asc, eq, ilike, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
   db,
+  studyMemories,
   studyVocab,
   studyVocabListItems,
   studyVocabLists,
@@ -154,6 +155,41 @@ export const STUDY_TOOL_DEFS = [
       required: ["list", "term"],
     },
   },
+  {
+    type: "function" as const,
+    name: "remember",
+    description:
+      "Save a durable fact about the learner to long-term memory (goals, exam dates, level, interests, learning preferences). Use when the learner shares something worth knowing next session, or explicitly asks you to remember. Never save secrets or sensitive personal data.",
+    strict: false,
+    parameters: {
+      type: "object",
+      properties: {
+        fact: {
+          type: "string",
+          description:
+            "One short third-person sentence, e.g. 'Is preparing for the JLPT N3 exam in December.'",
+        },
+      },
+      required: ["fact"],
+    },
+  },
+  {
+    type: "function" as const,
+    name: "forget_memory",
+    description:
+      "Delete a saved memory about the learner (matched by its wording). Use when the learner asks you to forget something or a saved fact is no longer true.",
+    strict: false,
+    parameters: {
+      type: "object",
+      properties: {
+        fact: {
+          type: "string",
+          description: "The saved memory to delete, or a distinctive part of it",
+        },
+      },
+      required: ["fact"],
+    },
+  },
 ];
 
 const addArgs = z.object({
@@ -186,6 +222,12 @@ const listMemberArgs = z.object({
   term: z.string().trim().min(1).max(200),
   language: z.string().trim().max(40).optional(),
 });
+const memoryArgs = z.object({
+  fact: z.string().trim().min(1).max(500),
+});
+
+/** Total memories per learner — bounds the injected prompt block. */
+const MEMORY_CAP = 200;
 
 function ok(payload: Record<string, unknown>): string {
   return JSON.stringify(payload);
@@ -343,6 +385,58 @@ export function createStudyToolExecutor(scope: {
             .values({ listId: list.id, vocabId: word.id, position: Number(max) + 1 })
             .onConflictDoNothing();
           return ok({ added: true, list: list.name, term: word.term });
+        }
+        case "remember": {
+          const args = memoryArgs.parse(rawArgs);
+          const existing = await db.query.studyMemories.findFirst({
+            where: and(
+              eq(studyMemories.learnerId, learnerId),
+              ilike(studyMemories.content, args.fact),
+            ),
+          });
+          if (existing) {
+            return ok({ saved: false, reason: "already_saved" });
+          }
+          const [{ count }] = await db
+            .select({ count: sql<number>`count(*)` })
+            .from(studyMemories)
+            .where(eq(studyMemories.learnerId, learnerId));
+          if (Number(count) >= MEMORY_CAP) {
+            return fail(
+              "Memory is full — ask the learner to prune old memories on the Plan & usage page first.",
+            );
+          }
+          await db
+            .insert(studyMemories)
+            .values({ learnerId, content: args.fact });
+          return ok({ saved: true });
+        }
+        case "forget_memory": {
+          const args = memoryArgs.parse(rawArgs);
+          const matches = await db
+            .select({ id: studyMemories.id, content: studyMemories.content })
+            .from(studyMemories)
+            .where(
+              and(
+                eq(studyMemories.learnerId, learnerId),
+                ilike(studyMemories.content, `%${args.fact}%`),
+              ),
+            )
+            .limit(5);
+          if (matches.length === 0) {
+            return fail("No saved memory matches that.");
+          }
+          if (matches.length > 1) {
+            return fail(
+              `Several memories match — ask which one to forget: ${matches
+                .map((m) => `“${m.content}”`)
+                .join("; ")}`,
+            );
+          }
+          await db
+            .delete(studyMemories)
+            .where(eq(studyMemories.id, matches[0].id));
+          return ok({ forgotten: matches[0].content });
         }
         case "remove_from_vocab_list": {
           const args = listMemberArgs.parse(rawArgs);

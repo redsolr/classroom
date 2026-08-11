@@ -44,6 +44,8 @@ export type TutorContext = {
   projectName: string | null;
   /** The project's standing custom instructions, verbatim. */
   projectInstructions: string | null;
+  /** Saved memories about the learner — injected into EVERY chat. */
+  memories: string[];
 };
 
 export type TutorTurn = { role: "user" | "assistant"; content: string };
@@ -71,7 +73,17 @@ create_vocab_list / add_to_vocab_list / remove_from_vocab_list. Use them
 whenever the learner asks to save, change, remove, or organize words —
 never claim you saved something without calling the tool. Fill in a
 sensible meaning/reading/category yourself when the learner doesn't give
-one. After a tool call, confirm in one short sentence what changed.`;
+one. After a tool call, confirm in one short sentence what changed.
+
+You also keep long-term MEMORY about the learner across conversations:
+- When the learner shares a durable fact about themselves — goals, exam
+  dates, level, interests, how they like to learn, what they struggle
+  with — save it with the remember tool as one short third-person
+  sentence. Also save when they explicitly ask you to remember something.
+- When they ask you to forget something, call forget_memory.
+- Never save secrets, passwords, or sensitive personal data (health,
+  finances, precise location). Never recite the memory list unprompted —
+  just use it to personalize your replies.`;
 
 function renderTutorContext(ctx: TutorContext): string {
   const lines = [`Learner: ${ctx.learnerName ?? "(no name given)"}`];
@@ -102,6 +114,13 @@ function buildInstructions(ctx: TutorContext): string {
     (ctx.language ? TUTOR_PROMPT : GENERIC_PROMPT) + TOOLS_PROMPT,
     `<learner_context>\n${renderTutorContext(ctx)}\n</learner_context>`,
   ];
+  if (ctx.memories.length > 0) {
+    parts.push(
+      `<learner_memory>\nThings you know about this learner from previous conversations (saved memories, oldest first):\n${ctx.memories
+        .map((m) => `- ${m}`)
+        .join("\n")}\n</learner_memory>`,
+    );
+  }
   if (ctx.projectInstructions?.trim()) {
     parts.push(
       `<project_instructions>\nThe learner set these standing instructions for the "${ctx.projectName ?? "project"}" project — follow them in every reply:\n${ctx.projectInstructions.trim()}\n</project_instructions>`,
@@ -143,6 +162,10 @@ function mockTutorReply(ctx: TutorContext, message: string): string {
  *   update vocab: term — new meaning
  *   delete vocab: term
  *   list my vocab
+ *   remember: fact
+ *   forget memory: fact
+ *   what do you remember        (reads the INJECTED context, not the DB —
+ *                                the probe that memories reach the prompt)
  */
 async function mockToolTurn(
   ctx: TutorContext,
@@ -188,6 +211,31 @@ async function mockToolTurn(
     return result.count === 0
       ? "Your vocabulary list is empty."
       : `You have ${result.count} saved word${result.count === 1 ? "" : "s"}: ${result.words.map((w) => w.term).join(", ")}.`;
+  }
+  const remember = /^remember:\s*(.+)$/i.exec(message);
+  if (remember) {
+    const result = JSON.parse(
+      await execute("remember", { fact: remember[1] }),
+    ) as { saved?: boolean; reason?: string; error?: string };
+    if (result.error) return result.error;
+    if (result.saved === false && result.reason === "already_saved") {
+      return "I already have that saved.";
+    }
+    return "Got it — I'll remember that.";
+  }
+  const forget = /^forget memory:\s*(.+)$/i.exec(message);
+  if (forget) {
+    const result = JSON.parse(
+      await execute("forget_memory", { fact: forget[1] }),
+    ) as { forgotten?: string; error?: string };
+    return result.error ?? `Forgotten: “${result.forgotten}”.`;
+  }
+  if (/^what do you remember/i.test(message)) {
+    // Answers from the injected context, NOT the DB — proving the
+    // memories actually reached this turn's prompt assembly.
+    return ctx.memories.length === 0
+      ? "I don't have any memories saved about you yet."
+      : `Here's what I remember about you: ${ctx.memories.join(" · ")}`;
   }
   return null;
 }

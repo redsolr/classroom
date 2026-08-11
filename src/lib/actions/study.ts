@@ -17,6 +17,7 @@ import { z } from "zod";
 import {
   db,
   learners,
+  studyMemories,
   studyMessages,
   studyPackItems,
   studyPacks,
@@ -495,6 +496,25 @@ export async function deleteStudyVocab(vocabId: string) {
   revalidatePath("/study/vocab");
 }
 
+// ---------------------------------------------------------------------------
+// Memory — the tutor SAVES via its remember/forget chat tools; the learner
+// manages the list on /study/account. Delete-only here by design: adding
+// happens in conversation ("remember that …"), like ChatGPT/Claude memory.
+// ---------------------------------------------------------------------------
+
+export async function deleteStudyMemory(memoryId: string) {
+  const learner = await requireLearner();
+  const id = z.string().uuid().parse(memoryId);
+
+  await db
+    .delete(studyMemories)
+    .where(
+      and(eq(studyMemories.id, id), eq(studyMemories.learnerId, learner.id)),
+    );
+
+  revalidatePath("/study/account");
+}
+
 /**
  * Resolve a thread the learner owns to its tutor language (project wins,
  * matching the chat route). Null = generic chat.
@@ -826,42 +846,39 @@ export async function removeFromStudyVocabList(
   revalidatePath("/study/vocab");
 }
 
-/** Swap the item with its neighbor — one step up or down per call. */
-export async function moveStudyVocabListItem(
+/** Drag-reorder: move the word to an arbitrary index; positions are
+ * rewritten contiguously so the book's order is always 0..n-1. */
+export async function reorderStudyVocabListItem(
   listId: string,
   vocabId: string,
-  direction: "up" | "down",
+  toIndex: number,
 ) {
   const learner = await requireLearner();
   const list = await requireOwnList(learner.id, listId);
   const id = z.string().uuid().parse(vocabId);
-  const dir = z.enum(["up", "down"]).parse(direction);
+  const target = z.number().int().min(0).max(10_000).parse(toIndex);
 
   const items = await db
-    .select({
-      id: studyVocabListItems.id,
-      vocabId: studyVocabListItems.vocabId,
-      position: studyVocabListItems.position,
-    })
+    .select({ id: studyVocabListItems.id, vocabId: studyVocabListItems.vocabId })
     .from(studyVocabListItems)
     .where(eq(studyVocabListItems.listId, list.id))
     .orderBy(asc(studyVocabListItems.position));
 
-  const index = items.findIndex((i) => i.vocabId === id);
-  if (index === -1) throw new Error("Word is not on this list");
-  const swapWith = dir === "up" ? index - 1 : index + 1;
-  if (swapWith < 0 || swapWith >= items.length) return; // already at the edge
+  const from = items.findIndex((i) => i.vocabId === id);
+  if (from === -1) throw new Error("Word is not on this list");
+  const [moved] = items.splice(from, 1);
+  items.splice(Math.min(target, items.length), 0, moved);
 
-  const a = items[index];
-  const b = items[swapWith];
-  await db
-    .update(studyVocabListItems)
-    .set({ position: b.position })
-    .where(eq(studyVocabListItems.id, a.id));
-  await db
-    .update(studyVocabListItems)
-    .set({ position: a.position })
-    .where(eq(studyVocabListItems.id, b.id));
+  // One update per shifted row, atomically — a crash mid-rewrite must
+  // not leave duplicate positions.
+  await db.transaction(async (tx) => {
+    for (const [position, item] of items.entries()) {
+      await tx
+        .update(studyVocabListItems)
+        .set({ position })
+        .where(eq(studyVocabListItems.id, item.id));
+    }
+  });
 
   revalidatePath("/study/vocab");
 }

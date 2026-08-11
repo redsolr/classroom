@@ -1,7 +1,14 @@
 import type { NextRequest } from "next/server";
 import { and, asc, eq, ne, sql } from "drizzle-orm";
 import { z } from "zod";
-import { db, studyMessages, studyProjects, studyThreads, studyVocab } from "@/db";
+import {
+  db,
+  studyMemories,
+  studyMessages,
+  studyProjects,
+  studyThreads,
+  studyVocab,
+} from "@/db";
 import { getLearner } from "@/lib/auth";
 import { dailyCapFor, learnerHasPro } from "@/lib/billing";
 import { countTutorMessagesLast24h } from "@/lib/study-usage";
@@ -15,6 +22,7 @@ import { createStudyToolExecutor } from "@/lib/ai/study-tools";
 
 const HISTORY_TURNS = 20;
 const VOCAB_CONTEXT_ITEMS = 30;
+const MEMORY_CONTEXT_ITEMS = 50;
 
 const bodySchema = z.object({
   threadId: z.string().uuid(),
@@ -90,7 +98,7 @@ export async function POST(req: NextRequest) {
     : null;
   const language = project?.language ?? thread.language ?? null;
 
-  const [vocab, historyRows] = await Promise.all([
+  const [vocab, historyRows, memoryRows] = await Promise.all([
     language
       ? db
           .select({
@@ -120,6 +128,14 @@ export async function POST(req: NextRequest) {
         ),
       )
       .orderBy(asc(studyMessages.createdAt)),
+    // Memories ride into EVERY chat (generic and tutor alike) — that's
+    // the whole point of remembering.
+    db
+      .select({ content: studyMemories.content })
+      .from(studyMemories)
+      .where(eq(studyMemories.learnerId, learner.id))
+      .orderBy(asc(studyMemories.createdAt))
+      .limit(MEMORY_CONTEXT_ITEMS),
   ]);
 
   const context: TutorContext = {
@@ -128,6 +144,7 @@ export async function POST(req: NextRequest) {
     vocab,
     projectName: project?.name ?? null,
     projectInstructions: project?.instructions ?? null,
+    memories: memoryRows.map((m) => m.content),
   };
   const turns: TutorTurn[] = historyRows.slice(-HISTORY_TURNS);
   // The tutor's hands: vocabulary CRUD scoped to THIS learner, with the

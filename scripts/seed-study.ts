@@ -15,6 +15,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import {
   db,
   learners,
+  studyMemories,
   studyMessages,
   studyProjects,
   studyThreads,
@@ -29,6 +30,10 @@ const DAY = 24 * 60 * MINUTE;
 const SEED_PROJECTS = ["French", "Japanese"] as const;
 const SEED_LOOSE_THREADS = ["Plan my study week"] as const;
 const SEED_LISTS = ["Common French verbs"] as const;
+const SEED_MEMORIES = [
+  "Studies French as the priority on weekdays and Japanese on weekends, about 30 minutes a day.",
+  "Is planning a trip to Paris and wants café/travel conversation practice.",
+] as const;
 
 type Turn = { role: "user" | "assistant"; content: string };
 
@@ -229,6 +234,14 @@ async function main() {
         inArray(studyVocab.term, seedTerms),
       ),
     );
+  await db
+    .delete(studyMemories)
+    .where(
+      and(
+        eq(studyMemories.learnerId, learner.id),
+        inArray(studyMemories.content, [...SEED_MEMORIES]),
+      ),
+    );
 
   // -------------------------------------------------------------------
   // Projects + chats
@@ -336,10 +349,21 @@ async function main() {
     })),
   );
 
+  // -------------------------------------------------------------------
+  // Memories — what the tutor "knows" about the learner across chats
+  // -------------------------------------------------------------------
+  await db.insert(studyMemories).values(
+    SEED_MEMORIES.map((content, i) => ({
+      learnerId: learner!.id,
+      content,
+      createdAt: new Date(Date.now() - 2 * DAY + i * MINUTE),
+    })),
+  );
+
   console.log(
     `Seeded: 2 projects, ${FRENCH_CHATS.length + JAPANESE_CHATS.length + 1} chats, ` +
       `${FRENCH_VOCAB.length + JAPANESE_VOCAB.length} vocab words, ` +
-      `1 list (${verbRows.length} verbs).`,
+      `1 list (${verbRows.length} verbs), ${SEED_MEMORIES.length} memories.`,
   );
   process.exit(0);
 }

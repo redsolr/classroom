@@ -1,6 +1,16 @@
 import type { Metadata } from "next";
+import { asc, eq } from "drizzle-orm";
 import { format } from "date-fns";
-import { BadgeCheck, CreditCard, Gauge, TriangleAlert } from "lucide-react";
+import {
+  BadgeCheck,
+  Brain,
+  CreditCard,
+  Gauge,
+  TriangleAlert,
+} from "lucide-react";
+import { db, studyMemories } from "@/db";
+import { deleteStudyMemory } from "@/lib/actions/study";
+import { ConfirmButton } from "@/components/ui/confirm-button";
 import {
   billingConfigured,
   FREE_DAILY_CAP,
@@ -30,6 +40,16 @@ export default async function StudyAccountPage({
   const cap = pro ? PRO_DAILY_CAP : FREE_DAILY_CAP;
 
   const usedToday = await countTutorMessagesLast24h(learner.id);
+
+  const memories = await db
+    .select({
+      id: studyMemories.id,
+      content: studyMemories.content,
+      createdAt: studyMemories.createdAt,
+    })
+    .from(studyMemories)
+    .where(eq(studyMemories.learnerId, learner.id))
+    .orderBy(asc(studyMemories.createdAt));
 
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-8 sm:px-6">
@@ -112,6 +132,45 @@ export default async function StudyAccountPage({
             style={{ width: `${Math.min(100, (usedToday / cap) * 100)}%` }}
           />
         </div>
+      </section>
+
+      <section className="mb-5 rounded-lg bg-surface p-5 shadow-card">
+        <h2 className="mb-1 flex items-center gap-2 text-[1.0625rem] font-semibold">
+          <Brain className="size-4 text-fg-tertiary" />
+          Memory
+        </h2>
+        <p className="text-[0.9375rem] leading-relaxed text-fg-secondary">
+          The tutor remembers durable facts you share in chat — goals, exam
+          dates, how you like to learn — and uses them in every
+          conversation. Tell it to remember or forget things in chat, or
+          delete saved memories here.
+        </p>
+        {memories.length === 0 ? (
+          <p className="mt-3 text-[0.875rem] text-fg-tertiary">
+            Nothing saved yet. Try telling the tutor something worth
+            remembering.
+          </p>
+        ) : (
+          <ul className="mt-3 divide-y divide-border">
+            {memories.map((memory) => (
+              <li
+                key={memory.id}
+                className="flex items-start justify-between gap-3 py-2.5"
+              >
+                <div>
+                  <p className="text-[0.9375rem]">{memory.content}</p>
+                  <p className="mt-0.5 text-[0.78rem] text-fg-tertiary">
+                    Saved {format(memory.createdAt, "d MMM yyyy")}
+                  </p>
+                </div>
+                <ConfirmButton
+                  title="Delete memory"
+                  action={deleteStudyMemory.bind(null, memory.id)}
+                />
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       <section className="rounded-lg bg-surface p-5 shadow-card">

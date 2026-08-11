@@ -763,6 +763,35 @@ export const studyPackItems = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// Study memories — durable facts the tutor saves about the learner from
+// conversations (ChatGPT-memory shape): goals, level, exam dates, interests,
+// how they like to learn. Injected into every chat's context; the learner
+// sees and deletes them on /study/account. The learner owns this context —
+// the tutor writes it via the remember/forget tools, never silently.
+// ---------------------------------------------------------------------------
+
+export const studyMemories = pgTable(
+  "study_memories",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    learnerId: uuid("learner_id")
+      .notNull()
+      .references(() => learners.id, { onDelete: "cascade" }),
+    /** One durable fact, phrased as a short third-person sentence. */
+    content: text("content").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("study_memories_learner_created_idx").on(t.learnerId, t.createdAt),
+  ],
+);
+
+// ---------------------------------------------------------------------------
 // Row types
 // ---------------------------------------------------------------------------
 
@@ -787,3 +816,4 @@ export type StudyVocabListItem = typeof studyVocabListItems.$inferSelect;
 export type VocabularyBook = typeof vocabularyBooks.$inferSelect;
 export type StudyPack = typeof studyPacks.$inferSelect;
 export type StudyPackItem = typeof studyPackItems.$inferSelect;
+export type StudyMemory = typeof studyMemories.$inferSelect;

@@ -6,8 +6,9 @@ import { resetMockLearner } from "./helpers";
  * (ChatGPT-Projects shape), tutor chat in language projects (offline
  * mock tutor — demonstrably grounded in the learner's vocab), generic
  * loose chats, the personal vocabulary loop (chip-add, manual add, SM-2
- * review), and the free-tier daily cap (STUDY_FREE_DAILY_CAP=5 set by
- * playwright.config for this suite).
+ * review), and the free-tier daily cap (STUDY_FREE_DAILY_CAP=15 set by
+ * playwright.config for this suite — the tool/dock/memory tests all
+ * spend from the same rolling-24h budget).
  *
  * The mock learner accumulates rows across local runs (persistent
  * Postgres, fixed mock identity), so the suite resets that learner
@@ -15,7 +16,7 @@ import { resetMockLearner } from "./helpers";
  * teacher.
  */
 
-const FREE_CAP = 10;
+const FREE_CAP = 15;
 
 test.beforeAll(resetMockLearner);
 
@@ -195,6 +196,69 @@ test("the tutor CRUDs vocabulary from chat: add, list, delete land in the table"
   await expect(
     table.locator("tbody tr").filter({ hasText: "fromage" }),
   ).toHaveCount(0);
+});
+
+test("memory: the tutor remembers across chats; the learner manages it on Account", async ({
+  page,
+}) => {
+  // Same executor contract as the vocab tools: the mock grammar drives
+  // remember/forget through the REAL tool executor, and "what do you
+  // remember" answers from the INJECTED context — so this proves both
+  // chat → DB and DB → next turn's prompt.
+  await page.goto("/study");
+  await page.getByRole("button", { name: "New chat" }).click();
+  await page.waitForURL(/\/study\?t=[0-9a-f-]{36}/);
+
+  const send = async (text: string) => {
+    await page.getByLabel("Message").fill(text);
+    await page.getByRole("button", { name: "Send" }).click();
+    await expect(page.getByLabel("Message")).toBeFocused();
+  };
+
+  await send("remember: Is preparing for the JLPT N3 exam in December");
+  await expect(page.getByText("Got it — I'll remember that.")).toBeVisible();
+  await send("remember: Prefers short drills over long explanations");
+  await expect(
+    page.getByText("Got it — I'll remember that.").nth(1),
+  ).toBeVisible();
+
+  // Injection probe: the reply reads the context block, not the DB.
+  await send("what do you remember");
+  await expect(
+    page.getByText(/Here's what I remember about you:.*JLPT N3.*short drills/),
+  ).toBeVisible();
+
+  // Forgetting from chat removes the memory for the NEXT turn.
+  await send("forget memory: short drills");
+  await expect(page.getByText(/Forgotten:.*short drills/)).toBeVisible();
+
+  // The surviving memory is visible + deletable on the Account page.
+  await page.goto("/study/account");
+  const memorySection = page
+    .getByRole("main")
+    .locator("section")
+    .filter({ hasText: "Memory" });
+  await expect(memorySection.getByText(/JLPT N3/)).toBeVisible();
+  await expect(memorySection.getByText(/short drills/)).not.toBeVisible();
+
+  // Two-step ConfirmButton: arm, then delete.
+  const deleteButton = memorySection.getByTitle("Delete memory");
+  await deleteButton.click();
+  await deleteButton.click();
+  await expect(memorySection.getByText(/JLPT N3/)).not.toBeVisible();
+  await expect(memorySection.getByText(/Nothing saved yet/)).toBeVisible();
+
+  // And the tutor's context is empty again on the next turn.
+  await page.goto("/study");
+  await page
+    .getByRole("complementary")
+    .getByRole("link", { name: /^remember: Is preparing/ })
+    .click();
+  await page.waitForURL(/\/study\?t=[0-9a-f-]{36}/);
+  await send("what do you remember");
+  await expect(
+    page.getByText("I don't have any memories saved about you yet."),
+  ).toBeVisible();
 });
 
 test("deleting a chat removes it after the confirm dialog", async ({
@@ -828,7 +892,7 @@ test("account page: free plan, usage meter, billing-not-configured state", async
 }) => {
   await page.goto("/study/account");
   await expect(page.getByRole("heading", { name: "Free plan" })).toBeVisible();
-  await expect(page.getByText(/of 10 tutor messages/)).toBeVisible();
+  await expect(page.getByText(/of 15 tutor messages/)).toBeVisible();
   await expect(page.getByText(/Billing is not configured/)).toBeVisible();
   // Models card names the roster.
   await expect(page.getByText("gpt-5.6-terra")).toBeVisible();
