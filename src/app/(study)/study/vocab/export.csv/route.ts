@@ -2,19 +2,7 @@ import { NextResponse } from "next/server";
 import { desc, eq } from "drizzle-orm";
 import { db, studyVocab } from "@/db";
 import { getLearner } from "@/lib/auth";
-
-/**
- * Byte-order mark. Anki strips it, but without it Excel on Windows renders
- * 猫 and accented French as mojibake — and this list is the founder's
- * Japanese/French vocabulary. Built from the code point rather than an
- * inline "﻿" so the character is visible in the source.
- */
-const UTF8_BOM = String.fromCharCode(0xfeff);
-
-function csvField(value: string | null): string {
-  if (value == null) return "";
-  return `"${value.replaceAll('"', '""')}"`;
-}
+import { csvField, csvResponse } from "@/lib/csv";
 
 /**
  * Personal vocabulary export — plain CSV, importable into Anki or any
@@ -33,24 +21,20 @@ export async function GET() {
     .where(eq(studyVocab.learnerId, learner.id))
     .orderBy(desc(studyVocab.createdAt));
 
-  const lines = [
-    "term,reading,meaning,example,language,status",
-    ...items.map((v) =>
-      [
-        csvField(v.term),
-        csvField(v.reading),
-        csvField(v.meaning),
-        csvField(v.example),
-        csvField(v.language),
-        csvField(v.status),
-      ].join(","),
-    ),
-  ];
-
-  return new NextResponse(`${UTF8_BOM}${lines.join("\r\n")}`, {
-    headers: {
-      "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="vocabulary.csv"`,
-    },
-  });
+  return csvResponse(
+    [
+      "term,reading,meaning,example,language,status",
+      ...items.map((v) =>
+        [
+          csvField(v.term),
+          csvField(v.reading),
+          csvField(v.meaning),
+          csvField(v.example),
+          csvField(v.language),
+          csvField(v.status),
+        ].join(","),
+      ),
+    ],
+    "vocabulary.csv",
+  );
 }

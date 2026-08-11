@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Check, CornerDownLeft, Plus, Sparkles } from "lucide-react";
 import { addStudyVocab } from "@/lib/actions/study";
 import { cn } from "@/lib/utils";
+import { parseVocabLine, type VocabLine } from "@/lib/vocab-lines";
 
 type ChatMessage = {
   id: string;
@@ -19,18 +20,19 @@ type CapHit = { cap: number; pro: boolean };
 /**
  * One assistant reply can carry vocabulary suggestions on their own
  * lines (`VOCAB: term — meaning`, the convention set in the tutor
- * prompt). They render as add-to-list chips; the rest renders as text.
+ * prompt — parser shared in lib/vocab-lines.ts). They render as
+ * add-to-list chips; the rest renders as text.
  */
 function parseReply(content: string): {
   text: string;
-  vocab: { term: string; meaning: string }[];
+  vocab: VocabLine[];
 } {
-  const vocab: { term: string; meaning: string }[] = [];
+  const vocab: VocabLine[] = [];
   const kept: string[] = [];
   for (const line of content.split("\n")) {
-    const match = /^\s*VOCAB:\s*(.+?)\s*[—–-]\s*(.+)\s*$/.exec(line);
-    if (match) {
-      vocab.push({ term: match[1], meaning: match[2] });
+    const parsed = parseVocabLine(line);
+    if (parsed) {
+      vocab.push(parsed);
     } else {
       kept.push(line);
     }

@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { z } from "zod";
+import { parseVocabLine } from "@/lib/vocab-lines";
 import { STUDY_MODEL } from "./study-tutor";
 
 /**
@@ -20,16 +21,19 @@ export type ExtractTurn = { role: "user" | "assistant"; content: string };
 
 const MAX_CANDIDATES = 30;
 
+/**
+ * One candidate's shape — shared with addStudyVocabBulk's input
+ * validation so the dialog's round-trip and the model's output are held
+ * to the same limits.
+ */
+export const vocabCandidateSchema = z.object({
+  term: z.string().trim().min(1).max(200),
+  reading: z.string().trim().max(200).nullable(),
+  meaning: z.string().trim().max(500).nullable(),
+});
+
 const candidatesSchema = z.object({
-  items: z
-    .array(
-      z.object({
-        term: z.string().trim().min(1).max(200),
-        reading: z.string().trim().max(200).nullable(),
-        meaning: z.string().trim().max(500).nullable(),
-      }),
-    )
-    .max(MAX_CANDIDATES),
+  items: z.array(vocabCandidateSchema).max(MAX_CANDIDATES),
 });
 
 const EXTRACT_PROMPT = `You extract vocabulary from a language-study conversation for the learner's personal flashcard list.
@@ -51,12 +55,12 @@ export function mockExtractVocab(turns: ExtractTurn[]): VocabCandidate[] {
   for (const turn of turns) {
     if (turn.role !== "assistant") continue;
     for (const line of turn.content.split("\n")) {
-      const match = /^\s*VOCAB:\s*(.+?)\s*[—–-]\s*(.+)\s*$/.exec(line);
-      if (!match) continue;
-      const key = match[1].toLowerCase();
+      const parsed = parseVocabLine(line);
+      if (!parsed) continue;
+      const key = parsed.term.toLowerCase();
       if (seen.has(key)) continue;
       seen.add(key);
-      out.push({ term: match[1], reading: null, meaning: match[2] });
+      out.push({ term: parsed.term, reading: null, meaning: parsed.meaning });
     }
   }
   return out.slice(0, MAX_CANDIDATES);

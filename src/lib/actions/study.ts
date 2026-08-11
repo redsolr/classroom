@@ -24,6 +24,7 @@ import {
 } from "@/db";
 import {
   extractVocabCandidates,
+  vocabCandidateSchema,
   type VocabCandidate,
 } from "@/lib/ai/vocab-extract";
 import { requireLearner } from "@/lib/auth";
@@ -386,16 +387,7 @@ export async function extractStudyVocab(threadId: string): Promise<{
   return { language, candidates };
 }
 
-const bulkItemsSchema = z
-  .array(
-    z.object({
-      term: z.string().trim().min(1).max(200),
-      reading: z.string().trim().max(200).nullable(),
-      meaning: z.string().trim().max(500).nullable(),
-    }),
-  )
-  .min(1)
-  .max(40);
+const bulkItemsSchema = z.array(vocabCandidateSchema).min(1).max(40);
 
 /**
  * Step 2: save the candidates the learner picked. Language comes from
