@@ -268,8 +268,21 @@ test("About-you instructions inject everywhere; pausing memory stops saving AND 
   // next reply's prompt assembly — proved by the mock's probe tail.
   await page.goto("/study/account");
   const instructions = page.getByLabel("Standing instructions");
+  const saveInstructions = async () => {
+    // Reloading the instant after click aborts the in-flight server
+    // action (the vocab-chip race all over again) — wait for the
+    // action's POST to answer before moving on.
+    await Promise.all([
+      page.waitForResponse(
+        (res) =>
+          res.request().method() === "POST" &&
+          res.url().includes("/study/account"),
+      ),
+      page.getByRole("button", { name: "Save instructions" }).click(),
+    ]);
+  };
   await instructions.fill("Answer briefly.");
-  await page.getByRole("button", { name: "Save instructions" }).click();
+  await saveInstructions();
   // Reload proves the row persisted (an uncontrolled textarea would
   // keep the typed value even if the save silently failed).
   await page.reload();
@@ -327,7 +340,7 @@ test("About-you instructions inject everywhere; pausing memory stops saving AND 
 
   // Leave no standing instructions behind for later tests.
   await instructions.fill("");
-  await page.getByRole("button", { name: "Save instructions" }).click();
+  await saveInstructions();
   await expect(instructions).toHaveValue("");
 });
 
