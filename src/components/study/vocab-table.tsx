@@ -2,11 +2,27 @@
 
 import * as React from "react";
 import {
+  DndContext,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
   ArrowDown,
   ArrowUp,
   Download,
   Eye,
   EyeOff,
+  GripVertical,
   ListPlus,
   MoreHorizontal,
   Pencil,
@@ -19,8 +35,8 @@ import {
   addToStudyVocabList,
   createStudyVocabList,
   deleteStudyVocab,
-  reorderStudyVocabListItem,
   removeFromStudyVocabList,
+  reorderStudyVocabListItem,
   updateStudyVocab,
 } from "@/lib/actions/study";
 import { Badge, vocabularyStatusTone } from "@/components/ui/badge";
@@ -157,7 +173,13 @@ export function VocabTable({
   const [error, setError] = React.useState<string | null>(null);
   const [saveBookOpen, setSaveBookOpen] = React.useState(false);
   const [saveBookName, setSaveBookName] = React.useState("");
+  // Optimistic drag order — applied over the server order until the
+  // revalidated props catch up.
+  const [localOrder, setLocalOrder] = React.useState<string[] | null>(null);
   const [, startTransition] = React.useTransition();
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+  );
 
   const languages = [...new Set(items.map((i) => i.language))].sort();
   const categories = [
@@ -165,6 +187,13 @@ export function VocabTable({
   ].sort();
 
   let visible = items;
+  if (inBook && localOrder) {
+    const byId = new Map(items.map((i) => [i.id, i]));
+    const ordered = localOrder
+      .map((id) => byId.get(id))
+      .filter((i): i is StudyVocabItem => !!i);
+    visible = [...ordered, ...items.filter((i) => !localOrder.includes(i.id))];
+  }
   if (!inBook) {
     visible = items.filter(
       (i) =>
@@ -244,7 +273,22 @@ export function VocabTable({
     }, "save as book");
   };
 
-  const colCount = 1 + columns.length + 1;
+  const onDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!book || !over || active.id === over.id) return;
+    const ids = visible.map((i) => i.id);
+    const from = ids.indexOf(String(active.id));
+    const to = ids.indexOf(String(over.id));
+    if (from === -1 || to === -1) return;
+    setLocalOrder(arrayMove(ids, from, to));
+    run(
+      String(active.id),
+      () => reorderStudyVocabListItem(book.id, String(active.id), to),
+      "reorder",
+    );
+  };
+
+  const colCount = (inBook ? 1 : 0) + 1 + columns.length + 1;
 
   return (
     <div>
@@ -425,10 +469,20 @@ export function VocabTable({
         />
       )}
 
-      <div className="overflow-x-auto rounded-xl bg-surface shadow-card">
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={onDragEnd}
+      >
+        <SortableContext
+          items={visible.map((i) => i.id)}
+          strategy={verticalListSortingStrategy}
+        >
+          <div className="overflow-x-auto rounded-xl bg-surface shadow-card">
         <table className="w-full text-[0.9375rem]">
           <thead>
             <tr className="border-b border-border text-left text-[0.78rem] font-medium text-fg-tertiary">
+              {inBook && <th className="w-8 px-2 py-2" />}
               {sortHeader("term", "Word")}
               {OPTIONAL_COLUMNS.filter((c) => showColumn(c.key)).map((c) =>
                 sortHeader(c.key, c.label),
@@ -437,11 +491,14 @@ export function VocabTable({
             </tr>
           </thead>
           <tbody>
-            {visible.map((item, index) => {
+            {visible.map((item) => {
               const hidden = quizMode && !revealed.has(item.id);
               return (
-                <tr
+                <SortableRow
                   key={item.id}
+                  id={item.id}
+                  sortable={inBook}
+                  term={item.term}
                   onClick={
                     hidden
                       ? () =>
@@ -508,52 +565,6 @@ export function VocabTable({
                       className="flex items-center justify-end gap-0.5 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 max-lg:opacity-100"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      {inBook && (
-                        <>
-                          <button
-                            type="button"
-                            title="Move up"
-                            disabled={busyId === item.id || index === 0}
-                            onClick={() =>
-                              run(
-                                item.id,
-                                () =>
-                                  reorderStudyVocabListItem(
-                                    book!.id,
-                                    item.id,
-                                    index - 1,
-                                  ),
-                                "move up",
-                              )
-                            }
-                            className="flex size-7 items-center justify-center rounded-md text-fg-tertiary transition-colors hover:bg-surface-hover hover:text-fg disabled:opacity-30"
-                          >
-                            <ArrowUp className="size-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            title="Move down"
-                            disabled={
-                              busyId === item.id || index === visible.length - 1
-                            }
-                            onClick={() =>
-                              run(
-                                item.id,
-                                () =>
-                                  reorderStudyVocabListItem(
-                                    book!.id,
-                                    item.id,
-                                    index + 1,
-                                  ),
-                                "move down",
-                              )
-                            }
-                            className="flex size-7 items-center justify-center rounded-md text-fg-tertiary transition-colors hover:bg-surface-hover hover:text-fg disabled:opacity-30"
-                          >
-                            <ArrowDown className="size-3.5" />
-                          </button>
-                        </>
-                      )}
                       <Dropdown>
                         <DropdownTrigger asChild>
                           <button
@@ -636,7 +647,7 @@ export function VocabTable({
                       </Dropdown>
                     </div>
                   </td>
-                </tr>
+                </SortableRow>
               );
             })}
             {visible.length === 0 && (
@@ -653,8 +664,65 @@ export function VocabTable({
             )}
           </tbody>
         </table>
-      </div>
+          </div>
+        </SortableContext>
+      </DndContext>
     </div>
+  );
+}
+
+/**
+ * One table row, draggable inside a book: useSortable supplies the
+ * transform, the grip cell (only rendered when sortable) carries the
+ * drag listeners — the rest of the row stays clickable/selectable.
+ */
+function SortableRow({
+  id,
+  sortable,
+  term,
+  className,
+  onClick,
+  children,
+}: {
+  id: string;
+  sortable: boolean;
+  term: string;
+  className?: string;
+  onClick?: () => void;
+  children: React.ReactNode;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id, disabled: !sortable });
+
+  return (
+    <tr
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      onClick={onClick}
+      className={cn(className, isDragging && "relative z-10 opacity-70")}
+    >
+      {sortable && (
+        <td className="w-8 py-1.5 pl-2">
+          <button
+            type="button"
+            {...attributes}
+            {...listeners}
+            aria-label={`Reorder ${term}`}
+            title="Drag to reorder"
+            className="flex size-7 cursor-grab touch-none items-center justify-center rounded-md text-fg-tertiary hover:text-fg active:cursor-grabbing"
+          >
+            <GripVertical className="size-3.5" />
+          </button>
+        </td>
+      )}
+      {children}
+    </tr>
   );
 }
 

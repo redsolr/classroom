@@ -748,9 +748,17 @@ test("categories filter the table; save-as-book, reorder, remove", async ({
   await expect(table.getByRole("cell", { name: "gare" })).not.toBeVisible();
 
   // Manual reorder: view order was newest-first (faire before aller) —
-  // move aller up and it takes the top row.
+  // DRAG aller (by its grip handle) above faire and it takes the top
+  // row. dnd-kit's pointer sensor needs real mouse moves with steps;
+  // a single-hop dragTo doesn't clear the activation distance.
   await expect(rows.first()).toContainText("faire");
-  await rows.filter({ hasText: "aller" }).getByTitle("Move up").click();
+  const grip = rows.filter({ hasText: "aller" }).getByLabel("Reorder aller");
+  const from = (await grip.boundingBox())!;
+  const to = (await rows.filter({ hasText: "faire" }).boundingBox())!;
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(to.x + to.width / 2, to.y + 4, { steps: 12 });
+  await page.mouse.up();
   await expect(rows.first()).toContainText("aller");
 
   // Removing from the book never deletes the word itself.
