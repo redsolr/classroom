@@ -24,6 +24,12 @@ export const STUDY_MODELS: string[] = (
 /** The composer's preselected model — first roster entry by default. */
 export const STUDY_MODEL = process.env.STUDY_AI_MODEL ?? STUDY_MODELS[0];
 
+/** The roster every chat mount offers, with the default guaranteed
+ * present (STUDY_AI_MODEL may name a model outside STUDY_AI_MODELS). */
+export const STUDY_MODEL_ROSTER: string[] = STUDY_MODELS.includes(STUDY_MODEL)
+  ? STUDY_MODELS
+  : [STUDY_MODEL, ...STUDY_MODELS];
+
 /**
  * Resolve the model a turn will actually run on. "mock" without a key;
  * roster-validated otherwise (unknown/absent requests fall back to the

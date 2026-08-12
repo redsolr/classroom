@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { and, asc, eq } from "drizzle-orm";
 import { db, studyMessages, studyProjects, studyThreads } from "@/db";
-import { STUDY_MODEL, STUDY_MODELS } from "@/lib/ai/study-tutor";
+import { STUDY_MODEL, STUDY_MODEL_ROSTER } from "@/lib/ai/study-tutor";
 import { requireLearner } from "@/lib/auth";
 import { threadTitle } from "@/lib/study-display";
 import { StudyChat } from "@/components/study/study-chat";
@@ -57,6 +57,17 @@ export default async function StudyChatPage({
         .orderBy(asc(studyMessages.createdAt))
     : [];
 
+  // One ⋯ menu, nothing else — extraction (language chats with a
+  // conversation) and deletion live inside it. Rendered twice (desktop
+  // header + mobile navbar slot); exactly one is visible per viewport.
+  const chatMenu = active ? (
+    <ChatMenu
+      threadId={active.id}
+      pinned={active.pinned}
+      canExtract={Boolean(chatLanguage) && messages.length > 0}
+    />
+  ) : null;
+
   return (
     // Chrome (header, scroll region, composer) spans the full pane —
     // the readable column is capped INSIDE StudyChat, ChatGPT-style.
@@ -83,31 +94,15 @@ export default async function StudyChatPage({
                 )}
               </p>
             </div>
-            {/* One ⋯ menu, nothing else — extraction (language chats
-                with a conversation) and deletion live inside it. */}
-            <ChatMenu
-              threadId={active.id}
-              pinned={active.pinned}
-              canExtract={Boolean(chatLanguage) && messages.length > 0}
-            />
+            {chatMenu}
           </header>
-          <NavbarActions>
-            <ChatMenu
-              threadId={active.id}
-              pinned={active.pinned}
-              canExtract={Boolean(chatLanguage) && messages.length > 0}
-            />
-          </NavbarActions>
+          <NavbarActions>{chatMenu}</NavbarActions>
           <StudyChat
             key={active.id}
             threadId={active.id}
             language={chatLanguage}
             initialMessages={messages}
-            models={
-              STUDY_MODELS.includes(STUDY_MODEL)
-                ? STUDY_MODELS
-                : [STUDY_MODEL, ...STUDY_MODELS]
-            }
+            models={STUDY_MODEL_ROSTER}
             defaultModel={STUDY_MODEL}
           />
         </>
@@ -119,11 +114,7 @@ export default async function StudyChatPage({
           threadId={null}
           language={null}
           initialMessages={[]}
-          models={
-            STUDY_MODELS.includes(STUDY_MODEL)
-              ? STUDY_MODELS
-              : [STUDY_MODEL, ...STUDY_MODELS]
-          }
+          models={STUDY_MODEL_ROSTER}
           defaultModel={STUDY_MODEL}
         />
       )}

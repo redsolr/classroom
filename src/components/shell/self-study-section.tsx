@@ -40,6 +40,7 @@ import { QuickAddVocabDialog } from "@/components/study/quick-add-vocab-dialog";
 import type { SidebarStudy, SidebarThread } from "@/lib/study-sidebar";
 import { threadTitle } from "@/lib/study-display";
 import {
+  isNavEntryActive,
   navRowClass,
   SectionLabel,
 } from "@/components/shell/sidebar-shell";
@@ -265,15 +266,24 @@ function StudyChatTree({ study }: { study: SidebarStudy }) {
   const searchParams = useSearchParams();
   const activeId = pathname === "/chat" ? searchParams.get("t") : null;
 
-  const isItemActive = (item: (typeof PRIMARY_ITEMS)[number]) =>
-    item.exact
-      ? pathname === item.href
-      : pathname === item.href || pathname.startsWith(item.href + "/");
   // A tab inside More keeps the expander open (its active row must stay
   // visible); otherwise the learner toggles it.
   const [moreOpen, setMoreOpen] = React.useState(false);
-  const moreActive = MORE_ITEMS.some(isItemActive);
+  const moreActive = MORE_ITEMS.some((item) =>
+    isNavEntryActive(pathname, item),
+  );
   const showMore = moreOpen || moreActive;
+
+  const navTab = (item: (typeof PRIMARY_ITEMS)[number]) => (
+    <Link
+      key={item.href}
+      href={item.href}
+      className={navRowClass(isNavEntryActive(pathname, item))}
+    >
+      <item.icon className="size-4" />
+      {item.label}
+    </Link>
+  );
 
   return (
     <div className="study-nav space-y-4">
@@ -287,16 +297,7 @@ function StudyChatTree({ study }: { study: SidebarStudy }) {
             New chat
           </Link>
         </div>
-        {PRIMARY_ITEMS.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={navRowClass(isItemActive(item))}
-          >
-            <item.icon className="size-4" />
-            {item.label}
-          </Link>
-        ))}
+        {PRIMARY_ITEMS.map(navTab)}
         <button
           type="button"
           onClick={() => setMoreOpen((open) => !open)}
@@ -306,17 +307,7 @@ function StudyChatTree({ study }: { study: SidebarStudy }) {
           <MoreHorizontal className="size-4" />
           More
         </button>
-        {showMore &&
-          MORE_ITEMS.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={navRowClass(isItemActive(item))}
-            >
-              <item.icon className="size-4" />
-              {item.label}
-            </Link>
-          ))}
+        {showMore && MORE_ITEMS.map(navTab)}
       </div>
 
       {(study.pinned.length > 0 || study.pinnedBooks.length > 0) && (

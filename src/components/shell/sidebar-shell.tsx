@@ -29,6 +29,17 @@ export type NavEntry = {
   exact?: boolean;
 };
 
+/** The one active-tab rule — shared by every nav list (NavSection here,
+ * the self-study tabs) so highlight semantics can't drift. */
+export function isNavEntryActive(
+  pathname: string,
+  entry: Pick<NavEntry, "href" | "exact">,
+): boolean {
+  return entry.exact
+    ? pathname === entry.href
+    : pathname === entry.href || pathname.startsWith(entry.href + "/");
+}
+
 /** The one nav-row look (white text; accent when active) — shared with
  * the self-study section so the sidebar can't drift stylistically. */
 export function navRowClass(active: boolean): string {
@@ -61,17 +72,16 @@ export function NavSection({
     <div className="mb-5">
       {label && <SectionLabel>{label}</SectionLabel>}
       <nav className="flex flex-col gap-0.5">
-        {items.map((item) => {
-          const active = item.exact
-            ? pathname === item.href
-            : pathname === item.href || pathname.startsWith(item.href + "/");
-          return (
-            <Link key={item.href} href={item.href} className={navRowClass(active)}>
-              <item.icon className="size-4" />
-              {item.label}
-            </Link>
-          );
-        })}
+        {items.map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            className={navRowClass(isNavEntryActive(pathname, item))}
+          >
+            <item.icon className="size-4" />
+            {item.label}
+          </Link>
+        ))}
       </nav>
     </div>
   );
