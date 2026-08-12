@@ -121,7 +121,7 @@ export function SidebarShell({
         </button>
         <div className="flex-1" />
         <Link
-          href="/study"
+          href="/chat"
           aria-label="New chat"
           title="New chat"
           className="mobile-navbar-new-chat flex size-8 items-center justify-center rounded-md text-fg-secondary transition-colors hover:bg-surface-hover"

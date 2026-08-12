@@ -88,7 +88,7 @@ export function PackView({
         <p className="mb-4 rounded-md bg-accent-soft px-3 py-2.5 text-[0.875rem] text-accent-text">
           Added {imported.added} new word{imported.added === 1 ? "" : "s"} and
           saved the pack as your “{imported.list}” book —{" "}
-          <Link href="/study/vocab" className="font-medium underline underline-offset-2">
+          <Link href="/vocab" className="font-medium underline underline-offset-2">
             open my books
           </Link>
           .

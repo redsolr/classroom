@@ -6,7 +6,7 @@ import {
 } from "@/lib/ai/study-tools";
 
 /**
- * The self-study tutor (/study) — OpenAI-backed, unlike the roster
+ * The self-study tutor (/chat) — OpenAI-backed, unlike the roster
  * companion (companion.ts, Anthropic): the study surface is the founder's
  * GPT-5.6-tier evaluation ground (2026-08-09 arc). The learner picks the
  * model per message from a fixed roster; requests are validated against

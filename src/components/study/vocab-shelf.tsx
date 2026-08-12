@@ -67,7 +67,7 @@ function NewBookDialog() {
       try {
         const { id } = await createStudyVocabList(name, []);
         setOpen(false);
-        router.push(`/study/vocab?book=${id}`);
+        router.push(`/vocab?book=${id}`);
       } catch (err) {
         console.error("vocab: failed to create book", err);
       }
@@ -132,7 +132,7 @@ function BookRow({ list }: { list: VocabListSummary }) {
         />
       ) : (
         <Link
-          href={`/study/vocab?book=${list.id}`}
+          href={`/vocab?book=${list.id}`}
           className="min-w-0 flex-1"
         >
           <span className="block truncate text-[0.9375rem] font-medium">
@@ -224,7 +224,7 @@ export function VocabShelf({
         <AddWordDialogButton />
         <NewBookDialog />
         <Link
-          href="/study/packs"
+          href="/packs"
           className="inline-flex h-9 items-center gap-1.5 rounded-md px-2.5 text-[0.9375rem] font-medium text-accent-text transition-colors hover:bg-surface-hover"
         >
           <Sparkles className="size-3.5" />
@@ -235,7 +235,7 @@ export function VocabShelf({
       <ul className="divide-y divide-border rounded-xl bg-surface shadow-card">
         <li className="transition-colors hover:bg-surface-hover">
           <Link
-            href="/study/vocab?book=all"
+            href="/vocab?book=all"
             className="flex items-center gap-3 px-4 py-3"
           >
             <Layers className="size-4 shrink-0 text-fg-tertiary" />

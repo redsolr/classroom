@@ -122,7 +122,7 @@ export async function updateStudyProject(
     .returning({ id: studyProjects.id });
   if (updated.length === 0) throw new Error("Project not found");
 
-  revalidatePath(`/study/project/${id}`);
+  revalidatePath(`/project/${id}`);
   revalidateStudyTree();
 }
 
@@ -138,7 +138,7 @@ export async function deleteStudyProject(projectId: string) {
     );
 
   revalidateStudyTree();
-  redirect("/study");
+  redirect("/chat");
 }
 
 // ---------------------------------------------------------------------------
@@ -202,7 +202,7 @@ export async function createStudyThread(formData: FormData) {
     )
     .limit(1);
   if (existingEmpty) {
-    redirect(`/study?t=${existingEmpty.id}`);
+    redirect(`/chat?t=${existingEmpty.id}`);
   }
 
   const [thread] = await db
@@ -216,7 +216,7 @@ export async function createStudyThread(formData: FormData) {
     .returning({ id: studyThreads.id });
 
   revalidateStudyTree();
-  redirect(`/study?t=${thread.id}`);
+  redirect(`/chat?t=${thread.id}`);
 }
 
 /**
@@ -326,7 +326,7 @@ export async function toggleStudyThreadPin(threadId: string) {
 
 /**
  * No redirect here — the sidebar deletes chats the learner isn't even
- * viewing (ChatGPT-style row menus), and yanking them to /study would be
+ * viewing (ChatGPT-style row menus), and yanking them to /chat would be
  * hostile. The chat header's own menu navigates after deleting.
  */
 export async function deleteStudyThread(threadId: string) {
@@ -423,7 +423,7 @@ export async function branchStudyThread(
   );
 
   revalidateStudyTree();
-  redirect(`/study?t=${branch.id}`);
+  redirect(`/chat?t=${branch.id}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -460,7 +460,7 @@ export async function addStudyVocab(formData: FormData) {
     category: parsed.category ?? null,
   });
 
-  revalidatePath("/study/vocab");
+  revalidatePath("/vocab");
 }
 
 /**
@@ -501,7 +501,7 @@ export async function updateStudyVocab(
     .returning({ id: studyVocab.id });
   if (updated.length === 0) throw new Error("Vocabulary item not found");
 
-  revalidatePath("/study/vocab");
+  revalidatePath("/vocab");
 }
 
 export async function deleteStudyVocab(vocabId: string) {
@@ -512,12 +512,12 @@ export async function deleteStudyVocab(vocabId: string) {
     .delete(studyVocab)
     .where(and(eq(studyVocab.id, id), eq(studyVocab.learnerId, learner.id)));
 
-  revalidatePath("/study/vocab");
+  revalidatePath("/vocab");
 }
 
 // ---------------------------------------------------------------------------
 // Memory — the tutor SAVES via its remember/forget chat tools; the learner
-// manages the list on /study/account. Delete-only here by design: adding
+// manages the list on /account. Delete-only here by design: adding
 // happens in conversation ("remember that …"), like ChatGPT/Claude memory.
 // ---------------------------------------------------------------------------
 
@@ -531,7 +531,7 @@ export async function deleteStudyMemory(memoryId: string) {
       and(eq(studyMemories.id, id), eq(studyMemories.learnerId, learner.id)),
     );
 
-  revalidatePath("/study/account");
+  revalidatePath("/account");
 }
 
 export async function deleteAllStudyMemories() {
@@ -541,7 +541,7 @@ export async function deleteAllStudyMemories() {
     .delete(studyMemories)
     .where(eq(studyMemories.learnerId, learner.id));
 
-  revalidatePath("/study/account");
+  revalidatePath("/account");
 }
 
 /** Pause = stop saving AND stop injecting; saved rows are kept. */
@@ -553,7 +553,7 @@ export async function setStudyMemoryEnabled(enabled: boolean) {
     .set({ memoryEnabled: z.boolean().parse(enabled), updatedAt: new Date() })
     .where(eq(learners.id, learner.id));
 
-  revalidatePath("/study/account");
+  revalidatePath("/account");
 }
 
 /**
@@ -573,7 +573,7 @@ export async function updateStudyInstructions(formData: FormData) {
     .set({ instructions: instructions || null, updatedAt: new Date() })
     .where(eq(learners.id, learner.id));
 
-  revalidatePath("/study/account");
+  revalidatePath("/account");
 }
 
 /**
@@ -696,7 +696,7 @@ export async function addStudyVocabBulk(
         meaning: item.meaning || null,
       })),
     );
-    revalidatePath("/study/vocab");
+    revalidatePath("/vocab");
   }
 
   return { added: fresh.length };
@@ -764,7 +764,7 @@ export async function createStudyVocabList(name: string, vocabIds: string[]) {
   }
 
   revalidateStudyTree();
-  revalidatePath("/study/vocab");
+  revalidatePath("/vocab");
   return { id: list.id, count: kept.length };
 }
 
@@ -779,7 +779,7 @@ export async function toggleStudyVocabListPin(listId: string) {
     .where(eq(studyVocabLists.id, list.id));
 
   revalidateStudyTree();
-  revalidatePath("/study/vocab");
+  revalidatePath("/vocab");
 }
 
 const bookWordSchema = z.object({
@@ -837,7 +837,7 @@ export async function addStudyVocabToBook(listId: string, formData: FormData) {
     .onConflictDoNothing();
 
   revalidateStudyTree();
-  revalidatePath("/study/vocab");
+  revalidatePath("/vocab");
 }
 
 export async function renameStudyVocabList(listId: string, name: string) {
@@ -851,7 +851,7 @@ export async function renameStudyVocabList(listId: string, name: string) {
     .where(eq(studyVocabLists.id, list.id));
 
   revalidateStudyTree();
-  revalidatePath("/study/vocab");
+  revalidatePath("/vocab");
 }
 
 export async function deleteStudyVocabList(listId: string) {
@@ -861,7 +861,7 @@ export async function deleteStudyVocabList(listId: string) {
   await db.delete(studyVocabLists).where(eq(studyVocabLists.id, list.id));
 
   revalidateStudyTree();
-  revalidatePath("/study/vocab");
+  revalidatePath("/vocab");
 }
 
 export async function addToStudyVocabList(listId: string, vocabId: string) {
@@ -884,7 +884,7 @@ export async function addToStudyVocabList(listId: string, vocabId: string) {
     })
     .onConflictDoNothing(); // already on the list = no-op
 
-  revalidatePath("/study/vocab");
+  revalidatePath("/vocab");
 }
 
 export async function removeFromStudyVocabList(
@@ -904,7 +904,7 @@ export async function removeFromStudyVocabList(
       ),
     );
 
-  revalidatePath("/study/vocab");
+  revalidatePath("/vocab");
 }
 
 /** Drag-reorder: move the word to an arbitrary index; positions are
@@ -941,7 +941,7 @@ export async function reorderStudyVocabListItem(
     }
   });
 
-  revalidatePath("/study/vocab");
+  revalidatePath("/vocab");
 }
 
 // ---------------------------------------------------------------------------
@@ -975,7 +975,7 @@ export async function addStudyPackItem(
     example: row.item.example,
     category: row.item.category,
   });
-  revalidatePath("/study/vocab");
+  revalidatePath("/vocab");
   return { added: true };
 }
 
@@ -1056,7 +1056,7 @@ export async function importStudyPack(
     })),
   );
 
-  revalidatePath("/study/vocab");
+  revalidatePath("/vocab");
   return { added: fresh.length, list: pack.name };
 }
 
@@ -1095,11 +1095,11 @@ export async function reviewStudyVocab(
     .set({ ...patch, updatedAt: now })
     .where(and(eq(studyVocab.id, id), eq(studyVocab.learnerId, learner.id)));
 
-  // Deliberately NOT revalidating /study/vocab/review: the review page
+  // Deliberately NOT revalidating /vocab/review: the review page
   // hands the client a session snapshot of the due deck, and refreshing
   // it mid-session yanks cards out from under the learner (and re-queues
   // "again" cards early). A fresh visit re-queries anyway.
-  revalidatePath("/study/vocab");
+  revalidatePath("/vocab");
 }
 
 // ---------------------------------------------------------------------------
@@ -1137,8 +1137,8 @@ export async function startStudyCheckout() {
     mode: "subscription",
     customer: customerId,
     line_items: [{ price: studyPriceId(), quantity: 1 }],
-    success_url: `${APP_URL}/study/account?checkout=success`,
-    cancel_url: `${APP_URL}/study/account?checkout=canceled`,
+    success_url: `${APP_URL}/account?checkout=success`,
+    cancel_url: `${APP_URL}/account?checkout=canceled`,
   });
   if (!session.url) throw new Error("Stripe returned no checkout URL");
 
@@ -1158,7 +1158,7 @@ export async function openStudyBillingPortal() {
 
   const session = await getStripe().billingPortal.sessions.create({
     customer: learner.stripeCustomerId,
-    return_url: `${APP_URL}/study/account`,
+    return_url: `${APP_URL}/account`,
   });
 
   redirect(session.url);

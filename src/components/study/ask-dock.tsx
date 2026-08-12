@@ -95,9 +95,9 @@ export function AskDock({
     });
   };
 
-  // The /study chat page IS a chat — no floating button there (the
+  // The /chat chat page IS a chat — no floating button there (the
   // hotkey still works everywhere).
-  const showLauncher = pathname !== "/study";
+  const showLauncher = pathname !== "/chat";
 
   if (!isOpen) {
     return showLauncher ? (

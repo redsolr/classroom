@@ -16,7 +16,7 @@ test.beforeAll(resetMockLearner);
 test("hamburger opens the drawer; a nav tap navigates and closes it", async ({
   page,
 }) => {
-  await page.goto("/study");
+  await page.goto("/chat");
   await page.getByRole("button", { name: "Open menu" }).click();
   // Locators don't exclude the display:none desktop sidebar — first()
   // is the drawer copy (drawer renders before the desktop aside).
@@ -25,7 +25,7 @@ test("hamburger opens the drawer; a nav tap navigates and closes it", async ({
   ).toBeVisible();
 
   await page.getByRole("link", { name: "Vocabulary" }).click();
-  await page.waitForURL("**/study/vocab");
+  await page.waitForURL("**/vocab");
   await expect(
     page.getByRole("heading", { name: "My vocabulary" }),
   ).toBeVisible();
@@ -38,11 +38,11 @@ test("chat is fully usable at phone width: type, send, reply", async ({
 }) => {
   // The landing composer is the draft chat — no New-chat step on phones
   // either; the thread is created on the first send.
-  await page.goto("/study");
+  await page.goto("/chat");
   await page.getByLabel("Message").fill("hola");
   await page.getByRole("button", { name: "Send" }).click();
   await expect(page.getByText(/Happy to help with anything/)).toBeVisible();
-  await page.waitForURL(/\/study\?t=[0-9a-f-]{36}/);
+  await page.waitForURL(/\/chat\?t=[0-9a-f-]{36}/);
 
   // ChatGPT navbar: on phones the chat's ⋯ options live in the top bar
   // (portaled there — the desktop chat header is display:none here)…
@@ -52,7 +52,7 @@ test("chat is fully usable at phone width: type, send, reply", async ({
 
   // …next to the quick new-chat, which returns to the draft composer.
   await page.getByRole("link", { name: "New chat" }).click();
-  await page.waitForURL(/\/study$/);
+  await page.waitForURL(/\/chat$/);
   await expect(page.getByLabel("Message")).toBeVisible();
 });
 
@@ -60,7 +60,7 @@ test("vocabulary at phone width: books shelf, dialog add, compact table, edit", 
   page,
 }) => {
   // The landing is the bookshelf; adding goes through the dialog.
-  await page.goto("/study/vocab");
+  await page.goto("/vocab");
   await page.getByRole("button", { name: "New word" }).click();
   const addDialog = page.getByRole("dialog");
   await addDialog.getByLabel("Language").selectOption("French");
@@ -96,7 +96,7 @@ test("PWA manifest and icons serve", async ({ page }) => {
   };
   expect(body.name).toBe("Classroom");
   expect(body.display).toBe("standalone");
-  expect(body.start_url).toBe("/study");
+  expect(body.start_url).toBe("/chat");
 
   for (const icon of [
     "/icons/icon-192.png",

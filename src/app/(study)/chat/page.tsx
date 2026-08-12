@@ -73,7 +73,7 @@ export default async function StudyChatPage({
               <p className="chat-subtitle truncate text-[0.78rem] text-fg-tertiary">
                 {project ? (
                   <Link
-                    href={`/study/project/${project.id}`}
+                    href={`/project/${project.id}`}
                     className="hover:text-fg hover:underline"
                   >
                     {project.name}
@@ -112,7 +112,7 @@ export default async function StudyChatPage({
           />
         </>
       ) : (
-        // No hero, no extra tap: /study IS the chat window — the draft
+        // No hero, no extra tap: /chat IS the chat window — the draft
         // composer is ready immediately and the thread is created on the
         // first send (ChatGPT behavior).
         <StudyChat

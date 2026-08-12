@@ -163,7 +163,7 @@ export function ExtractVocabDialog({
                 : `Added ${phase.added} word${phase.added === 1 ? "" : "s"} to your list.`}
             </p>
             <Link
-              href="/study/vocab"
+              href="/vocab"
               className="mt-2 inline-block text-[0.9375rem] font-medium text-accent-text hover:underline"
             >
               Open my vocabulary →

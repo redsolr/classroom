@@ -10,7 +10,7 @@ async function sendMessage(page: Page, text: string) {
 }
 
 /**
- * The self-study space (/study): projects with custom instructions
+ * The self-study space (/chat): projects with custom instructions
  * (ChatGPT-Projects shape), tutor chat in language projects (offline
  * mock tutor — demonstrably grounded in the learner's vocab), generic
  * loose chats, the personal vocabulary loop (chip-add, manual add, SM-2
@@ -31,7 +31,7 @@ test.beforeAll(resetMockLearner);
 test("study space opens straight into the composer — no extra step", async ({
   page,
 }) => {
-  await page.goto("/study");
+  await page.goto("/chat");
   // The landing IS the chat window (ChatGPT shape): the composer is
   // ready immediately, no hero button between the learner and typing.
   await expect(page.getByLabel("Message")).toBeVisible();
@@ -44,7 +44,7 @@ test("language project with custom instructions: tutor reply is grounded AND fol
   // New project is a DIALOG (ChatGPT shape): create → it closes, the
   // folder lands in the sidebar, and the learner stays put — no
   // redirect to a settings page.
-  await page.goto("/study");
+  await page.goto("/chat");
   await page
     .getByRole("complementary")
     .getByRole("button", { name: "New project" })
@@ -57,11 +57,11 @@ test("language project with custom instructions: tutor reply is grounded AND fol
     .fill("Always be brief.");
   await projectDialog.getByRole("button", { name: "Create project" }).click();
   await expect(projectDialog).not.toBeVisible();
-  expect(new URL(page.url()).pathname).toBe("/study");
+  expect(new URL(page.url()).pathname).toBe("/chat");
 
   // A chat started from the new folder inherits language + instructions.
   await page.getByRole("button", { name: "Start French chat" }).click();
-  await page.waitForURL(/\/study\?t=[0-9a-f-]{36}/);
+  await page.waitForURL(/\/chat\?t=[0-9a-f-]{36}/);
 
   await page.getByLabel("Message").fill("Bonjour! Je veux apprendre.");
   await page.getByRole("button", { name: "Send" }).click();
@@ -83,7 +83,7 @@ test("language project with custom instructions: tutor reply is grounded AND fol
   await expect(chip).toBeDisabled();
 
   // The saved word is a row in the All-words table.
-  await page.goto("/study/vocab?book=all");
+  await page.goto("/vocab?book=all");
   await expect(
     page.getByRole("main").locator("tbody tr").filter({ hasText: "bonjour" }),
   ).toBeVisible();
@@ -94,12 +94,12 @@ test("a loose chat is generic: no tutor persona, no instructions tail", async ({
 }) => {
   // Draft chat: type straight into the landing composer — the thread is
   // created on the first send and the URL follows without a navigation.
-  await page.goto("/study");
+  await page.goto("/chat");
   await page.getByLabel("Message").fill("help me plan my week");
   await page.getByRole("button", { name: "Send" }).click();
 
   await expect(page.getByText(/Happy to help with anything/)).toBeVisible();
-  await page.waitForURL(/\/study\?t=[0-9a-f-]{36}/);
+  await page.waitForURL(/\/chat\?t=[0-9a-f-]{36}/);
   await expect(page.getByText(/Let's practice your/)).not.toBeVisible();
   await expect(
     page.getByText(/Following your project instructions/),
@@ -111,12 +111,12 @@ test("pin from the chat header floats the chat into Pinned; unpin returns it hom
 }) => {
   // Project chats live on the PROJECT PAGE, not the sidebar (ChatGPT
   // shape) — so pinning happens from the chat header's ⋯ menu.
-  await page.goto("/study");
+  await page.goto("/chat");
   const sidebar = page.getByRole("complementary");
   await sidebar.getByRole("link", { name: "French", exact: true }).click();
-  await page.waitForURL(/\/study\/project\/[0-9a-f-]{36}/);
+  await page.waitForURL(/\/project\/[0-9a-f-]{36}/);
   await page.getByRole("main").getByRole("link", { name: /Bonjour/ }).click();
-  await page.waitForURL(/\/study\?t=[0-9a-f-]{36}/);
+  await page.waitForURL(/\/chat\?t=[0-9a-f-]{36}/);
 
   // Scoped to the desktop header — the same ⋯ menu also exists in the
   // (hidden) mobile navbar slot.
@@ -143,11 +143,11 @@ test("pin from the chat header floats the chat into Pinned; unpin returns it hom
 test("editing project instructions + name applies to later replies and the sidebar", async ({
   page,
 }) => {
-  await page.goto("/study");
+  await page.goto("/chat");
   // Settings live behind the project row's ⋯ menu (the label navigates).
   await page.getByRole("button", { name: "French options" }).click();
   await page.getByRole("menuitem", { name: "Project settings" }).click();
-  await page.waitForURL(/\/study\/project\/[0-9a-f-]{36}/);
+  await page.waitForURL(/\/project\/[0-9a-f-]{36}/);
 
   await page.getByLabel("Name").fill("Français");
   await page.getByLabel(/Custom instructions/).fill("Use emojis.");
@@ -161,7 +161,7 @@ test("editing project instructions + name applies to later replies and the sideb
   // The updated instructions reach the next reply (mock probe) — the
   // chat opens from the project page's own list.
   await page.getByRole("main").getByRole("link", { name: /Bonjour/ }).click();
-  await page.waitForURL(/\/study\?t=[0-9a-f-]{36}/);
+  await page.waitForURL(/\/chat\?t=[0-9a-f-]{36}/);
   await page.getByLabel("Message").fill("encore une fois");
   await page.getByRole("button", { name: "Send" }).click();
   await expect(
@@ -176,14 +176,14 @@ test("the tutor CRUDs vocabulary from chat: add, list, delete land in the table"
 }) => {
   // Mock grammar drives the SAME tool executor the real model calls —
   // this proves chat → DB, not just chat → words on screen.
-  await page.goto("/study");
+  await page.goto("/chat");
   await page
     .getByRole("complementary")
     .getByRole("link", { name: "Français", exact: true })
     .click();
-  await page.waitForURL(/\/study\/project\/[0-9a-f-]{36}/);
+  await page.waitForURL(/\/project\/[0-9a-f-]{36}/);
   await page.getByRole("main").getByRole("link", { name: /Bonjour/ }).click();
-  await page.waitForURL(/\/study\?t=[0-9a-f-]{36}/);
+  await page.waitForURL(/\/chat\?t=[0-9a-f-]{36}/);
 
   const send = (text: string) => sendMessage(page, text);
 
@@ -191,7 +191,7 @@ test("the tutor CRUDs vocabulary from chat: add, list, delete land in the table"
   await expect(page.getByText(/added “fromage”/)).toBeVisible();
 
   // The word is real table data now, not chat prose.
-  await page.goto("/study/vocab?book=all");
+  await page.goto("/vocab?book=all");
   const table = page.getByRole("main").locator("table");
   await expect(
     table.locator("tbody tr").filter({ hasText: "fromage" }),
@@ -204,7 +204,7 @@ test("the tutor CRUDs vocabulary from chat: add, list, delete land in the table"
   await send("delete vocab: fromage");
   await expect(page.getByText(/Removed “fromage”/)).toBeVisible();
 
-  await page.goto("/study/vocab?book=all");
+  await page.goto("/vocab?book=all");
   await expect(
     table.locator("tbody tr").filter({ hasText: "fromage" }),
   ).toHaveCount(0);
@@ -217,7 +217,7 @@ test("memory: the tutor remembers across chats; the learner manages it on Accoun
   // remember/forget through the REAL tool executor, and "what do you
   // remember" answers from the INJECTED context — so this proves both
   // chat → DB and DB → next turn's prompt.
-  await page.goto("/study");
+  await page.goto("/chat");
   const send = (text: string) => sendMessage(page, text);
 
   await send("remember: Is preparing for the JLPT N3 exam in December");
@@ -242,7 +242,7 @@ test("memory: the tutor remembers across chats; the learner manages it on Accoun
   await expect(page.getByText(/Forgotten:.*short drills/)).toBeVisible();
 
   // The surviving memory is visible + deletable on the Account page.
-  await page.goto("/study/account");
+  await page.goto("/account");
   const memorySection = page
     .getByRole("main")
     .locator("section")
@@ -258,12 +258,12 @@ test("memory: the tutor remembers across chats; the learner manages it on Accoun
   await expect(memorySection.getByText(/Nothing saved yet/)).toBeVisible();
 
   // And the tutor's context is empty again on the next turn.
-  await page.goto("/study");
+  await page.goto("/chat");
   await page
     .getByRole("complementary")
     .getByRole("link", { name: /^remember: Is preparing/ })
     .click();
-  await page.waitForURL(/\/study\?t=[0-9a-f-]{36}/);
+  await page.waitForURL(/\/chat\?t=[0-9a-f-]{36}/);
   await send("what do you remember");
   await expect(
     page.getByText("I don't have any memories saved about you yet."),
@@ -275,7 +275,7 @@ test("About-you instructions inject everywhere; pausing memory stops saving AND 
 }) => {
   // Standing instructions (ChatGPT Custom Instructions shape) reach the
   // next reply's prompt assembly — proved by the mock's probe tail.
-  await page.goto("/study/account");
+  await page.goto("/account");
   const instructions = page.getByLabel("Standing instructions");
   const saveInstructions = async () => {
     // Reloading the instant after click aborts the in-flight server
@@ -285,7 +285,7 @@ test("About-you instructions inject everywhere; pausing memory stops saving AND 
       page.waitForResponse(
         (res) =>
           res.request().method() === "POST" &&
-          res.url().includes("/study/account"),
+          res.url().includes("/account"),
       ),
       page.getByRole("button", { name: "Save instructions" }).click(),
     ]);
@@ -297,7 +297,7 @@ test("About-you instructions inject everywhere; pausing memory stops saving AND 
   await page.reload();
   await expect(instructions).toHaveValue("Answer briefly.");
 
-  await page.goto("/study");
+  await page.goto("/chat");
   const send = (text: string) => sendMessage(page, text);
 
   await send("hello there");
@@ -311,7 +311,7 @@ test("About-you instructions inject everywhere; pausing memory stops saving AND 
   await expect(page.getByText("Got it — I'll remember that.")).toBeVisible();
 
   // ── Pause: saved rows are KEPT but neither injected nor added to ──
-  await page.goto("/study/account");
+  await page.goto("/account");
   await page.getByRole("button", { name: "Pause memory" }).click();
   await expect(page.getByText(/Memory is paused/)).toBeVisible();
   // The saved memory survives the pause, visibly.
@@ -319,12 +319,12 @@ test("About-you instructions inject everywhere; pausing memory stops saving AND 
     page.getByRole("main").getByText(/Collects mechanical watches/),
   ).toBeVisible();
 
-  await page.goto("/study");
+  await page.goto("/chat");
   await page
     .getByRole("complementary")
     .getByRole("link", { name: /^hello there/ })
     .click();
-  await page.waitForURL(/\/study\?t=[0-9a-f-]{36}/);
+  await page.waitForURL(/\/chat\?t=[0-9a-f-]{36}/);
   // Injection is off: the context probe sees no memories…
   await send("what do you remember");
   await expect(
@@ -335,7 +335,7 @@ test("About-you instructions inject everywhere; pausing memory stops saving AND 
   await expect(page.getByText(/Memory is paused — /)).toBeVisible();
 
   // ── Resume, then Delete all clears the list ───────────────────────
-  await page.goto("/study/account");
+  await page.goto("/account");
   await page.getByRole("button", { name: "Resume memory" }).click();
   await expect(page.getByText(/Memory is paused/)).not.toBeVisible();
   await expect(
@@ -356,12 +356,12 @@ test("About-you instructions inject everywhere; pausing memory stops saving AND 
 test("deleting a chat removes it after the confirm dialog", async ({
   page,
 }) => {
-  await page.goto("/study");
+  await page.goto("/chat");
   const loose = page
     .getByRole("complementary")
     .getByRole("link", { name: /help me plan/ });
   await loose.click();
-  await page.waitForURL(/\/study\?t=[0-9a-f-]{36}/);
+  await page.waitForURL(/\/chat\?t=[0-9a-f-]{36}/);
 
   // Deletion lives behind the header's single ⋯ menu now.
   page.on("dialog", (dialog) => void dialog.accept());
@@ -372,7 +372,7 @@ test("deleting a chat removes it after the confirm dialog", async ({
     .getByRole("button", { name: "Chat options" })
     .click();
   await page.getByRole("menuitem", { name: "Delete chat" }).click();
-  await page.waitForURL(/\/study$/);
+  await page.waitForURL(/\/chat$/);
   await expect(
     page.getByRole("complementary").getByRole("link", { name: /help me plan/ }),
   ).not.toBeVisible();
@@ -383,15 +383,15 @@ test("branch in new chat copies the conversation up to that reply", async ({
 }) => {
   // The French thread carries 4 turns by now (Bonjour + reply, encore +
   // reply). Branching from the FIRST reply must copy exactly two.
-  await page.goto("/study");
+  await page.goto("/chat");
   await page
     .getByRole("complementary")
     .getByRole("link", { name: "Français", exact: true })
     .click();
-  await page.waitForURL(/\/study\/project\/[0-9a-f-]{36}/);
+  await page.waitForURL(/\/project\/[0-9a-f-]{36}/);
   const projectUrl = page.url();
   await page.getByRole("main").getByRole("link", { name: /Bonjour/ }).click();
-  await page.waitForURL(/\/study\?t=[0-9a-f-]{36}/);
+  await page.waitForURL(/\/chat\?t=[0-9a-f-]{36}/);
   const sourceUrl = page.url();
   const sourceThread = new URL(sourceUrl).searchParams.get("t");
 
@@ -402,11 +402,11 @@ test("branch in new chat copies the conversation up to that reply", async ({
   await firstReply.hover();
   await page.getByRole("button", { name: "More actions" }).first().click();
   await page.getByRole("menuitem", { name: "Branch in new chat" }).click();
-  // The current URL already matches /study?t=… — wait for the thread id
+  // The current URL already matches /chat?t=… — wait for the thread id
   // to actually CHANGE, not just for the pattern.
   await page.waitForURL(
     (url) =>
-      url.pathname === "/study" &&
+      url.pathname === "/chat" &&
       url.searchParams.get("t") !== null &&
       url.searchParams.get("t") !== sourceThread,
   );
@@ -430,18 +430,18 @@ test("desktop: chat chrome spans the pane while the column stays readable", asyn
   page,
 }) => {
   await page.setViewportSize({ width: 1920, height: 1000 });
-  await page.goto("/study");
+  await page.goto("/chat");
   await page
     .getByRole("complementary")
     .getByRole("link", { name: "Français", exact: true })
     .click();
-  await page.waitForURL(/\/study\/project\/[0-9a-f-]{36}/);
+  await page.waitForURL(/\/project\/[0-9a-f-]{36}/);
   await page
     .getByRole("main")
     .getByRole("link", { name: /Bonjour/ })
     .first()
     .click();
-  await page.waitForURL(/\/study\?t=[0-9a-f-]{36}/);
+  await page.waitForURL(/\/chat\?t=[0-9a-f-]{36}/);
 
   const main = await page.getByRole("main").boundingBox();
   const header = await page.locator("main header").boundingBox();
@@ -461,7 +461,7 @@ test("desktop: chat chrome spans the pane while the column stays readable", asyn
 test("deleting a project frees its chats instead of destroying them", async ({
   page,
 }) => {
-  await page.goto("/study");
+  await page.goto("/chat");
   await page
     .getByRole("complementary")
     .getByRole("button", { name: "New project" })
@@ -473,7 +473,7 @@ test("deleting a project frees its chats instead of destroying them", async ({
 
   // A chat inside it (no message sent — stays "New chat").
   await page.getByRole("button", { name: "Start Temp chat" }).click();
-  await page.waitForURL(/\/study\?t=[0-9a-f-]{36}/);
+  await page.waitForURL(/\/chat\?t=[0-9a-f-]{36}/);
   const emptyChatUrl = page.url();
 
   // Tapping + again REUSES the empty chat (no blank-thread littering).
@@ -488,7 +488,7 @@ test("deleting a project frees its chats instead of destroying them", async ({
   page.on("dialog", (dialog) => void dialog.accept());
   await page.getByRole("button", { name: "Temp options" }).click();
   await page.getByRole("menuitem", { name: "Delete project" }).click();
-  await page.waitForURL(/\/study$/);
+  await page.waitForURL(/\/chat$/);
 
   // The chat survived — now a loose chat in the sidebar. (div.group =
   // thread rows; the nav's own "New chat" tab is not one.)
@@ -508,7 +508,7 @@ test("sidebar chat row: rename inline, then delete from the ⋯ menu", async ({
 }) => {
   // The Temp deletion above left an empty loose "New chat" in the
   // sidebar — adopt it (the hero button reuses empty chats).
-  await page.goto("/study");
+  await page.goto("/chat");
   const sidebar = page.getByRole("complementary");
   const row = sidebar
     .locator("div.group")
@@ -540,7 +540,7 @@ test("sidebar chat row: rename inline, then delete from the ⋯ menu", async ({
 test("Ask dock: opens on any study page, chats, and closes on Escape", async ({
   page,
 }) => {
-  await page.goto("/study/vocab");
+  await page.goto("/vocab");
   await page.getByRole("button", { name: "Ask AI" }).click();
 
   // The dock hosts a real chat (thread created lazily) — send through it.
@@ -558,7 +558,7 @@ test("manual vocab add + SM-2 review session over the due deck", async ({
   page,
 }) => {
   // Adding goes through the New word dialog — the landing stays a shelf.
-  await page.goto("/study/vocab");
+  await page.goto("/vocab");
   await page.getByRole("button", { name: "New word" }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("Language").selectOption("Japanese");
@@ -567,13 +567,13 @@ test("manual vocab add + SM-2 review session over the due deck", async ({
   await dialog.getByLabel("Meaning").fill("cat");
   await dialog.getByRole("button", { name: "Add word" }).click();
   await expect(dialog).not.toBeVisible();
-  await page.goto("/study/vocab?book=all");
+  await page.goto("/vocab?book=all");
   await expect(
     page.getByRole("main").getByRole("cell", { name: "猫", exact: true }),
   ).toBeVisible();
 
   // Both saved words are due (never reviewed) — review the whole deck.
-  await page.goto("/study/vocab/review");
+  await page.goto("/vocab/review");
   await expect(page.getByText("Card 1 of 2")).toBeVisible();
   for (let i = 0; i < 2; i++) {
     await page.getByRole("button", { name: "Show answer" }).click();
@@ -582,7 +582,7 @@ test("manual vocab add + SM-2 review session over the due deck", async ({
   await expect(page.getByText("2 cards reviewed")).toBeVisible();
 
   // Graded cards moved out of "due" — the landing's Review CTA is gone.
-  await page.goto("/study/vocab");
+  await page.goto("/vocab");
   await expect(
     page.getByRole("link", { name: /Review \d+ due/ }),
   ).not.toBeVisible();
@@ -591,7 +591,7 @@ test("manual vocab add + SM-2 review session over the due deck", async ({
 test("table: default columns, customization, quiz mode, sort, filter", async ({
   page,
 }) => {
-  await page.goto("/study/vocab?book=all");
+  await page.goto("/vocab?book=all");
   const main = page.getByRole("main");
   const table = main.locator("table");
 
@@ -642,7 +642,7 @@ test("table: default columns, customization, quiz mode, sort, filter", async ({
 test("editing via the row menu updates a word and survives reload", async ({
   page,
 }) => {
-  await page.goto("/study/vocab?book=all");
+  await page.goto("/vocab?book=all");
   const table = page.getByRole("main").locator("table");
   const row = table.locator("tbody tr").filter({ hasText: "猫" });
   await row.hover();
@@ -665,10 +665,10 @@ test("editing via the row menu updates a word and survives reload", async ({
 });
 
 test("CSV export serves the personal list Anki-ready", async ({ page }) => {
-  await page.goto("/study/vocab?book=all");
+  await page.goto("/vocab?book=all");
   await expect(page.getByRole("link", { name: "Export CSV" })).toBeVisible();
 
-  const res = await page.request.get("/study/vocab/export.csv");
+  const res = await page.request.get("/vocab/export.csv");
   expect(res.status()).toBe(200);
   expect(res.headers()["content-type"]).toContain("text/csv");
   expect(res.headers()["content-disposition"]).toContain("vocabulary.csv");
@@ -695,7 +695,7 @@ test("edit dialog: Escape cancels, Enter saves; delete confirms from the row men
   page,
 }) => {
   // A throwaway word, so this test leaves the list exactly as it found it.
-  await page.goto("/study/vocab");
+  await page.goto("/vocab");
   await page.getByRole("button", { name: "New word" }).click();
   const addDialog = page.getByRole("dialog");
   await addDialog.getByLabel("Language").selectOption("Spanish");
@@ -704,7 +704,7 @@ test("edit dialog: Escape cancels, Enter saves; delete confirms from the row men
   await addDialog.getByRole("button", { name: "Add word" }).click();
   await expect(addDialog).not.toBeVisible();
 
-  await page.goto("/study/vocab?book=all");
+  await page.goto("/vocab?book=all");
   const table = page.getByRole("main").locator("table");
   const row = () => table.locator("tbody tr").filter({ hasText: "perro" });
   const openEdit = async () => {
@@ -737,7 +737,7 @@ test("edit dialog: Escape cancels, Enter saves; delete confirms from the row men
 test("categories filter the table; save-as-book, reorder, remove", async ({
   page,
 }) => {
-  await page.goto("/study/vocab");
+  await page.goto("/vocab");
 
   // Three categorized words — two verbs, one noun — via the dialog.
   const add = async (term: string, meaning: string, category: string) => {
@@ -755,7 +755,7 @@ test("categories filter the table; save-as-book, reorder, remove", async ({
   await add("gare", "station", "Noun");
 
   // The type filter narrows the table to verbs.
-  await page.goto("/study/vocab?book=all");
+  await page.goto("/vocab?book=all");
   const main = page.getByRole("main");
   const table = main.locator("table");
   await main.getByLabel("Filter type").selectOption("Verb");
@@ -772,7 +772,7 @@ test("categories filter the table; save-as-book, reorder, remove", async ({
   await expect(dialog).not.toBeVisible();
 
   // The book is on the shelf; open it — manual order, no gare.
-  await page.goto("/study/vocab");
+  await page.goto("/vocab");
   await main.getByRole("link", { name: /Mes verbes/ }).click();
   await page.waitForURL(/book=/);
   const rows = table.locator("tbody tr");
@@ -800,13 +800,13 @@ test("categories filter the table; save-as-book, reorder, remove", async ({
   await expect(
     table.getByRole("cell", { name: "faire", exact: true }),
   ).not.toBeVisible();
-  await page.goto("/study/vocab?book=all");
+  await page.goto("/vocab?book=all");
   await expect(
     table.getByRole("cell", { name: "faire", exact: true }),
   ).toBeVisible();
 
   // Order + membership are server state — they survive a fresh visit.
-  await page.goto("/study/vocab");
+  await page.goto("/vocab");
   await main.getByRole("link", { name: /Mes verbes/ }).click();
   await page.waitForURL(/book=/);
   await expect(rows.first()).toContainText("aller");
@@ -817,7 +817,7 @@ test("pinned book: sidebar row opens it, + quick-adds a word into it", async ({
   page,
 }) => {
   // Pin "Mes verbes" from the shelf's row menu.
-  await page.goto("/study/vocab");
+  await page.goto("/vocab");
   const main = page.getByRole("main");
   await main.getByRole("button", { name: "Mes verbes options" }).click();
   await page.getByRole("menuitem", { name: "Pin to sidebar" }).click();
@@ -847,7 +847,7 @@ test("pinned book: sidebar row opens it, + quick-adds a word into it", async ({
   ).toBeVisible();
 
   // Unpin from the shelf — the sidebar row leaves.
-  await page.goto("/study/vocab");
+  await page.goto("/vocab");
   await main.getByRole("button", { name: "Mes verbes options" }).click();
   await page.getByRole("menuitem", { name: "Unpin from sidebar" }).click();
   await expect(
@@ -858,14 +858,14 @@ test("pinned book: sidebar row opens it, + quick-adds a word into it", async ({
 test("curated packs: browse, add one word, import all as a personal list", async ({
   page,
 }) => {
-  await page.goto("/study/packs");
+  await page.goto("/packs");
   await expect(
     page.getByRole("heading", { name: "Curated lists" }),
   ).toBeVisible();
   await expect(page.getByText("Persona 5 essentials")).toBeVisible();
 
   await page.getByRole("link", { name: /Café survival French/ }).click();
-  await page.waitForURL("**/study/packs/cafe-french");
+  await page.waitForURL("**/packs/cafe-french");
 
   // One word first — the row flips to its "in your dictionary" state.
   await page
@@ -874,7 +874,7 @@ test("curated packs: browse, add one word, import all as a personal list", async
   await expect(
     page.getByRole("button", { name: "commander is in your dictionary" }),
   ).toBeVisible();
-  await page.goto("/study/vocab?book=all");
+  await page.goto("/vocab?book=all");
   const main = page.getByRole("main");
   const table = main.locator("table");
   await expect(
@@ -883,13 +883,13 @@ test("curated packs: browse, add one word, import all as a personal list", async
 
   // Whole pack: every missing word joins + it lands on the SHELF as the
   // learner's own book.
-  await page.goto("/study/packs/cafe-french");
+  await page.goto("/packs/cafe-french");
   await page
     .getByRole("button", { name: "Add all to my vocabulary" })
     .click();
   await expect(page.getByText(/saved the pack as your/)).toBeVisible();
 
-  await page.goto("/study/vocab");
+  await page.goto("/vocab");
   await main.getByRole("link", { name: /Café survival French/ }).click();
   await page.waitForURL(/book=/);
   await expect(
@@ -905,7 +905,7 @@ test("chat→vocab bulk extraction: review dialog, bulk save, dedup", async ({
 }) => {
   // A German project: its vocab list is empty, so the mock tutor
   // suggests its starter word as a VOCAB line.
-  await page.goto("/study");
+  await page.goto("/chat");
   await page
     .getByRole("complementary")
     .getByRole("button", { name: "New project" })
@@ -917,7 +917,7 @@ test("chat→vocab bulk extraction: review dialog, bulk save, dedup", async ({
   await expect(projectDialog).not.toBeVisible();
 
   await page.getByRole("button", { name: "Start German chat" }).click();
-  await page.waitForURL(/\/study\?t=[0-9a-f-]{36}/);
+  await page.waitForURL(/\/chat\?t=[0-9a-f-]{36}/);
   const threadUrl = page.url();
 
   // One send — counts against the suite's shared cap budget.
@@ -944,8 +944,8 @@ test("chat→vocab bulk extraction: review dialog, bulk save, dedup", async ({
 
   // Filed under German (bonjour also exists under French — the term
   // dedup is per language): the German language filter still shows it.
-  await page.waitForURL("**/study/vocab");
-  await page.goto("/study/vocab?book=all");
+  await page.waitForURL("**/vocab");
+  await page.goto("/vocab?book=all");
   await page.getByLabel("Filter language").selectOption("German");
   await expect(
     page.getByRole("main").locator("tbody tr").filter({ hasText: "bonjour" }),
@@ -971,20 +971,20 @@ test("chat→vocab bulk extraction: review dialog, bulk save, dedup", async ({
 test("free daily cap blocks the tutor and points at the upgrade", async ({
   page,
 }) => {
-  await page.goto("/study");
+  await page.goto("/chat");
   // Reuse the French thread via its project page (project chats aren't
   // sidebar rows). 4 of the 5 free messages are already spent.
   await page
     .getByRole("complementary")
     .getByRole("link", { name: "Français", exact: true })
     .click();
-  await page.waitForURL(/\/study\/project\/[0-9a-f-]{36}/);
+  await page.waitForURL(/\/project\/[0-9a-f-]{36}/);
   await page
     .getByRole("main")
     .getByRole("link", { name: /Bonjour/ })
     .first()
     .click();
-  await page.waitForURL(/\/study\?t=[0-9a-f-]{36}/);
+  await page.waitForURL(/\/chat\?t=[0-9a-f-]{36}/);
 
   // Send until the API answers 429 — must happen within the cap budget.
   let capStatus = 0;
@@ -1009,7 +1009,7 @@ test("free daily cap blocks the tutor and points at the upgrade", async ({
 test("account page: free plan, usage meter, billing-not-configured state", async ({
   page,
 }) => {
-  await page.goto("/study/account");
+  await page.goto("/account");
   await expect(page.getByRole("heading", { name: "Free plan" })).toBeVisible();
   await expect(page.getByText(/of 20 tutor messages/)).toBeVisible();
   await expect(page.getByText(/Billing is not configured/)).toBeVisible();

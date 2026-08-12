@@ -9,7 +9,7 @@ import { requireLearner } from "@/lib/auth";
 
 /**
  * The reading library — book/article entries and the atomic notes filed
- * under them (or loose, on /study/notes). The chat tools in
+ * under them (or loose, on /notes). The chat tools in
  * src/lib/ai/study-tools.ts write the same tables; these actions are the
  * UI's hands.
  */
@@ -17,9 +17,9 @@ import { requireLearner } from "@/lib/auth";
 /** Notes render on the book page, the Notes tab, and the shelf's note
  * counts — a note mutation must refresh all three. */
 function revalidateLibrary(bookId?: string | null) {
-  revalidatePath("/study/library");
-  revalidatePath("/study/notes");
-  if (bookId) revalidatePath(`/study/library/${bookId}`);
+  revalidatePath("/library");
+  revalidatePath("/notes");
+  if (bookId) revalidatePath(`/library/${bookId}`);
 }
 
 const bookSchema = z.object({
@@ -98,7 +98,7 @@ export async function deleteStudyBook(bookId: string) {
     .where(and(eq(studyBooks.id, id), eq(studyBooks.learnerId, learner.id)));
 
   revalidateLibrary();
-  redirect("/study/library");
+  redirect("/library");
 }
 
 const noteContentSchema = z.string().trim().min(1).max(4000);

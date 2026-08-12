@@ -47,7 +47,7 @@ export default async function StudyPacksPage() {
           {packs.map((pack) => (
             <li key={pack.id}>
               <Link
-                href={`/study/packs/${pack.slug}`}
+                href={`/packs/${pack.slug}`}
                 className="block h-full rounded-xl bg-surface p-4 shadow-card transition-colors hover:bg-surface-hover"
               >
                 <p className="text-[1rem] font-semibold">{pack.name}</p>

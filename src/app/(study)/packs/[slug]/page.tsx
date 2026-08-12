@@ -43,7 +43,7 @@ export default async function StudyPackPage({
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6">
       <Link
-        href="/study/packs"
+        href="/packs"
         className="mb-4 inline-flex items-center gap-1.5 text-[0.875rem] text-fg-secondary hover:text-fg"
       >
         <ArrowLeft className="size-3.5" />

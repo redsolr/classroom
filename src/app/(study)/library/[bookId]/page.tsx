@@ -128,7 +128,7 @@ export default async function LibraryBookPage({
             {threads.map((thread) => (
               <li key={thread.id}>
                 <Link
-                  href={`/study?t=${thread.id}`}
+                  href={`/chat?t=${thread.id}`}
                   className="block truncate rounded-lg bg-surface px-4 py-2.5 text-[0.9375rem] shadow-card transition-colors hover:bg-surface-hover"
                 >
                   {thread.title ?? "New chat"}

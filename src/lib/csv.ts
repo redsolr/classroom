@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 /**
  * Shared CSV plumbing for the two vocabulary exports (roster
- * /p/[token]/vocabulary.csv and learner /study/vocab/export.csv) so
+ * /p/[token]/vocabulary.csv and learner /vocab/export.csv) so
  * their format can never drift apart.
  */
 

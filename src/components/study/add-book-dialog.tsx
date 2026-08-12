@@ -26,7 +26,7 @@ export function AddBookDialog({ children }: { children: React.ReactNode }) {
       try {
         const { id } = await createStudyBook(data);
         setOpen(false);
-        router.push(`/study/library/${id}`);
+        router.push(`/library/${id}`);
       } catch (err) {
         console.error("library: failed to add book", err);
         setError("Couldn't add the book — please try again.");

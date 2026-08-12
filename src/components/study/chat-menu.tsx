@@ -49,7 +49,7 @@ export function ChatMenu({
     startTransition(async () => {
       try {
         await deleteStudyThread(threadId);
-        router.push("/study");
+        router.push("/chat");
       } catch (error) {
         console.error("study chat: failed to delete thread", error);
         router.refresh();

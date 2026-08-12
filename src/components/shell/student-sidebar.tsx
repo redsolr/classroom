@@ -61,7 +61,7 @@ export function StudentSidebar({
           </DropdownTrigger>
           <DropdownContent align="start" className="w-52">
             <DropdownItem asChild>
-              <Link href="/study/account">
+              <Link href="/account">
                 <Gauge className="size-4 text-fg-tertiary" />
                 Plan &amp; usage
               </Link>

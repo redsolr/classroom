@@ -258,7 +258,7 @@ export function StudyChat({
       const createdThreadId = res.headers.get("X-Study-Thread-Id");
       if (!threadId && createdThreadId) {
         setThreadId(createdThreadId);
-        window.history.replaceState(null, "", `/study?t=${createdThreadId}`);
+        window.history.replaceState(null, "", `/chat?t=${createdThreadId}`);
       }
 
       const repliedModel = res.headers.get("X-Study-Model");
@@ -487,7 +487,7 @@ export function StudyChat({
                 <span>
                   You&rsquo;ve used your {capHit.cap} free messages for today.{" "}
                   <Link
-                    href="/study/account"
+                    href="/account"
                     className="font-medium text-accent-text underline underline-offset-2"
                   >
                     Upgrade to keep practicing

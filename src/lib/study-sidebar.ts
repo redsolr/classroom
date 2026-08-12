@@ -49,7 +49,7 @@ const EMPTY: SidebarStudy = {
 /**
  * The signed-in account's study tree for the sidebar (projects with
  * their chat history + pinned + loose chats). Every authed layout calls
- * this; [] shapes for accounts that never opened /study.
+ * this; [] shapes for accounts that never opened /chat.
  */
 export async function getSidebarStudy(): Promise<SidebarStudy> {
   const learner = await getLearner();

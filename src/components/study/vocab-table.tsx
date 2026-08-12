@@ -404,7 +404,7 @@ export function VocabTable({
                 Save as book
               </button>
               <a
-                href="/study/vocab/export.csv"
+                href="/vocab/export.csv"
                 download
                 title="Export CSV (Anki-ready)"
                 aria-label="Export CSV"

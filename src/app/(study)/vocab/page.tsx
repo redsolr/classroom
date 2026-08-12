@@ -89,7 +89,7 @@ export default async function StudyVocabPage({
     return (
       <div className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-6">
         <Link
-          href="/study/vocab"
+          href="/vocab"
           className="mb-3 inline-flex items-center gap-1.5 text-[0.875rem] text-fg-secondary hover:text-fg"
         >
           <ArrowLeft className="size-3.5" />
@@ -142,7 +142,7 @@ export default async function StudyVocabPage({
         </div>
         {dueCount > 0 && (
           <Link
-            href="/study/vocab/review"
+            href="/vocab/review"
             className="inline-flex h-9 items-center gap-2 rounded-md bg-accent px-3.5 text-[0.9375rem] font-medium text-white shadow-sm transition-colors hover:bg-accent-hover"
           >
             <BookOpenCheck className="size-4" />

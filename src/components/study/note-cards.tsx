@@ -140,7 +140,7 @@ function NoteCard({ note, showBook }: { note: NoteItem; showBook: boolean }) {
             <span>{note.dateLabel}</span>
             {showBook && note.book && (
               <Link
-                href={`/study/library/${note.book.id}`}
+                href={`/library/${note.book.id}`}
                 className="inline-flex min-w-0 items-center gap-1 rounded-full bg-surface-hover px-2 py-0.5 transition-colors hover:text-fg"
               >
                 <BookOpen className="size-3 shrink-0" />

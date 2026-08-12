@@ -513,7 +513,7 @@ export const aiMessages = pgTable(
 // ---------------------------------------------------------------------------
 // Learners — the self-serve study account (2026-08-09 self-study arc).
 // Orthogonal to teacher/student: ANY WorkOS login gets a learner row on
-// first visit to /study, whether or not it also owns a teacher account or
+// first visit to /chat, whether or not it also owns a teacher account or
 // a claimed roster row. Carries the Stripe subscription state for the
 // study surface — the only billed surface in the app.
 // ---------------------------------------------------------------------------
@@ -839,7 +839,7 @@ export const studyPackItems = pgTable(
 // Study memories — durable facts the tutor saves about the learner from
 // conversations (ChatGPT-memory shape): goals, level, exam dates, interests,
 // how they like to learn. Injected into every chat's context; the learner
-// sees and deletes them on /study/account. The learner owns this context —
+// sees and deletes them on /account. The learner owns this context —
 // the tutor writes it via the remember/forget tools, never silently.
 // ---------------------------------------------------------------------------
 

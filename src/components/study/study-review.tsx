@@ -55,11 +55,11 @@ export function StudyReview({ deck: initialDeck }: { deck: ReviewCard[] }) {
           Come back when more cards are due, or add new words as you chat.
         </p>
         <div className="mt-5 flex justify-center gap-3 text-[0.9375rem] font-medium">
-          <Link href="/study" className="text-accent-text hover:underline">
+          <Link href="/chat" className="text-accent-text hover:underline">
             Back to chat
           </Link>
           <Link
-            href="/study/vocab"
+            href="/vocab"
             className="text-accent-text hover:underline"
           >
             My vocabulary

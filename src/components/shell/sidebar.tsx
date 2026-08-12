@@ -70,7 +70,7 @@ export function Sidebar({
               </Link>
             </DropdownItem>
             <DropdownItem asChild>
-              <Link href="/study/account">
+              <Link href="/account">
                 <Gauge className="size-4 text-fg-tertiary" />
                 Plan &amp; usage
               </Link>

@@ -45,7 +45,7 @@ export function StudentRouteSkeleton() {
   );
 }
 
-/** /study — single conversation column (threads live in the sidebar). */
+/** /chat — single conversation column (threads live in the sidebar). */
 export function StudyChatSkeleton() {
   return (
     <div
@@ -67,7 +67,7 @@ export function StudyChatSkeleton() {
   );
 }
 
-/** /study/vocab — heading, add-word card, word rows. */
+/** /vocab — heading, add-word card, word rows. */
 export function StudyVocabSkeleton() {
   return (
     <div
@@ -86,7 +86,7 @@ export function StudyVocabSkeleton() {
   );
 }
 
-/** /study/vocab/review — heading + the flashcard. */
+/** /vocab/review — heading + the flashcard. */
 export function StudyReviewSkeleton() {
   return (
     <div
@@ -100,7 +100,7 @@ export function StudyReviewSkeleton() {
   );
 }
 
-/** /study/account — heading + the three settings cards. */
+/** /account — heading + the three settings cards. */
 export function StudyAccountSkeleton() {
   return (
     <div

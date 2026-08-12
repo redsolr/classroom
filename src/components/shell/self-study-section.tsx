@@ -49,7 +49,7 @@ import { cn } from "@/lib/utils";
  * The self-study sidebar — ChatGPT-shaped, bare tabs (no section
  * heading, like ChatGPT's own top cluster):
  *
- *   New chat                  (→ /study, straight into the composer)
+ *   New chat                  (→ /chat, straight into the composer)
  *   Vocabulary / Review / Curated lists
  *   More…                     expander for the long tail (Library,
  *                             Notes) so the tab list stays short
@@ -65,14 +65,14 @@ import { cn } from "@/lib/utils";
  */
 
 const PRIMARY_ITEMS = [
-  { href: "/study/vocab", label: "Vocabulary", icon: Layers, exact: true },
-  { href: "/study/vocab/review", label: "Review", icon: BookOpenCheck, exact: false },
-  { href: "/study/packs", label: "Curated lists", icon: BookMarked, exact: false },
+  { href: "/vocab", label: "Vocabulary", icon: Layers, exact: true },
+  { href: "/vocab/review", label: "Review", icon: BookOpenCheck, exact: false },
+  { href: "/packs", label: "Curated lists", icon: BookMarked, exact: false },
 ];
 
 const MORE_ITEMS = [
-  { href: "/study/library", label: "Library", icon: LibraryBig, exact: false },
-  { href: "/study/notes", label: "Notes", icon: NotebookPen, exact: false },
+  { href: "/library", label: "Library", icon: LibraryBig, exact: false },
+  { href: "/notes", label: "Notes", icon: NotebookPen, exact: false },
 ];
 
 /** Hover-reveal on desktop; always visible on touch (no hover). */
@@ -150,7 +150,7 @@ function ThreadRow({
       )}
     >
       <Link
-        href={`/study?t=${thread.id}`}
+        href={`/chat?t=${thread.id}`}
         className={cn(
           // Same type size as the nav rows — the tree must not read as
           // a second, smaller font tier.
@@ -225,7 +225,7 @@ function ProjectMenu({
       </DropdownTrigger>
       <DropdownContent align="start" className="w-52">
         <DropdownItem asChild>
-          <Link href={`/study/project/${projectId}`}>
+          <Link href={`/project/${projectId}`}>
             <Settings className="size-4 text-fg-tertiary" />
             Project settings
           </Link>
@@ -263,7 +263,7 @@ function ProjectMenu({
 function StudyChatTree({ study }: { study: SidebarStudy }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const activeId = pathname === "/study" ? searchParams.get("t") : null;
+  const activeId = pathname === "/chat" ? searchParams.get("t") : null;
 
   const isItemActive = (item: (typeof PRIMARY_ITEMS)[number]) =>
     item.exact
@@ -278,9 +278,9 @@ function StudyChatTree({ study }: { study: SidebarStudy }) {
   return (
     <div className="study-nav space-y-4">
       <div className="study-nav-tabs flex flex-col gap-0.5">
-        <div className={navRowClass(pathname === "/study" && !activeId)}>
+        <div className={navRowClass(pathname === "/chat" && !activeId)}>
           <Link
-            href="/study"
+            href="/chat"
             className="study-nav-new-chat flex min-w-0 flex-1 items-center gap-2.5"
           >
             <SquarePen className="size-4 shrink-0" />
@@ -338,7 +338,7 @@ function StudyChatTree({ study }: { study: SidebarStudy }) {
                 className="book-row group flex items-center rounded-md pr-1 pl-2.5 transition-colors hover:bg-surface-hover"
               >
                 <Link
-                  href={`/study/vocab?book=${book.id}`}
+                  href={`/vocab?book=${book.id}`}
                   className="flex min-w-0 flex-1 items-center gap-2 py-1.5 pr-1 text-[0.9375rem] text-fg"
                 >
                   <BookMarked className="size-3.5 shrink-0 text-fg-tertiary" />
@@ -379,7 +379,7 @@ function StudyChatTree({ study }: { study: SidebarStudy }) {
         </div>
         <div className="space-y-0.5">
           {study.projects.map((project) => {
-            const onProjectPage = pathname === `/study/project/${project.id}`;
+            const onProjectPage = pathname === `/project/${project.id}`;
             return (
               <div
                 key={project.id}
@@ -391,7 +391,7 @@ function StudyChatTree({ study }: { study: SidebarStudy }) {
                 {/* The label opens the project page — its chats live
                     there, ChatGPT-style, not nested in the sidebar. */}
                 <Link
-                  href={`/study/project/${project.id}`}
+                  href={`/project/${project.id}`}
                   className={cn(
                     "flex min-w-0 flex-1 items-center gap-2 py-1.5 pr-1 text-[0.9375rem] font-medium",
                     onProjectPage ? "text-accent-text" : "text-fg",
