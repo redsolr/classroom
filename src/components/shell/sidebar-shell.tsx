@@ -97,6 +97,11 @@ export function SidebarShell({
   children: React.ReactNode;
 }) {
   const [open, setOpen] = React.useState(false);
+  // Close = play the slide-out first, unmount when it finishes — the drawer
+  // stays conditionally rendered so closed state leaves no off-screen
+  // duplicates for a11y/tests.
+  const [closing, setClosing] = React.useState(false);
+  const close = React.useCallback(() => setClosing(true), []);
 
   return (
     <>
@@ -117,29 +122,46 @@ export function SidebarShell({
       {open && (
         <div className="fixed inset-0 z-40 lg:hidden">
           <div
-            className="absolute inset-0 bg-black/40"
-            onClick={() => setOpen(false)}
+            className={cn(
+              "absolute inset-0 bg-black/40",
+              closing ? "animate-overlay-out" : "animate-overlay-in",
+            )}
+            onClick={close}
           />
           <aside
-            className="absolute inset-y-0 left-0 flex w-72 flex-col overflow-y-auto bg-surface px-3 py-4 shadow-xl"
+            className={cn(
+              "absolute inset-y-0 left-0 flex w-72 flex-col bg-surface shadow-xl",
+              closing ? "animate-drawer-out" : "animate-drawer-in",
+            )}
+            onAnimationEnd={(e) => {
+              if (closing && e.target === e.currentTarget) {
+                setOpen(false);
+                setClosing(false);
+              }
+            }}
             // Tapping any link in the drawer closes it — cheaper and more
             // reliable than syncing open-state with the route.
             onClickCapture={(e) => {
-              if ((e.target as HTMLElement).closest("a")) setOpen(false);
+              if ((e.target as HTMLElement).closest("a")) close();
             }}
           >
-            <div className="mb-5 flex items-center justify-between px-2">
-              <Brand homeHref={homeHref} />
+            {/* Mirrors the top bar's row exactly (h-12, px-3, gap-2.5,
+                border-b) so the drawer reads as the navbar's own panel:
+                the X lands where the hamburger was, the brand stays put. */}
+            <div className="flex h-12 shrink-0 items-center gap-2.5 border-b border-border px-3">
               <button
                 type="button"
                 aria-label="Close menu"
-                onClick={() => setOpen(false)}
-                className="flex size-8 items-center justify-center rounded-md text-fg-tertiary transition-colors hover:bg-surface-hover"
+                onClick={close}
+                className="flex size-8 items-center justify-center rounded-md text-fg-secondary transition-colors hover:bg-surface-hover"
               >
-                <X className="size-4" />
+                <X className="size-5" />
               </button>
+              <Brand homeHref={homeHref} />
             </div>
-            <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-3 py-4">
+              {children}
+            </div>
           </aside>
         </div>
       )}
