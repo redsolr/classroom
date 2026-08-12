@@ -18,9 +18,11 @@ test("hamburger opens the drawer; a nav tap navigates and closes it", async ({
 }) => {
   await page.goto("/study");
   await page.getByRole("button", { name: "Open menu" }).click();
-  // getByText doesn't exclude the display:none desktop sidebar — first()
+  // Locators don't exclude the display:none desktop sidebar — first()
   // is the drawer copy (drawer renders before the desktop aside).
-  await expect(page.getByText("Self-study").first()).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "New chat" }).first(),
+  ).toBeVisible();
 
   await page.getByRole("link", { name: "Vocabulary" }).click();
   await page.waitForURL("**/study/vocab");
@@ -31,16 +33,27 @@ test("hamburger opens the drawer; a nav tap navigates and closes it", async ({
   await expect(page.getByRole("button", { name: "Close menu" })).not.toBeVisible();
 });
 
-test("chat is fully usable at phone width: new chat, type, send, reply", async ({
+test("chat is fully usable at phone width: type, send, reply", async ({
   page,
 }) => {
+  // The landing composer is the draft chat — no New-chat step on phones
+  // either; the thread is created on the first send.
   await page.goto("/study");
-  await page.getByRole("button", { name: "New chat" }).click();
-  await page.waitForURL(/\/study\?t=[0-9a-f-]{36}/);
-
   await page.getByLabel("Message").fill("hola");
   await page.getByRole("button", { name: "Send" }).click();
   await expect(page.getByText(/Happy to help with anything/)).toBeVisible();
+  await page.waitForURL(/\/study\?t=[0-9a-f-]{36}/);
+
+  // ChatGPT navbar: on phones the chat's ⋯ options live in the top bar
+  // (portaled there — the desktop chat header is display:none here)…
+  await page.getByRole("button", { name: "Chat options" }).click();
+  await expect(page.getByRole("menuitem", { name: "Pin chat" })).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  // …next to the quick new-chat, which returns to the draft composer.
+  await page.getByRole("link", { name: "New chat" }).click();
+  await page.waitForURL(/\/study$/);
+  await expect(page.getByLabel("Message")).toBeVisible();
 });
 
 test("vocabulary at phone width: books shelf, dialog add, compact table, edit", async ({

@@ -17,7 +17,8 @@ export default async function StudyLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const learner = await requireLearner();
+  // Guard only — anonymous callers bounce to /login before any chrome.
+  await requireLearner();
   const account = await resolveAccount();
   const study = await getSidebarStudy();
 
@@ -44,7 +45,6 @@ export default async function StudyLayout({
       <main className="min-w-0 flex-1">{children}</main>
       {/* The CRM-style Ask drawer — available on every study page. */}
       <AskDock
-        learnerName={learner.name}
         models={
           STUDY_MODELS.includes(STUDY_MODEL)
             ? STUDY_MODELS

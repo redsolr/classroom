@@ -5,6 +5,7 @@ import {
   BookOpenText,
   CalendarClock,
   CalendarDays,
+  Gauge,
   LayoutDashboard,
   LogOut,
   Settings,
@@ -45,7 +46,7 @@ export function Sidebar({
 }) {
   return (
     <SidebarShell homeHref="/schedule">
-      <NavSection label="Teaching" items={TEACHING_ITEMS} />
+      <NavSection items={TEACHING_ITEMS} />
       <SelfStudySection study={study} />
 
       <div className="mt-auto">
@@ -66,6 +67,12 @@ export function Sidebar({
               <Link href="/settings">
                 <Settings className="size-4 text-fg-tertiary" />
                 Settings
+              </Link>
+            </DropdownItem>
+            <DropdownItem asChild>
+              <Link href="/study/account">
+                <Gauge className="size-4 text-fg-tertiary" />
+                Plan &amp; usage
               </Link>
             </DropdownItem>
             <DropdownSeparator />

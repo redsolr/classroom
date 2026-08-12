@@ -10,7 +10,6 @@ import {
   GitBranch,
   MoreHorizontal,
   Plus,
-  Sparkles,
   Square,
   Volume2,
 } from "lucide-react";
@@ -155,22 +154,23 @@ function CopyMessageButton({
 }
 
 export function StudyChat({
-  threadId,
+  threadId: initialThreadId,
   language,
-  learnerName,
   initialMessages,
   models,
   defaultModel,
 }: {
-  threadId: string;
+  /** Null = a draft chat — the thread is created on the first send
+   * (ChatGPT shape) and the URL follows via replaceState. */
+  threadId: string | null;
   /** Null = generic chat (no tutor persona, no vocab chips). */
   language: string | null;
-  learnerName: string | null;
   initialMessages: ChatMessage[];
   models: string[];
   defaultModel: string;
 }) {
   const router = useRouter();
+  const [threadId, setThreadId] = React.useState(initialThreadId);
   const [messages, setMessages] = React.useState<ChatMessage[]>(initialMessages);
   const [input, setInput] = React.useState("");
   const [streaming, setStreaming] = React.useState(false);
@@ -194,28 +194,17 @@ export function StudyChat({
     null,
   );
 
-  const firstName = learnerName?.split(" ")[0] ?? null;
-  const suggestions = language
-    ? [
-        `Teach me 3 useful ${language} phrases for today`,
-        "Quiz me on my vocabulary",
-        "Correct this sentence: ",
-      ]
-    : [
-        "Help me think through something: ",
-        "Draft a message for me: ",
-        "Explain this to me: ",
-      ];
-  const greeting = language
-    ? `${firstName ? `Hi ${firstName}! ` : "Hi! "}I'm your ${language} tutor.`
-    : `${firstName ? `Hi ${firstName}! ` : "Hi! "}What's on your mind?`;
-  const subline = language
-    ? "Chat in any language — I correct gently, drill your saved words, and mark new ones worth keeping."
-    : "This chat isn't tied to a language — ask about anything. Project instructions apply if this chat lives in a project.";
-
   React.useEffect(() => {
     endRef.current?.scrollIntoView({ block: "end" });
   }, [messages]);
+
+  React.useEffect(() => {
+    // ChatGPT behavior: the composer is ready to type on desktop. Not on
+    // touch — autofocus there pops the keyboard over the conversation.
+    if (window.matchMedia("(min-width: 1024px)").matches) {
+      textareaRef.current?.focus();
+    }
+  }, []);
 
   React.useEffect(() => {
     return () => {
@@ -246,7 +235,7 @@ export function StudyChat({
       const res = await fetch("/api/study/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ threadId, message, model }),
+        body: JSON.stringify({ threadId: threadId ?? undefined, message, model }),
         signal: controller.signal,
       });
 
@@ -261,6 +250,15 @@ export function StudyChat({
       }
       if (!res.ok || !res.body) {
         throw new Error(`Chat request failed (${res.status})`);
+      }
+
+      // First send from a draft: the server just created the thread —
+      // adopt it and let the URL follow without a navigation, so the
+      // stream keeps rendering in place (ChatGPT behavior).
+      const createdThreadId = res.headers.get("X-Study-Thread-Id");
+      if (!threadId && createdThreadId) {
+        setThreadId(createdThreadId);
+        window.history.replaceState(null, "", `/study?t=${createdThreadId}`);
       }
 
       const repliedModel = res.headers.get("X-Study-Model");
@@ -337,9 +335,13 @@ export function StudyChat({
   };
 
   const branchAt = (index: number) => {
+    // Unreachable in a pristine draft (branch renders on settled replies,
+    // and the first reply adopts the created thread) — typed guard.
+    if (!threadId) return;
+    const id = threadId;
     startBranch(async () => {
       try {
-        await branchStudyThread(threadId, index + 1);
+        await branchStudyThread(id, index + 1);
       } catch (error) {
         // The action redirects to the new chat on success (NEXT_REDIRECT
         // is handled by Next itself); anything reaching here is real.
@@ -359,51 +361,21 @@ export function StudyChat({
   };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="study-chat flex min-h-0 flex-1 flex-col">
       {/* The scroll region spans the full pane (scrollbar at the window
-          edge); the readable column inside stays capped and centered. */}
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <div
-          className={cn(
-            "mx-auto w-full max-w-3xl px-4 py-5 sm:px-6",
-            messages.length === 0 ? "flex h-full flex-col" : "space-y-4",
-          )}
-        >
-          {messages.length === 0 && (
-            <div className="flex flex-1 flex-col items-center justify-center gap-1.5 text-center">
-              <Sparkles className="mb-1 size-5 text-accent" />
-              <p className="text-[1.25rem] font-semibold tracking-tight">
-                {greeting}
-              </p>
-              <p className="max-w-sm text-[0.9375rem] text-fg-secondary">
-                {subline}
-              </p>
-              <div className="mt-4 flex flex-wrap justify-center gap-2">
-                {suggestions.map((suggestion) => (
-                  <button
-                    key={suggestion}
-                    type="button"
-                    onClick={() => {
-                      setInput(suggestion);
-                      textareaRef.current?.focus();
-                    }}
-                    className="rounded-full border border-border-strong bg-surface px-3 py-1.5 text-[0.875rem] text-fg-secondary transition-colors hover:bg-surface-hover hover:text-fg"
-                  >
-                    {suggestion}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
+          edge); the readable column inside stays capped and centered.
+          No empty-state greeting or suggestion chips — a blank screen
+          and the composer are the whole invitation (ChatGPT shape). */}
+      <div className="chat-scroll-region min-h-0 flex-1 overflow-y-auto">
+        <div className="chat-thread-column mx-auto w-full max-w-3xl space-y-4 px-4 py-5 sm:px-6">
           {messages.map((m, index) => {
             // The in-flight reply has no persisted row yet — its actions
             // appear when the stream settles (matching ChatGPT).
             const settled = !(streaming && index === messages.length - 1);
             if (m.role === "user") {
               return (
-                <div key={m.id} className="group">
-                  <div className="ml-10 rounded-lg bg-accent-soft px-4 py-2.5 sm:ml-16">
+                <div key={m.id} className="chat-user-message group">
+                  <div className="chat-user-bubble ml-10 rounded-lg bg-accent-soft px-4 py-2.5 sm:ml-16">
                     <p className="whitespace-pre-wrap text-[0.9375rem] leading-relaxed">
                       {m.content}
                     </p>
@@ -425,8 +397,8 @@ export function StudyChat({
               ? parseReply(m.content)
               : { text: m.content, vocab: [] };
             return (
-              <div key={m.id} className="group">
-                <div className="mr-10 rounded-lg bg-surface px-4 py-2.5 shadow-card sm:mr-16">
+              <div key={m.id} className="chat-assistant-message group">
+                <div className="chat-assistant-bubble mr-10 rounded-lg bg-surface px-4 py-2.5 shadow-card sm:mr-16">
                   <p className="whitespace-pre-wrap text-[0.9375rem] leading-relaxed">
                     {text || (streaming ? "…" : "")}
                   </p>
@@ -502,10 +474,10 @@ export function StudyChat({
         </div>
       </div>
 
-      <div className="px-4 pt-1 pb-4 sm:px-6">
-        <div className="mx-auto w-full max-w-3xl">
+      <div className="chat-composer-bar px-4 pt-1 pb-4 sm:px-6">
+        <div className="chat-composer-column mx-auto w-full max-w-3xl">
           {capHit && (
-            <div className="mb-2.5 rounded-md border border-border-strong bg-surface px-3 py-2.5 text-[0.875rem]">
+            <div className="chat-cap-notice mb-2.5 rounded-md border border-border-strong bg-surface px-3 py-2.5 text-[0.875rem]">
               {capHit.pro ? (
                 <span>
                   You&rsquo;ve hit today&rsquo;s practice brake ({capHit.cap}{" "}
@@ -526,11 +498,13 @@ export function StudyChat({
             </div>
           )}
           {sendError && (
-            <p className="mb-2.5 text-[0.875rem] text-danger">{sendError}</p>
+            <p className="chat-send-error mb-2.5 text-[0.875rem] text-danger">
+              {sendError}
+            </p>
           )}
 
           {/* ChatGPT-style pill composer: textarea on top, controls below. */}
-          <div className="rounded-2xl border border-border-strong bg-surface px-3 pt-2.5 pb-2 shadow-sm transition-colors focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/20">
+          <div className="chat-composer rounded-2xl border border-border-strong bg-surface px-3 pt-2.5 pb-2 shadow-sm transition-colors focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/20">
             <textarea
               ref={textareaRef}
               value={input}
@@ -540,15 +514,15 @@ export function StudyChat({
               maxLength={4000}
               placeholder={language ? `Practice your ${language}…` : "Ask anything…"}
               aria-label="Message"
-              className="max-h-40 w-full resize-none border-0 bg-transparent text-[0.9375rem] leading-relaxed placeholder:text-fg-tertiary focus:outline-none"
+              className="chat-composer-input max-h-40 w-full resize-none border-0 bg-transparent text-[0.9375rem] leading-relaxed placeholder:text-fg-tertiary focus:outline-none"
             />
-            <div className="mt-1 flex items-center justify-between">
+            <div className="chat-composer-controls mt-1 flex items-center justify-between">
               <select
                 value={model}
                 onChange={(e) => setModel(e.target.value)}
                 title="Model for the next message"
                 aria-label="Model"
-                className="h-7 rounded-md bg-transparent px-1 text-[0.8125rem] font-medium text-fg-secondary transition-colors hover:bg-surface-hover focus:outline-none"
+                className="chat-model-select h-7 rounded-md bg-transparent px-1 text-[0.8125rem] font-medium text-fg-secondary transition-colors hover:bg-surface-hover focus:outline-none"
               >
                 {models.map((m) => (
                   <option key={m} value={m}>
@@ -562,7 +536,7 @@ export function StudyChat({
                   onClick={stop}
                   aria-label="Stop"
                   title="Stop generating"
-                  className="flex size-8 items-center justify-center rounded-full bg-accent text-white shadow-sm transition-colors hover:bg-accent-hover"
+                  className="chat-stop-button flex size-8 items-center justify-center rounded-full bg-accent text-white shadow-sm transition-colors hover:bg-accent-hover"
                 >
                   <Square className="size-3 fill-current" />
                 </button>
@@ -572,7 +546,7 @@ export function StudyChat({
                   onClick={() => void send()}
                   disabled={input.trim().length === 0}
                   aria-label="Send"
-                  className="flex size-8 items-center justify-center rounded-full bg-accent text-white shadow-sm transition-colors hover:bg-accent-hover disabled:pointer-events-none disabled:opacity-40"
+                  className="chat-send-button flex size-8 items-center justify-center rounded-full bg-accent text-white shadow-sm transition-colors hover:bg-accent-hover disabled:pointer-events-none disabled:opacity-40"
                 >
                   <CornerDownLeft className="size-4" />
                 </button>

@@ -3,8 +3,10 @@ import { and, asc, eq, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
   db,
+  studyBooks,
   studyMemories,
   studyMessages,
+  studyNotes,
   studyProjects,
   studyThreads,
   studyVocab,
@@ -23,9 +25,13 @@ import { createStudyToolExecutor } from "@/lib/ai/study-tools";
 const HISTORY_TURNS = 20;
 const VOCAB_CONTEXT_ITEMS = 30;
 const MEMORY_CONTEXT_ITEMS = 50;
+const BOOK_NOTES_CONTEXT_ITEMS = 50;
+const LIBRARY_CONTEXT_ITEMS = 30;
 
 const bodySchema = z.object({
-  threadId: z.string().uuid(),
+  /** Absent = a draft chat (ChatGPT shape) — the thread is created here,
+   * on the first send, and returned via the X-Study-Thread-Id header. */
+  threadId: z.string().uuid().optional(),
   message: z.string().trim().min(1).max(4000),
   /** Roster-validated server-side; unknown values fall to the default. */
   model: z.string().max(80).optional(),
@@ -49,17 +55,21 @@ export async function POST(req: NextRequest) {
   const { threadId, message } = parsed.data;
   const model = resolveStudyModel(parsed.data.model);
 
-  const thread = await db.query.studyThreads.findFirst({
-    where: and(
-      eq(studyThreads.id, threadId),
-      eq(studyThreads.learnerId, learner.id),
-    ),
-  });
-  if (!thread) {
+  let thread = threadId
+    ? await db.query.studyThreads.findFirst({
+        where: and(
+          eq(studyThreads.id, threadId),
+          eq(studyThreads.learnerId, learner.id),
+        ),
+      })
+    : undefined;
+  if (threadId && !thread) {
     return Response.json({ error: "thread_not_found" }, { status: 404 });
   }
 
   // The plan gate: rolling-24h user-message count across all threads.
+  // Checked BEFORE draft-thread creation so a capped learner doesn't
+  // litter empty threads.
   const cap = dailyCapFor(learner);
   const messagesToday = await countTutorMessagesLast24h(learner.id);
   if (messagesToday >= cap) {
@@ -67,6 +77,14 @@ export async function POST(req: NextRequest) {
       { error: "daily_cap", cap, pro: learnerHasPro(learner) },
       { status: 429 },
     );
+  }
+
+  if (!thread) {
+    // Draft chat: a loose generic thread, born with its first message.
+    [thread] = await db
+      .insert(studyThreads)
+      .values({ learnerId: learner.id })
+      .returning();
   }
 
   const [inserted] = await db
@@ -98,7 +116,19 @@ export async function POST(req: NextRequest) {
     : null;
   const language = project?.language ?? thread.language ?? null;
 
-  const [vocab, historyRows, memoryRows] = await Promise.all([
+  // The attached library book (if any) — its summary + the learner's
+  // notes ride into the prompt, and save_note files there by default.
+  const book = thread.bookId
+    ? await db.query.studyBooks.findFirst({
+        where: and(
+          eq(studyBooks.id, thread.bookId),
+          eq(studyBooks.learnerId, learner.id),
+        ),
+      })
+    : null;
+
+  const [vocab, historyRows, memoryRows, bookNoteRows, libraryRows] =
+    await Promise.all([
     language
       ? db
           .select({
@@ -138,6 +168,31 @@ export async function POST(req: NextRequest) {
           .orderBy(asc(studyMemories.createdAt))
           .limit(MEMORY_CONTEXT_ITEMS)
       : Promise.resolve([]),
+    book
+      ? db
+          .select({ content: studyNotes.content })
+          .from(studyNotes)
+          .where(
+            and(
+              eq(studyNotes.learnerId, learner.id),
+              eq(studyNotes.bookId, book.id),
+            ),
+          )
+          .orderBy(asc(studyNotes.createdAt))
+          .limit(BOOK_NOTES_CONTEXT_ITEMS)
+      : Promise.resolve([]),
+    // The library index rides into EVERY chat (like memories) — recall
+    // must work anywhere, not just inside a book's own chat.
+    db
+      .select({
+        title: studyBooks.title,
+        author: studyBooks.author,
+        summary: studyBooks.summary,
+      })
+      .from(studyBooks)
+      .where(eq(studyBooks.learnerId, learner.id))
+      .orderBy(asc(studyBooks.createdAt))
+      .limit(LIBRARY_CONTEXT_ITEMS),
   ]);
 
   const context: TutorContext = {
@@ -148,14 +203,25 @@ export async function POST(req: NextRequest) {
     projectInstructions: project?.instructions ?? null,
     learnerInstructions: learner.instructions,
     memories: memoryRows.map((m) => m.content),
+    book: book
+      ? {
+          title: book.title,
+          author: book.author,
+          summary: book.summary,
+          notes: bookNoteRows.map((n) => n.content),
+        }
+      : null,
+    library: libraryRows,
   };
   const turns: TutorTurn[] = historyRows.slice(-HISTORY_TURNS);
   // The tutor's hands: vocabulary CRUD scoped to THIS learner, with the
-  // chat's language as the default filing target.
+  // chat's language as the default filing target (and the linked book
+  // as save_note's).
   const executeTool = createStudyToolExecutor({
     learnerId: learner.id,
     language,
     memoryEnabled: learner.memoryEnabled,
+    bookId: book?.id ?? null,
   });
 
   const encoder = new TextEncoder();
@@ -230,6 +296,7 @@ export async function POST(req: NextRequest) {
       "Content-Type": "text/plain; charset=utf-8",
       "Cache-Control": "no-store",
       "X-Study-Model": model,
+      "X-Study-Thread-Id": thread.id,
     },
   });
 }

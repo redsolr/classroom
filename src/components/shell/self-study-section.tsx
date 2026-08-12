@@ -7,10 +7,11 @@ import {
   BookMarked,
   BookOpenCheck,
   Folder,
-  Gauge,
   Layers,
+  LibraryBig,
   MessageCircle,
   MoreHorizontal,
+  NotebookPen,
   Pencil,
   Pin,
   PinOff,
@@ -45,23 +46,33 @@ import {
 import { cn } from "@/lib/utils";
 
 /**
- * The SELF-STUDY sidebar — ChatGPT-shaped sections, no folder nesting:
+ * The self-study sidebar — ChatGPT-shaped, bare tabs (no section
+ * heading, like ChatGPT's own top cluster):
  *
- *   Chat                      (→ /study, the new-chat hero)
+ *   New chat                  (→ /study, straight into the composer)
+ *   Vocabulary / Review / Curated lists
+ *   More…                     expander for the long tail (Library,
+ *                             Notes) so the tab list stays short
  *   Pinned                    chat rows (any chat the learner pinned)
  *   Projects              +   folder rows → the project page (its chats
  *                             live THERE, like ChatGPT); hover: new chat
  *                             in project + ⋯ (settings / delete)
  *   Chats                     loose chats; every chat row gets a ⋯ menu
  *                             (pin / rename inline / delete)
- *   Vocabulary / Review / Plan & usage
+ *
+ * Plan & usage moved to the footer account menu (it's settings, not
+ * navigation).
  */
 
-const STATIC_ITEMS = [
+const PRIMARY_ITEMS = [
   { href: "/study/vocab", label: "Vocabulary", icon: Layers, exact: true },
-  { href: "/study/vocab/review", label: "Review", icon: BookOpenCheck },
-  { href: "/study/packs", label: "Curated lists", icon: BookMarked },
-  { href: "/study/account", label: "Plan & usage", icon: Gauge },
+  { href: "/study/vocab/review", label: "Review", icon: BookOpenCheck, exact: false },
+  { href: "/study/packs", label: "Curated lists", icon: BookMarked, exact: false },
+];
+
+const MORE_ITEMS = [
+  { href: "/study/library", label: "Library", icon: LibraryBig, exact: false },
+  { href: "/study/notes", label: "Notes", icon: NotebookPen, exact: false },
 ];
 
 /** Hover-reveal on desktop; always visible on touch (no hover). */
@@ -117,7 +128,7 @@ function ThreadRow({
 
   if (renaming) {
     return (
-      <div className="flex items-center gap-2 rounded-md py-1 pl-2.5">
+      <div className="chat-row-rename flex items-center gap-2 rounded-md py-1 pl-2.5">
         <MessageCircle className="size-3.5 shrink-0 text-fg-tertiary" />
         <InlineRenameInput
           initialValue={title}
@@ -125,7 +136,7 @@ function ThreadRow({
           maxLength={120}
           onCommit={commitRename}
           onClose={() => setRenaming(false)}
-          className="w-full min-w-0 text-[0.875rem]"
+          className="w-full min-w-0 text-[0.9375rem]"
         />
       </div>
     );
@@ -134,14 +145,16 @@ function ThreadRow({
   return (
     <div
       className={cn(
-        "group flex items-center rounded-md pr-1 pl-2.5 transition-colors",
+        "chat-row group flex items-center rounded-md pr-1 pl-2.5 transition-colors",
         active ? "bg-accent-soft" : "hover:bg-surface-hover",
       )}
     >
       <Link
         href={`/study?t=${thread.id}`}
         className={cn(
-          "flex min-w-0 flex-1 items-center gap-2 py-1.5 pr-1 text-[0.875rem]",
+          // Same type size as the nav rows — the tree must not read as
+          // a second, smaller font tier.
+          "flex min-w-0 flex-1 items-center gap-2 py-1.5 pr-1 text-[0.9375rem]",
           active ? "text-accent-text" : "text-fg",
         )}
       >
@@ -252,13 +265,58 @@ function StudyChatTree({ study }: { study: SidebarStudy }) {
   const searchParams = useSearchParams();
   const activeId = pathname === "/study" ? searchParams.get("t") : null;
 
+  const isItemActive = (item: (typeof PRIMARY_ITEMS)[number]) =>
+    item.exact
+      ? pathname === item.href
+      : pathname === item.href || pathname.startsWith(item.href + "/");
+  // A tab inside More keeps the expander open (its active row must stay
+  // visible); otherwise the learner toggles it.
+  const [moreOpen, setMoreOpen] = React.useState(false);
+  const moreActive = MORE_ITEMS.some(isItemActive);
+  const showMore = moreOpen || moreActive;
+
   return (
-    <div className="space-y-4">
-      <div className={navRowClass(pathname === "/study" && !activeId)}>
-        <Link href="/study" className="flex min-w-0 flex-1 items-center gap-2.5">
-          <MessageCircle className="size-4 shrink-0" />
-          Chat
-        </Link>
+    <div className="study-nav space-y-4">
+      <div className="study-nav-tabs flex flex-col gap-0.5">
+        <div className={navRowClass(pathname === "/study" && !activeId)}>
+          <Link
+            href="/study"
+            className="study-nav-new-chat flex min-w-0 flex-1 items-center gap-2.5"
+          >
+            <SquarePen className="size-4 shrink-0" />
+            New chat
+          </Link>
+        </div>
+        {PRIMARY_ITEMS.map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            className={navRowClass(isItemActive(item))}
+          >
+            <item.icon className="size-4" />
+            {item.label}
+          </Link>
+        ))}
+        <button
+          type="button"
+          onClick={() => setMoreOpen((open) => !open)}
+          aria-expanded={showMore}
+          className={cn(navRowClass(false), "study-nav-more w-full text-left")}
+        >
+          <MoreHorizontal className="size-4" />
+          More
+        </button>
+        {showMore &&
+          MORE_ITEMS.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={navRowClass(isItemActive(item))}
+            >
+              <item.icon className="size-4" />
+              {item.label}
+            </Link>
+          ))}
       </div>
 
       {(study.pinned.length > 0 || study.pinnedBooks.length > 0) && (
@@ -277,11 +335,11 @@ function StudyChatTree({ study }: { study: SidebarStudy }) {
             {study.pinnedBooks.map((book) => (
               <div
                 key={book.id}
-                className="group flex items-center rounded-md pr-1 pl-2.5 transition-colors hover:bg-surface-hover"
+                className="book-row group flex items-center rounded-md pr-1 pl-2.5 transition-colors hover:bg-surface-hover"
               >
                 <Link
                   href={`/study/vocab?book=${book.id}`}
-                  className="flex min-w-0 flex-1 items-center gap-2 py-1.5 pr-1 text-[0.875rem] text-fg"
+                  className="flex min-w-0 flex-1 items-center gap-2 py-1.5 pr-1 text-[0.9375rem] text-fg"
                 >
                   <BookMarked className="size-3.5 shrink-0 text-fg-tertiary" />
                   <span className="truncate">{book.name}</span>
@@ -326,7 +384,7 @@ function StudyChatTree({ study }: { study: SidebarStudy }) {
               <div
                 key={project.id}
                 className={cn(
-                  "group flex items-center rounded-md pr-1 pl-2.5 transition-colors",
+                  "project-row group flex items-center rounded-md pr-1 pl-2.5 transition-colors",
                   onProjectPage ? "bg-accent-soft" : "hover:bg-surface-hover",
                 )}
               >
@@ -335,7 +393,7 @@ function StudyChatTree({ study }: { study: SidebarStudy }) {
                 <Link
                   href={`/study/project/${project.id}`}
                   className={cn(
-                    "flex min-w-0 flex-1 items-center gap-2 py-1.5 pr-1 text-[0.875rem] font-medium",
+                    "flex min-w-0 flex-1 items-center gap-2 py-1.5 pr-1 text-[0.9375rem] font-medium",
                     onProjectPage ? "text-accent-text" : "text-fg",
                   )}
                 >
@@ -368,7 +426,7 @@ function StudyChatTree({ study }: { study: SidebarStudy }) {
               <button
                 type="button"
                 aria-label="Create your first project"
-                className="flex w-full items-center gap-2 rounded-md py-1.5 pl-2.5 text-[0.875rem] text-fg-secondary transition-colors hover:bg-surface-hover hover:text-fg"
+                className="project-row-empty flex w-full items-center gap-2 rounded-md py-1.5 pl-2.5 text-[0.9375rem] text-fg-secondary transition-colors hover:bg-surface-hover hover:text-fg"
               >
                 <Plus className="size-3.5" />
                 New project
@@ -397,32 +455,13 @@ function StudyChatTree({ study }: { study: SidebarStudy }) {
 }
 
 export function SelfStudySection({ study }: { study: SidebarStudy }) {
-  const pathname = usePathname();
   return (
     <div className="mb-5">
-      <SectionLabel>Self-study</SectionLabel>
       <nav className="flex flex-col gap-0.5">
         {/* useSearchParams lives below this Suspense boundary. */}
         <React.Suspense fallback={null}>
           <StudyChatTree study={study} />
         </React.Suspense>
-        <div className="mt-4 flex flex-col gap-0.5">
-          {STATIC_ITEMS.map((item) => {
-            const active = item.exact
-              ? pathname === item.href
-              : pathname === item.href || pathname.startsWith(item.href + "/");
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={navRowClass(active)}
-              >
-                <item.icon className="size-4" />
-                {item.label}
-              </Link>
-            );
-          })}
-        </div>
       </nav>
     </div>
   );

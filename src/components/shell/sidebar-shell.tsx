@@ -3,7 +3,8 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { GraduationCap, Menu, X, type LucideIcon } from "lucide-react";
+import { GraduationCap, Menu, SquarePen, X, type LucideIcon } from "lucide-react";
+import { NAVBAR_ACTIONS_SLOT_ID } from "@/components/shell/navbar-actions";
 import { cn } from "@/lib/utils";
 
 /**
@@ -32,7 +33,7 @@ export type NavEntry = {
  * the self-study section so the sidebar can't drift stylistically. */
 export function navRowClass(active: boolean): string {
   return cn(
-    "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[0.9375rem] font-medium transition-colors",
+    "nav-row flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[0.9375rem] font-medium transition-colors",
     active
       ? "bg-accent-soft text-accent-text"
       : "text-fg hover:bg-surface-hover",
@@ -41,7 +42,7 @@ export function navRowClass(active: boolean): string {
 
 export function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p className="mb-1.5 px-2.5 text-[0.72rem] font-semibold tracking-wider text-fg-tertiary uppercase">
+    <p className="nav-section-label mb-1.5 px-2.5 text-[0.72rem] font-semibold tracking-wider text-fg-tertiary uppercase">
       {children}
     </p>
   );
@@ -51,13 +52,14 @@ export function NavSection({
   label,
   items,
 }: {
-  label: string;
+  /** Omitted = a bare tab list (no uppercase section heading). */
+  label?: string;
   items: NavEntry[];
 }) {
   const pathname = usePathname();
   return (
     <div className="mb-5">
-      <SectionLabel>{label}</SectionLabel>
+      {label && <SectionLabel>{label}</SectionLabel>}
       <nav className="flex flex-col gap-0.5">
         {items.map((item) => {
           const active = item.exact
@@ -79,7 +81,7 @@ function Brand({ homeHref }: { homeHref: string }) {
   return (
     <Link
       href={homeHref}
-      className="flex items-center gap-2 text-[1rem] font-semibold tracking-tight"
+      className="sidebar-brand flex items-center gap-2 text-[1rem] font-semibold tracking-tight"
     >
       <span className="flex size-6 items-center justify-center rounded-md bg-accent text-white">
         <GraduationCap className="size-4" />
@@ -105,32 +107,49 @@ export function SidebarShell({
 
   return (
     <>
-      {/* Mobile top bar */}
-      <header className="sticky top-0 z-30 flex h-12 items-center gap-2.5 border-b border-border bg-surface px-3 lg:hidden">
+      {/* Mobile top bar — ChatGPT-clean: hamburger on the left, a quick
+          new-chat and the page's own actions (portaled into the slot by
+          NavbarActions) on the right. No brand — the drawer carries it. */}
+      <header className="mobile-navbar sticky top-0 z-30 flex h-12 items-center gap-1 border-b border-border bg-surface px-3 lg:hidden">
         <button
           type="button"
           aria-label="Open menu"
           onClick={() => setOpen(true)}
-          className="flex size-8 items-center justify-center rounded-md text-fg-secondary transition-colors hover:bg-surface-hover"
+          className="mobile-navbar-menu flex size-8 items-center justify-center rounded-md text-fg-secondary transition-colors hover:bg-surface-hover"
         >
           <Menu className="size-5" />
         </button>
-        <Brand homeHref={homeHref} />
+        <div className="flex-1" />
+        <Link
+          href="/study"
+          aria-label="New chat"
+          title="New chat"
+          className="mobile-navbar-new-chat flex size-8 items-center justify-center rounded-md text-fg-secondary transition-colors hover:bg-surface-hover"
+        >
+          <SquarePen className="size-5" />
+        </Link>
+        <div
+          id={NAVBAR_ACTIONS_SLOT_ID}
+          className="mobile-navbar-actions flex items-center"
+        />
       </header>
 
       {/* Mobile drawer */}
       {open && (
-        <div className="fixed inset-0 z-40 lg:hidden">
+        <div className="nav-drawer-layer fixed inset-0 z-40 lg:hidden">
           <div
             className={cn(
-              "absolute inset-0 bg-black/40",
+              "nav-drawer-backdrop absolute inset-0 bg-black/40",
               closing ? "animate-overlay-out" : "animate-overlay-in",
             )}
             onClick={close}
           />
+          {/* Proportional width (~65% of the viewport, ChatGPT-style —
+              never edge to edge), floored so narrow phones don't get a
+              sliver. */}
           <aside
             className={cn(
-              "absolute inset-y-0 left-0 flex w-72 flex-col bg-surface shadow-xl",
+              "nav-drawer absolute inset-y-0 left-0 flex w-[65vw] max-w-sm min-w-64 flex-col bg-surface shadow-xl",
               closing ? "animate-drawer-out" : "animate-drawer-in",
             )}
             onAnimationEnd={(e) => {
@@ -145,21 +164,21 @@ export function SidebarShell({
               if ((e.target as HTMLElement).closest("a")) close();
             }}
           >
-            {/* Mirrors the top bar's row exactly (h-12, px-3, gap-2.5,
-                border-b) so the drawer reads as the navbar's own panel:
-                the X lands where the hamburger was, the brand stays put. */}
-            <div className="flex h-12 shrink-0 items-center gap-2.5 border-b border-border px-3">
+            {/* Mirrors the top bar's height so the drawer aligns with the
+                navbar; brand left, close on the RIGHT (ChatGPT layout). */}
+            <div className="nav-drawer-header flex h-12 shrink-0 items-center border-b border-border px-3">
+              <Brand homeHref={homeHref} />
+              <div className="flex-1" />
               <button
                 type="button"
                 aria-label="Close menu"
                 onClick={close}
-                className="flex size-8 items-center justify-center rounded-md text-fg-secondary transition-colors hover:bg-surface-hover"
+                className="nav-drawer-close flex size-8 items-center justify-center rounded-md text-fg-secondary transition-colors hover:bg-surface-hover"
               >
                 <X className="size-5" />
               </button>
-              <Brand homeHref={homeHref} />
             </div>
-            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-3 py-4">
+            <div className="nav-drawer-content flex min-h-0 flex-1 flex-col overflow-y-auto px-3 py-4">
               {children}
             </div>
           </aside>
@@ -170,11 +189,11 @@ export function SidebarShell({
           outgrows the viewport (the "Plan & usage cut off" bug). */}
       {/* w-72: the chat tree (titles + hover actions) needs more room
           than the old w-64 nav-only column. */}
-      <aside className="sticky top-0 hidden h-screen w-72 shrink-0 flex-col border-r border-border bg-surface px-3 py-5 lg:flex">
-        <div className="mb-6 px-2">
+      <aside className="app-sidebar sticky top-0 hidden h-screen w-72 shrink-0 flex-col border-r border-border bg-surface px-3 py-5 lg:flex">
+        <div className="app-sidebar-brand mb-6 px-2">
           <Brand homeHref={homeHref} />
         </div>
-        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+        <div className="app-sidebar-content flex min-h-0 flex-1 flex-col overflow-y-auto">
           {children}
         </div>
       </aside>

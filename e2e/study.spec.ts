@@ -28,11 +28,14 @@ const FREE_CAP = 20;
 
 test.beforeAll(resetMockLearner);
 
-test("study space opens on the new-chat hero", async ({ page }) => {
+test("study space opens straight into the composer — no extra step", async ({
+  page,
+}) => {
   await page.goto("/study");
-  await expect(
-    page.getByRole("heading", { name: "What are we studying today?" }),
-  ).toBeVisible();
+  // The landing IS the chat window (ChatGPT shape): the composer is
+  // ready immediately, no hero button between the learner and typing.
+  await expect(page.getByLabel("Message")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Send" })).toBeVisible();
 });
 
 test("language project with custom instructions: tutor reply is grounded AND follows instructions", async ({
@@ -89,14 +92,14 @@ test("language project with custom instructions: tutor reply is grounded AND fol
 test("a loose chat is generic: no tutor persona, no instructions tail", async ({
   page,
 }) => {
+  // Draft chat: type straight into the landing composer — the thread is
+  // created on the first send and the URL follows without a navigation.
   await page.goto("/study");
-  await page.getByRole("button", { name: "New chat" }).click();
-  await page.waitForURL(/\/study\?t=[0-9a-f-]{36}/);
-
   await page.getByLabel("Message").fill("help me plan my week");
   await page.getByRole("button", { name: "Send" }).click();
 
   await expect(page.getByText(/Happy to help with anything/)).toBeVisible();
+  await page.waitForURL(/\/study\?t=[0-9a-f-]{36}/);
   await expect(page.getByText(/Let's practice your/)).not.toBeVisible();
   await expect(
     page.getByText(/Following your project instructions/),
@@ -115,7 +118,12 @@ test("pin from the chat header floats the chat into Pinned; unpin returns it hom
   await page.getByRole("main").getByRole("link", { name: /Bonjour/ }).click();
   await page.waitForURL(/\/study\?t=[0-9a-f-]{36}/);
 
-  await page.getByRole("button", { name: "Chat options" }).click();
+  // Scoped to the desktop header — the same ⋯ menu also exists in the
+  // (hidden) mobile navbar slot.
+  await page
+    .locator("main header")
+    .getByRole("button", { name: "Chat options" })
+    .click();
   await page.getByRole("menuitem", { name: "Pin chat" }).click();
   await expect(sidebar.getByText("Pinned", { exact: true })).toBeVisible();
   await expect(sidebar.getByRole("link", { name: /Bonjour/ })).toBeVisible();
@@ -210,13 +218,14 @@ test("memory: the tutor remembers across chats; the learner manages it on Accoun
   // remember" answers from the INJECTED context — so this proves both
   // chat → DB and DB → next turn's prompt.
   await page.goto("/study");
-  await page.getByRole("button", { name: "New chat" }).click();
-  await page.waitForURL(/\/study\?t=[0-9a-f-]{36}/);
-
   const send = (text: string) => sendMessage(page, text);
 
   await send("remember: Is preparing for the JLPT N3 exam in December");
   await expect(page.getByText("Got it — I'll remember that.")).toBeVisible();
+  // The first send hands the draft off to the server-rendered thread
+  // view (a remount that resets the composer) — wait for its header
+  // before typing message #2.
+  await expect(page.locator("main header")).toBeVisible();
   await send("remember: Prefers short drills over long explanations");
   await expect(
     page.getByText("Got it — I'll remember that.").nth(1),
@@ -289,14 +298,14 @@ test("About-you instructions inject everywhere; pausing memory stops saving AND 
   await expect(instructions).toHaveValue("Answer briefly.");
 
   await page.goto("/study");
-  await page.getByRole("button", { name: "New chat" }).click();
-  await page.waitForURL(/\/study\?t=[0-9a-f-]{36}/);
   const send = (text: string) => sendMessage(page, text);
 
   await send("hello there");
   await expect(
     page.getByText(/Following your standing instructions/),
   ).toBeVisible();
+  // Draft → thread remount marker (see the memory test above).
+  await expect(page.locator("main header")).toBeVisible();
 
   await send("remember: Collects mechanical watches");
   await expect(page.getByText("Got it — I'll remember that.")).toBeVisible();
@@ -356,7 +365,12 @@ test("deleting a chat removes it after the confirm dialog", async ({
 
   // Deletion lives behind the header's single ⋯ menu now.
   page.on("dialog", (dialog) => void dialog.accept());
-  await page.getByRole("button", { name: "Chat options" }).click();
+  // Scoped to the desktop header — the same ⋯ menu also exists in the
+  // (hidden) mobile navbar slot.
+  await page
+    .locator("main header")
+    .getByRole("button", { name: "Chat options" })
+    .click();
   await page.getByRole("menuitem", { name: "Delete chat" }).click();
   await page.waitForURL(/\/study$/);
   await expect(
@@ -476,9 +490,13 @@ test("deleting a project frees its chats instead of destroying them", async ({
   await page.getByRole("menuitem", { name: "Delete project" }).click();
   await page.waitForURL(/\/study$/);
 
-  // The chat survived — now a loose chat in the sidebar.
+  // The chat survived — now a loose chat in the sidebar. (div.group =
+  // thread rows; the nav's own "New chat" tab is not one.)
   await expect(
-    page.getByRole("complementary").getByRole("link", { name: "New chat" }),
+    page
+      .getByRole("complementary")
+      .locator("div.group")
+      .getByRole("link", { name: "New chat" }),
   ).toBeVisible();
   await expect(
     page.getByRole("complementary").getByText("Chats", { exact: true }),
@@ -909,7 +927,12 @@ test("chat→vocab bulk extraction: review dialog, bulk save, dedup", async ({
 
   // The tutor marked a word; do NOT tap its chip — extraction must find
   // it by reading the transcript (via the header's ⋯ menu).
-  await page.getByRole("button", { name: "Chat options" }).click();
+  // Scoped to the desktop header — the same ⋯ menu also exists in the
+  // (hidden) mobile navbar slot.
+  await page
+    .locator("main header")
+    .getByRole("button", { name: "Chat options" })
+    .click();
   await page
     .getByRole("menuitem", { name: "Save words from this chat" })
     .click();
@@ -931,7 +954,12 @@ test("chat→vocab bulk extraction: review dialog, bulk save, dedup", async ({
   // Round 2 proves dedup: the word is on the list now, so extraction
   // comes back empty instead of proposing it again.
   await page.goto(threadUrl);
-  await page.getByRole("button", { name: "Chat options" }).click();
+  // Scoped to the desktop header — the same ⋯ menu also exists in the
+  // (hidden) mobile navbar slot.
+  await page
+    .locator("main header")
+    .getByRole("button", { name: "Chat options" })
+    .click();
   await page
     .getByRole("menuitem", { name: "Save words from this chat" })
     .click();

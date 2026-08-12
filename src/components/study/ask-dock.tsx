@@ -26,11 +26,9 @@ type DockMessages = Awaited<ReturnType<typeof loadStudyAskThread>>["messages"];
  * close/reopen and full reloads alike.
  */
 export function AskDock({
-  learnerName,
   models,
   defaultModel,
 }: {
-  learnerName: string | null;
   models: string[];
   defaultModel: string;
 }) {
@@ -155,7 +153,6 @@ export function AskDock({
           key={`${conversation.threadId}-${conversation.epoch}`}
           threadId={conversation.threadId}
           language={null}
-          learnerName={learnerName}
           initialMessages={conversation.messages}
           models={models}
           defaultModel={defaultModel}

@@ -1,16 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { and, asc, eq } from "drizzle-orm";
-import { FolderPlus, Languages, Plus } from "lucide-react";
 import { db, studyMessages, studyProjects, studyThreads } from "@/db";
-import { createStudyThread } from "@/lib/actions/study";
 import { STUDY_MODEL, STUDY_MODELS } from "@/lib/ai/study-tutor";
 import { requireLearner } from "@/lib/auth";
 import { threadTitle } from "@/lib/study-display";
 import { StudyChat } from "@/components/study/study-chat";
 import { ChatMenu } from "@/components/study/chat-menu";
-import { NewProjectDialog } from "@/components/study/new-project-dialog";
-import { SubmitButton } from "@/components/ui/button";
+import { NavbarActions } from "@/components/shell/navbar-actions";
 
 export const metadata: Metadata = { title: "Study chat" };
 
@@ -66,12 +63,14 @@ export default async function StudyChatPage({
     <div className="flex h-[calc(100dvh-3rem)] w-full flex-col lg:h-dvh">
       {active ? (
         <>
-          <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-2.5 sm:px-6">
-            <div className="min-w-0">
-              <h1 className="truncate text-[0.9375rem] font-semibold">
+          {/* Desktop-only chrome — on phones the navbar stays the single
+              bar and the ⋯ menu portals into it (ChatGPT layout). */}
+          <header className="chat-header hidden shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-2.5 sm:px-6 lg:flex">
+            <div className="chat-header-titles min-w-0">
+              <h1 className="chat-title truncate text-[0.9375rem] font-semibold">
                 {threadTitle(active)}
               </h1>
-              <p className="truncate text-[0.78rem] text-fg-tertiary">
+              <p className="chat-subtitle truncate text-[0.78rem] text-fg-tertiary">
                 {project ? (
                   <Link
                     href={`/study/project/${project.id}`}
@@ -92,11 +91,17 @@ export default async function StudyChatPage({
               canExtract={Boolean(chatLanguage) && messages.length > 0}
             />
           </header>
+          <NavbarActions>
+            <ChatMenu
+              threadId={active.id}
+              pinned={active.pinned}
+              canExtract={Boolean(chatLanguage) && messages.length > 0}
+            />
+          </NavbarActions>
           <StudyChat
             key={active.id}
             threadId={active.id}
             language={chatLanguage}
-            learnerName={learner.name}
             initialMessages={messages}
             models={
               STUDY_MODELS.includes(STUDY_MODEL)
@@ -107,38 +112,20 @@ export default async function StudyChatPage({
           />
         </>
       ) : (
-        <div className="flex flex-1 items-center justify-center px-6">
-          <div className="w-full max-w-md text-center">
-            <span className="mx-auto mb-4 flex size-11 items-center justify-center rounded-xl bg-accent text-white">
-              <Languages className="size-5" />
-            </span>
-            <h1 className="text-[1.375rem] font-semibold tracking-tight">
-              What are we studying today?
-            </h1>
-            <p className="mt-1.5 mb-5 text-[0.9375rem] text-fg-secondary">
-              Start a chat about anything — or chat inside a project to get
-              its custom instructions (language projects add your tutor and
-              vocabulary). Chats live in the sidebar.
-            </p>
-            <div className="flex flex-col items-center gap-3">
-              <form action={createStudyThread}>
-                <SubmitButton>
-                  <Plus className="size-3.5" />
-                  New chat
-                </SubmitButton>
-              </form>
-              <NewProjectDialog>
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-1.5 text-[0.9375rem] font-medium text-accent-text hover:underline"
-                >
-                  <FolderPlus className="size-4" />
-                  New project
-                </button>
-              </NewProjectDialog>
-            </div>
-          </div>
-        </div>
+        // No hero, no extra tap: /study IS the chat window — the draft
+        // composer is ready immediately and the thread is created on the
+        // first send (ChatGPT behavior).
+        <StudyChat
+          threadId={null}
+          language={null}
+          initialMessages={[]}
+          models={
+            STUDY_MODELS.includes(STUDY_MODEL)
+              ? STUDY_MODELS
+              : [STUDY_MODEL, ...STUDY_MODELS]
+          }
+          defaultModel={STUDY_MODEL}
+        />
       )}
     </div>
   );
