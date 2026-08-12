@@ -19,7 +19,7 @@ import {
   addToStudyVocabList,
   createStudyVocabList,
   deleteStudyVocab,
-  moveStudyVocabListItem,
+  reorderStudyVocabListItem,
   removeFromStudyVocabList,
   updateStudyVocab,
 } from "@/lib/actions/study";
@@ -518,10 +518,10 @@ export function VocabTable({
                               run(
                                 item.id,
                                 () =>
-                                  moveStudyVocabListItem(
+                                  reorderStudyVocabListItem(
                                     book!.id,
                                     item.id,
-                                    "up",
+                                    index - 1,
                                   ),
                                 "move up",
                               )
@@ -540,10 +540,10 @@ export function VocabTable({
                               run(
                                 item.id,
                                 () =>
-                                  moveStudyVocabListItem(
+                                  reorderStudyVocabListItem(
                                     book!.id,
                                     item.id,
-                                    "down",
+                                    index + 1,
                                   ),
                                 "move down",
                               )
