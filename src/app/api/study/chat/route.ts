@@ -129,13 +129,15 @@ export async function POST(req: NextRequest) {
       )
       .orderBy(asc(studyMessages.createdAt)),
     // Memories ride into EVERY chat (generic and tutor alike) — that's
-    // the whole point of remembering.
-    db
-      .select({ content: studyMemories.content })
-      .from(studyMemories)
-      .where(eq(studyMemories.learnerId, learner.id))
-      .orderBy(asc(studyMemories.createdAt))
-      .limit(MEMORY_CONTEXT_ITEMS),
+    // the whole point of remembering. Paused memory = nothing injected.
+    learner.memoryEnabled
+      ? db
+          .select({ content: studyMemories.content })
+          .from(studyMemories)
+          .where(eq(studyMemories.learnerId, learner.id))
+          .orderBy(asc(studyMemories.createdAt))
+          .limit(MEMORY_CONTEXT_ITEMS)
+      : Promise.resolve([]),
   ]);
 
   const context: TutorContext = {
@@ -144,6 +146,7 @@ export async function POST(req: NextRequest) {
     vocab,
     projectName: project?.name ?? null,
     projectInstructions: project?.instructions ?? null,
+    learnerInstructions: learner.instructions,
     memories: memoryRows.map((m) => m.content),
   };
   const turns: TutorTurn[] = historyRows.slice(-HISTORY_TURNS);
@@ -152,6 +155,7 @@ export async function POST(req: NextRequest) {
   const executeTool = createStudyToolExecutor({
     learnerId: learner.id,
     language,
+    memoryEnabled: learner.memoryEnabled,
   });
 
   const encoder = new TextEncoder();

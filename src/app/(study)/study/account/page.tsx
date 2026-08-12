@@ -7,10 +7,17 @@ import {
   CreditCard,
   Gauge,
   TriangleAlert,
+  UserRound,
 } from "lucide-react";
 import { db, studyMemories } from "@/db";
-import { deleteStudyMemory } from "@/lib/actions/study";
+import {
+  deleteAllStudyMemories,
+  deleteStudyMemory,
+  setStudyMemoryEnabled,
+  updateStudyInstructions,
+} from "@/lib/actions/study";
 import { ConfirmButton } from "@/components/ui/confirm-button";
+import { Field, Textarea } from "@/components/ui/field";
 import {
   billingConfigured,
   FREE_DAILY_CAP,
@@ -136,40 +143,88 @@ export default async function StudyAccountPage({
 
       <section className="mb-5 rounded-lg bg-surface p-5 shadow-card">
         <h2 className="mb-1 flex items-center gap-2 text-[1.0625rem] font-semibold">
-          <Brain className="size-4 text-fg-tertiary" />
-          Memory
+          <UserRound className="size-4 text-fg-tertiary" />
+          About you
         </h2>
+        <p className="text-[0.9375rem] leading-relaxed text-fg-secondary">
+          Standing instructions the tutor follows in every chat — level,
+          goals, how you like to be taught.
+        </p>
+        <form action={updateStudyInstructions} className="mt-3">
+          <Field label="Standing instructions">
+            <Textarea
+              name="instructions"
+              rows={3}
+              maxLength={4000}
+              defaultValue={learner.instructions ?? ""}
+              placeholder="e.g. I'm an upper-beginner aiming for JLPT N3 — correct every mistake, keep replies short."
+            />
+          </Field>
+          <div className="mt-2 flex justify-end">
+            <SubmitButton>Save instructions</SubmitButton>
+          </div>
+        </form>
+      </section>
+
+      <section className="mb-5 rounded-lg bg-surface p-5 shadow-card">
+        <div className="flex items-start justify-between gap-3">
+          <h2 className="mb-1 flex items-center gap-2 text-[1.0625rem] font-semibold">
+            <Brain className="size-4 text-fg-tertiary" />
+            Memory
+          </h2>
+          <form
+            action={setStudyMemoryEnabled.bind(null, !learner.memoryEnabled)}
+          >
+            <SubmitButton>
+              {learner.memoryEnabled ? "Pause memory" : "Resume memory"}
+            </SubmitButton>
+          </form>
+        </div>
         <p className="text-[0.9375rem] leading-relaxed text-fg-secondary">
           The tutor remembers durable facts you share in chat — goals, exam
           dates, how you like to learn — and uses them in every
           conversation. Tell it to remember or forget things in chat, or
           delete saved memories here.
         </p>
+        {!learner.memoryEnabled && (
+          <p className="mt-2 text-[0.875rem] font-medium text-fg-tertiary">
+            Memory is paused — nothing new is saved and saved memories are
+            not used until you resume.
+          </p>
+        )}
         {memories.length === 0 ? (
           <p className="mt-3 text-[0.875rem] text-fg-tertiary">
             Nothing saved yet. Try telling the tutor something worth
             remembering.
           </p>
         ) : (
-          <ul className="mt-3 divide-y divide-border">
-            {memories.map((memory) => (
-              <li
-                key={memory.id}
-                className="flex items-start justify-between gap-3 py-2.5"
-              >
-                <div>
-                  <p className="text-[0.9375rem]">{memory.content}</p>
-                  <p className="mt-0.5 text-[0.78rem] text-fg-tertiary">
-                    Saved {format(memory.createdAt, "d MMM yyyy")}
-                  </p>
-                </div>
-                <ConfirmButton
-                  title="Delete memory"
-                  action={deleteStudyMemory.bind(null, memory.id)}
-                />
-              </li>
-            ))}
-          </ul>
+          <>
+            <ul className="mt-3 divide-y divide-border">
+              {memories.map((memory) => (
+                <li
+                  key={memory.id}
+                  className="flex items-start justify-between gap-3 py-2.5"
+                >
+                  <div>
+                    <p className="text-[0.9375rem]">{memory.content}</p>
+                    <p className="mt-0.5 text-[0.78rem] text-fg-tertiary">
+                      Saved {format(memory.createdAt, "d MMM yyyy")}
+                    </p>
+                  </div>
+                  <ConfirmButton
+                    title="Delete memory"
+                    action={deleteStudyMemory.bind(null, memory.id)}
+                  />
+                </li>
+              ))}
+            </ul>
+            <div className="mt-3 flex justify-end border-t border-border pt-3">
+              <ConfirmButton
+                title="Delete all memories"
+                action={deleteAllStudyMemories}
+              />
+            </div>
+          </>
         )}
       </section>
 

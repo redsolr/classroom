@@ -236,10 +236,17 @@ function fail(message: string): string {
   return JSON.stringify({ error: message });
 }
 
+/** Escape LIKE wildcards so learner-typed text matches literally. */
+function escapeLike(value: string): string {
+  return value.replace(/[\\%_]/g, (c) => `\\${c}`);
+}
+
 export function createStudyToolExecutor(scope: {
   learnerId: string;
   /** The chat's language — the default filing target. */
   language: string | null;
+  /** False = the learner paused memory; remember/forget refuse. */
+  memoryEnabled: boolean;
 }): StudyToolExecutor {
   const { learnerId } = scope;
 
@@ -387,6 +394,11 @@ export function createStudyToolExecutor(scope: {
           return ok({ added: true, list: list.name, term: word.term });
         }
         case "remember": {
+          if (!scope.memoryEnabled) {
+            return fail(
+              "Memory is paused — the learner can resume it on the Account page to save new memories.",
+            );
+          }
           const args = memoryArgs.parse(rawArgs);
           const existing = await db.query.studyMemories.findFirst({
             where: and(
@@ -412,6 +424,11 @@ export function createStudyToolExecutor(scope: {
           return ok({ saved: true });
         }
         case "forget_memory": {
+          if (!scope.memoryEnabled) {
+            return fail(
+              "Memory is paused — the learner can resume it on the Account page to manage memories.",
+            );
+          }
           const args = memoryArgs.parse(rawArgs);
           const matches = await db
             .select({ id: studyMemories.id, content: studyMemories.content })
@@ -419,7 +436,7 @@ export function createStudyToolExecutor(scope: {
             .where(
               and(
                 eq(studyMemories.learnerId, learnerId),
-                ilike(studyMemories.content, `%${args.fact}%`),
+                ilike(studyMemories.content, `%${escapeLike(args.fact)}%`),
               ),
             )
             .limit(5);

@@ -525,6 +525,12 @@ export const learners = pgTable(
     workosUserId: text("workos_user_id").notNull(),
     email: text("email").notNull(),
     name: text("name"),
+    /** Standing "About you" instructions — injected into EVERY chat
+     * (ChatGPT Custom Instructions shape; learner-written, unlike the
+     * tutor-written study_memories). */
+    instructions: text("instructions"),
+    /** Paused memory = stop saving AND stop injecting; rows are kept. */
+    memoryEnabled: boolean("memory_enabled").notNull().default(true),
     stripeCustomerId: text("stripe_customer_id"),
     stripeSubscriptionId: text("stripe_subscription_id"),
     planStatus: studyPlanStatusEnum("plan_status").notNull().default("free"),

@@ -515,6 +515,48 @@ export async function deleteStudyMemory(memoryId: string) {
   revalidatePath("/study/account");
 }
 
+export async function deleteAllStudyMemories() {
+  const learner = await requireLearner();
+
+  await db
+    .delete(studyMemories)
+    .where(eq(studyMemories.learnerId, learner.id));
+
+  revalidatePath("/study/account");
+}
+
+/** Pause = stop saving AND stop injecting; saved rows are kept. */
+export async function setStudyMemoryEnabled(enabled: boolean) {
+  const learner = await requireLearner();
+
+  await db
+    .update(learners)
+    .set({ memoryEnabled: z.boolean().parse(enabled), updatedAt: new Date() })
+    .where(eq(learners.id, learner.id));
+
+  revalidatePath("/study/account");
+}
+
+/**
+ * The account-level "About you" standing instructions (ChatGPT Custom
+ * Instructions shape) — learner-written, injected into every chat.
+ */
+export async function updateStudyInstructions(formData: FormData) {
+  const learner = await requireLearner();
+  const instructions = z
+    .string()
+    .trim()
+    .max(4000)
+    .parse(formData.get("instructions") ?? "");
+
+  await db
+    .update(learners)
+    .set({ instructions: instructions || null, updatedAt: new Date() })
+    .where(eq(learners.id, learner.id));
+
+  revalidatePath("/study/account");
+}
+
 /**
  * Resolve a thread the learner owns to its tutor language (project wins,
  * matching the chat route). Null = generic chat.

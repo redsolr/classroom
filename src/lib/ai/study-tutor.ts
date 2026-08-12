@@ -44,7 +44,10 @@ export type TutorContext = {
   projectName: string | null;
   /** The project's standing custom instructions, verbatim. */
   projectInstructions: string | null;
-  /** Saved memories about the learner — injected into EVERY chat. */
+  /** The learner's account-level "About you" instructions, verbatim. */
+  learnerInstructions: string | null;
+  /** Saved memories about the learner — injected into EVERY chat
+   * (empty when the learner paused memory). */
   memories: string[];
 };
 
@@ -114,6 +117,11 @@ function buildInstructions(ctx: TutorContext): string {
     (ctx.language ? TUTOR_PROMPT : GENERIC_PROMPT) + TOOLS_PROMPT,
     `<learner_context>\n${renderTutorContext(ctx)}\n</learner_context>`,
   ];
+  if (ctx.learnerInstructions?.trim()) {
+    parts.push(
+      `<learner_instructions>\nThe learner set these standing instructions on their account — follow them in every reply:\n${ctx.learnerInstructions.trim()}\n</learner_instructions>`,
+    );
+  }
   if (ctx.memories.length > 0) {
     parts.push(
       `<learner_memory>\nThings you know about this learner from previous conversations (saved memories, oldest first):\n${ctx.memories
@@ -135,11 +143,16 @@ function buildInstructions(ctx: TutorContext): string {
  * references the learner's own vocabulary.
  */
 function mockTutorReply(ctx: TutorContext, message: string): string {
-  // The e2e suite's probe that project instructions actually reach the
-  // prompt assembly — the real model gets them in <project_instructions>.
-  const instructionsTail = ctx.projectInstructions?.trim()
-    ? "\n(Following your project instructions.)"
-    : "";
+  // The e2e suite's probes that standing instructions actually reach
+  // the prompt assembly — the real model gets them in
+  // <project_instructions> / <learner_instructions>.
+  const instructionsTail =
+    (ctx.projectInstructions?.trim()
+      ? "\n(Following your project instructions.)"
+      : "") +
+    (ctx.learnerInstructions?.trim()
+      ? "\n(Following your standing instructions.)"
+      : "");
 
   if (!ctx.language) {
     return `Hi${ctx.learnerName ? ` ${ctx.learnerName}` : ""}! You said: “${message.slice(0, 80)}”. Happy to help with anything.${instructionsTail}`;

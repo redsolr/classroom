@@ -1,12 +1,20 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { resetMockLearner } from "./helpers";
+
+/** Send a composer message and wait for the turn to settle (the
+ * composer takes focus back in the send handler's finally block). */
+async function sendMessage(page: Page, text: string) {
+  await page.getByLabel("Message").fill(text);
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(page.getByLabel("Message")).toBeFocused();
+}
 
 /**
  * The self-study space (/study): projects with custom instructions
  * (ChatGPT-Projects shape), tutor chat in language projects (offline
  * mock tutor — demonstrably grounded in the learner's vocab), generic
  * loose chats, the personal vocabulary loop (chip-add, manual add, SM-2
- * review), and the free-tier daily cap (STUDY_FREE_DAILY_CAP=15 set by
+ * review), and the free-tier daily cap (STUDY_FREE_DAILY_CAP=20 set by
  * playwright.config for this suite — the tool/dock/memory tests all
  * spend from the same rolling-24h budget).
  *
@@ -16,7 +24,7 @@ import { resetMockLearner } from "./helpers";
  * teacher.
  */
 
-const FREE_CAP = 15;
+const FREE_CAP = 20;
 
 test.beforeAll(resetMockLearner);
 
@@ -169,11 +177,7 @@ test("the tutor CRUDs vocabulary from chat: add, list, delete land in the table"
   await page.getByRole("main").getByRole("link", { name: /Bonjour/ }).click();
   await page.waitForURL(/\/study\?t=[0-9a-f-]{36}/);
 
-  const send = async (text: string) => {
-    await page.getByLabel("Message").fill(text);
-    await page.getByRole("button", { name: "Send" }).click();
-    await expect(page.getByLabel("Message")).toBeFocused();
-  };
+  const send = (text: string) => sendMessage(page, text);
 
   await send("add vocab: fromage — cheese");
   await expect(page.getByText(/added “fromage”/)).toBeVisible();
@@ -209,11 +213,7 @@ test("memory: the tutor remembers across chats; the learner manages it on Accoun
   await page.getByRole("button", { name: "New chat" }).click();
   await page.waitForURL(/\/study\?t=[0-9a-f-]{36}/);
 
-  const send = async (text: string) => {
-    await page.getByLabel("Message").fill(text);
-    await page.getByRole("button", { name: "Send" }).click();
-    await expect(page.getByLabel("Message")).toBeFocused();
-  };
+  const send = (text: string) => sendMessage(page, text);
 
   await send("remember: Is preparing for the JLPT N3 exam in December");
   await expect(page.getByText("Got it — I'll remember that.")).toBeVisible();
@@ -259,6 +259,76 @@ test("memory: the tutor remembers across chats; the learner manages it on Accoun
   await expect(
     page.getByText("I don't have any memories saved about you yet."),
   ).toBeVisible();
+});
+
+test("About-you instructions inject everywhere; pausing memory stops saving AND using it", async ({
+  page,
+}) => {
+  // Standing instructions (ChatGPT Custom Instructions shape) reach the
+  // next reply's prompt assembly — proved by the mock's probe tail.
+  await page.goto("/study/account");
+  const instructions = page.getByLabel("Standing instructions");
+  await instructions.fill("Answer briefly.");
+  await page.getByRole("button", { name: "Save instructions" }).click();
+  // Reload proves the row persisted (an uncontrolled textarea would
+  // keep the typed value even if the save silently failed).
+  await page.reload();
+  await expect(instructions).toHaveValue("Answer briefly.");
+
+  await page.goto("/study");
+  await page.getByRole("button", { name: "New chat" }).click();
+  await page.waitForURL(/\/study\?t=[0-9a-f-]{36}/);
+  const send = (text: string) => sendMessage(page, text);
+
+  await send("hello there");
+  await expect(
+    page.getByText(/Following your standing instructions/),
+  ).toBeVisible();
+
+  await send("remember: Collects mechanical watches");
+  await expect(page.getByText("Got it — I'll remember that.")).toBeVisible();
+
+  // ── Pause: saved rows are KEPT but neither injected nor added to ──
+  await page.goto("/study/account");
+  await page.getByRole("button", { name: "Pause memory" }).click();
+  await expect(page.getByText(/Memory is paused/)).toBeVisible();
+  // The saved memory survives the pause, visibly.
+  await expect(
+    page.getByRole("main").getByText(/Collects mechanical watches/),
+  ).toBeVisible();
+
+  await page.goto("/study");
+  await page
+    .getByRole("complementary")
+    .getByRole("link", { name: /^hello there/ })
+    .click();
+  await page.waitForURL(/\/study\?t=[0-9a-f-]{36}/);
+  // Injection is off: the context probe sees no memories…
+  await send("what do you remember");
+  await expect(
+    page.getByText("I don't have any memories saved about you yet."),
+  ).toBeVisible();
+  // …and saving is off: the remember tool refuses.
+  await send("remember: A fact that must not stick");
+  await expect(page.getByText(/Memory is paused — /)).toBeVisible();
+
+  // ── Resume, then Delete all clears the list ───────────────────────
+  await page.goto("/study/account");
+  await page.getByRole("button", { name: "Resume memory" }).click();
+  await expect(page.getByText(/Memory is paused/)).not.toBeVisible();
+  await expect(
+    page.getByRole("main").getByText(/A fact that must not stick/),
+  ).not.toBeVisible();
+
+  const deleteAll = page.getByTitle("Delete all memories");
+  await deleteAll.click();
+  await deleteAll.click();
+  await expect(page.getByText(/Nothing saved yet/)).toBeVisible();
+
+  // Leave no standing instructions behind for later tests.
+  await instructions.fill("");
+  await page.getByRole("button", { name: "Save instructions" }).click();
+  await expect(instructions).toHaveValue("");
 });
 
 test("deleting a chat removes it after the confirm dialog", async ({
@@ -892,7 +962,7 @@ test("account page: free plan, usage meter, billing-not-configured state", async
 }) => {
   await page.goto("/study/account");
   await expect(page.getByRole("heading", { name: "Free plan" })).toBeVisible();
-  await expect(page.getByText(/of 15 tutor messages/)).toBeVisible();
+  await expect(page.getByText(/of 20 tutor messages/)).toBeVisible();
   await expect(page.getByText(/Billing is not configured/)).toBeVisible();
   // Models card names the roster.
   await expect(page.getByText("gpt-5.6-terra")).toBeVisible();
