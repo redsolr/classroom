@@ -11,6 +11,10 @@ topics, and long-term insights for review, keeps a living learning record per
 student, and produces a clean student-facing recap — while private notes stay
 private.
 
+> **[FEATURES.md](./FEATURES.md)** is the current capability map — what the
+> product can do today, residuals, and deliberate cuts. Any feature-visible
+> change updates it in the SAME commit.
+
 ## Self-study space (`/chat`)
 
 Any signed-in account also gets a personal study space (2026-08-09 arc):
