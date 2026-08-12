@@ -17,6 +17,7 @@ import { z } from "zod";
 import {
   db,
   learners,
+  studyBooks,
   studyMemories,
   studyMessages,
   studyPackItems,
@@ -162,6 +163,19 @@ export async function createStudyThread(formData: FormData) {
     if (!project) throw new Error("Project not found");
   }
 
+  // A book chat: the library book's summary + notes ride into the
+  // chat's context (see /api/study/chat). Generic — never tutor mode.
+  const bookIdRaw = formData.get("bookId");
+  let book: { id: string } | undefined;
+  if (bookIdRaw) {
+    const id = z.string().uuid().parse(bookIdRaw);
+    book = await db.query.studyBooks.findFirst({
+      where: and(eq(studyBooks.id, id), eq(studyBooks.learnerId, learner.id)),
+      columns: { id: true },
+    });
+    if (!book) throw new Error("Book not found");
+  }
+
   // Legacy path (pre-projects forms): a bare language creates a loose
   // tutor chat.
   const rawLanguage = formData.get("language");
@@ -180,6 +194,9 @@ export async function createStudyThread(formData: FormData) {
         project
           ? eq(studyThreads.projectId, project.id)
           : isNull(studyThreads.projectId),
+        book
+          ? eq(studyThreads.bookId, book.id)
+          : isNull(studyThreads.bookId),
         sql`not exists (select 1 from study_messages m where m.thread_id = ${studyThreads.id})`,
       ),
     )
@@ -193,6 +210,7 @@ export async function createStudyThread(formData: FormData) {
     .values({
       learnerId: learner.id,
       projectId: project?.id ?? null,
+      bookId: book?.id ?? null,
       language,
     })
     .returning({ id: studyThreads.id });
@@ -217,6 +235,7 @@ export async function createStudyAskThread(): Promise<{ id: string }> {
       and(
         eq(studyThreads.learnerId, learner.id),
         isNull(studyThreads.projectId),
+        isNull(studyThreads.bookId),
         isNull(studyThreads.language),
         sql`not exists (select 1 from study_messages m where m.thread_id = ${studyThreads.id})`,
       ),

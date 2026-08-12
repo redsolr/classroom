@@ -1,8 +1,10 @@
-import { and, asc, eq, ilike, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
   db,
+  studyBooks,
   studyMemories,
+  studyNotes,
   studyVocab,
   studyVocabListItems,
   studyVocabLists,
@@ -157,6 +159,79 @@ export const STUDY_TOOL_DEFS = [
   },
   {
     type: "function" as const,
+    name: "add_book",
+    description:
+      "Add a book or article to the learner's reading library. Use when they mention something they read (or are reading) that isn't in the library yet and their takeaways are worth keeping.",
+    strict: false,
+    parameters: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "Book or article title" },
+        author: { type: "string", description: "Author or publication (e.g. 'HBR')" },
+        summary: {
+          type: "string",
+          description: "One short paragraph on what it's about",
+        },
+      },
+      required: ["title"],
+    },
+  },
+  {
+    type: "function" as const,
+    name: "save_note",
+    description:
+      "Save ONE idea/takeaway as a note. In a chat attached to a book it files there automatically; otherwise name the book, or omit it for a loose note. When the learner shares several takeaways at once, save each as its own note.",
+    strict: false,
+    parameters: {
+      type: "object",
+      properties: {
+        note: {
+          type: "string",
+          description: "The note itself — one self-contained idea, a sentence or two",
+        },
+        book: {
+          type: "string",
+          description: "Library book/article title to file under (omit in a book chat to use that book)",
+        },
+      },
+      required: ["note"],
+    },
+  },
+  {
+    type: "function" as const,
+    name: "list_notes",
+    description:
+      "Read the learner's saved notes — optionally only one book's, or matching a topic. Use to recall what they learned ('what did I take from X?', 'what have I read about pricing?').",
+    strict: false,
+    parameters: {
+      type: "object",
+      properties: {
+        book: { type: "string", description: "Only this library book's notes" },
+        query: { type: "string", description: "Only notes containing this text" },
+        limit: { type: "number", description: "Max notes to return (default 30)" },
+      },
+      required: [],
+    },
+  },
+  {
+    type: "function" as const,
+    name: "delete_note",
+    description:
+      "Delete one saved note (matched by its wording). Use when the learner asks to remove a note or it's no longer true.",
+    strict: false,
+    parameters: {
+      type: "object",
+      properties: {
+        note: {
+          type: "string",
+          description: "The note to delete, or a distinctive part of it",
+        },
+      },
+      required: ["note"],
+    },
+  },
+  {
+    type: "function" as const,
     name: "remember",
     description:
       "Save a durable fact about the learner to long-term memory (goals, exam dates, level, interests, learning preferences). Use when the learner shares something worth knowing next session, or explicitly asks you to remember. Never save secrets or sensitive personal data.",
@@ -225,6 +300,23 @@ const listMemberArgs = z.object({
 const memoryArgs = z.object({
   fact: z.string().trim().min(1).max(500),
 });
+const addBookArgs = z.object({
+  title: z.string().trim().min(1).max(200),
+  author: z.string().trim().max(120).optional(),
+  summary: z.string().trim().max(2000).optional(),
+});
+const saveNoteArgs = z.object({
+  note: z.string().trim().min(1).max(4000),
+  book: z.string().trim().max(200).optional(),
+});
+const listNotesArgs = z.object({
+  book: z.string().trim().max(200).optional(),
+  query: z.string().trim().max(200).optional(),
+  limit: z.number().int().min(1).max(100).optional(),
+});
+const deleteNoteArgs = z.object({
+  note: z.string().trim().min(1).max(4000),
+});
 
 /** Total memories per learner — bounds the injected prompt block. */
 const MEMORY_CAP = 200;
@@ -247,6 +339,8 @@ export function createStudyToolExecutor(scope: {
   language: string | null;
   /** False = the learner paused memory; remember/forget refuse. */
   memoryEnabled: boolean;
+  /** The chat's linked library book — save_note's default filing target. */
+  bookId: string | null;
 }): StudyToolExecutor {
   const { learnerId } = scope;
 
@@ -268,6 +362,15 @@ export function createStudyToolExecutor(scope: {
       where: and(
         eq(studyVocabLists.learnerId, learnerId),
         ilike(studyVocabLists.name, name),
+      ),
+    });
+  };
+
+  const findBook = async (title: string) => {
+    return db.query.studyBooks.findFirst({
+      where: and(
+        eq(studyBooks.learnerId, learnerId),
+        ilike(studyBooks.title, title),
       ),
     });
   };
@@ -392,6 +495,96 @@ export function createStudyToolExecutor(scope: {
             .values({ listId: list.id, vocabId: word.id, position: Number(max) + 1 })
             .onConflictDoNothing();
           return ok({ added: true, list: list.name, term: word.term });
+        }
+        case "add_book": {
+          const args = addBookArgs.parse(rawArgs);
+          const existing = await findBook(args.title);
+          if (existing) {
+            return ok({
+              saved: false,
+              reason: "already_saved",
+              title: existing.title,
+            });
+          }
+          await db.insert(studyBooks).values({
+            learnerId,
+            title: args.title,
+            author: args.author || null,
+            summary: args.summary || null,
+          });
+          return ok({ saved: true, title: args.title });
+        }
+        case "save_note": {
+          const args = saveNoteArgs.parse(rawArgs);
+          let bookId = scope.bookId;
+          let bookTitle: string | null = null;
+          if (args.book) {
+            const book = await findBook(args.book);
+            if (!book) {
+              return fail(
+                `No library book matches “${args.book}” — add it first with add_book, or omit the book for a loose note.`,
+              );
+            }
+            bookId = book.id;
+            bookTitle = book.title;
+          }
+          await db.insert(studyNotes).values({
+            learnerId,
+            bookId,
+            content: args.note,
+          });
+          return ok({ saved: true, book: bookTitle ?? (bookId ? "this book" : null) });
+        }
+        case "list_notes": {
+          const args = listNotesArgs.parse(rawArgs);
+          let bookId: string | null = null;
+          if (args.book) {
+            const book = await findBook(args.book);
+            if (!book) return fail(`No library book matches “${args.book}”.`);
+            bookId = book.id;
+          }
+          const rows = await db
+            .select({
+              content: studyNotes.content,
+              book: studyBooks.title,
+            })
+            .from(studyNotes)
+            .leftJoin(studyBooks, eq(studyNotes.bookId, studyBooks.id))
+            .where(
+              and(
+                eq(studyNotes.learnerId, learnerId),
+                ...(bookId ? [eq(studyNotes.bookId, bookId)] : []),
+                ...(args.query
+                  ? [ilike(studyNotes.content, `%${escapeLike(args.query)}%`)]
+                  : []),
+              ),
+            )
+            .orderBy(desc(studyNotes.createdAt))
+            .limit(args.limit ?? 30);
+          return ok({ count: rows.length, notes: rows });
+        }
+        case "delete_note": {
+          const args = deleteNoteArgs.parse(rawArgs);
+          const matches = await db
+            .select({ id: studyNotes.id, content: studyNotes.content })
+            .from(studyNotes)
+            .where(
+              and(
+                eq(studyNotes.learnerId, learnerId),
+                ilike(studyNotes.content, `%${escapeLike(args.note)}%`),
+              ),
+            )
+            .limit(5);
+          if (matches.length === 0) return fail("No saved note matches that.");
+          if (matches.length > 1) {
+            return fail(
+              `Several notes match — ask which one to delete: ${matches
+                .map((m) => `“${m.content.slice(0, 80)}”`)
+                .join("; ")}`,
+            );
+          }
+          await db.delete(studyNotes).where(eq(studyNotes.id, matches[0].id));
+          return ok({ deleted: matches[0].content });
         }
         case "remember": {
           if (!scope.memoryEnabled) {

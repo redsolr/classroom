@@ -49,6 +49,17 @@ export type TutorContext = {
   /** Saved memories about the learner — injected into EVERY chat
    * (empty when the learner paused memory). */
   memories: string[];
+  /** The library book this chat is attached to (with the learner's
+   * notes on it) — null for ordinary chats. */
+  book: {
+    title: string;
+    author: string | null;
+    summary: string | null;
+    notes: string[];
+  } | null;
+  /** The learner's reading library index — injected into EVERY chat so
+   * "what did I read about X?" works anywhere; details via list_notes. */
+  library: { title: string; author: string | null; summary: string | null }[];
 };
 
 export type TutorTurn = { role: "user" | "assistant"; content: string };
@@ -77,6 +88,18 @@ whenever the learner asks to save, change, remove, or organize words —
 never claim you saved something without calling the tool. Fill in a
 sensible meaning/reading/category yourself when the learner doesn't give
 one. After a tool call, confirm in one short sentence what changed.
+
+You also manage the learner's READING LIBRARY — books and articles they
+read, each holding their atomic notes/takeaways — via tools: add_book /
+save_note / list_notes / delete_note.
+- When the learner shares takeaways from something they read, save each
+  distinct idea as its OWN short note with save_note (in a chat attached
+  to a book it files there automatically; otherwise name the book, or
+  omit it for a loose note). A pasted brain-dump becomes several clean
+  notes, one per idea.
+- When they ask what they read or learned about a topic, recall with
+  list_notes rather than guessing.
+- Never claim you saved a note or book without calling the tool.
 
 You also keep long-term MEMORY about the learner across conversations:
 - When the learner shares a durable fact about themselves — goals, exam
@@ -134,6 +157,30 @@ function buildInstructions(ctx: TutorContext): string {
       `<project_instructions>\nThe learner set these standing instructions for the "${ctx.projectName ?? "project"}" project — follow them in every reply:\n${ctx.projectInstructions.trim()}\n</project_instructions>`,
     );
   }
+  if (ctx.book) {
+    const bookLines = [
+      `This chat is attached to “${ctx.book.title}”${ctx.book.author ? ` by ${ctx.book.author}` : ""} from the learner's reading library — discuss it, help them apply its ideas, and file new takeaways here with save_note.`,
+    ];
+    if (ctx.book.summary?.trim()) {
+      bookLines.push(`Summary: ${ctx.book.summary.trim()}`);
+    }
+    bookLines.push(
+      ctx.book.notes.length > 0
+        ? `The learner's notes on it so far:\n${ctx.book.notes.map((n) => `- ${n}`).join("\n")}`
+        : "The learner has no notes on it yet.",
+    );
+    parts.push(`<book_context>\n${bookLines.join("\n")}\n</book_context>`);
+  }
+  if (ctx.library.length > 0) {
+    parts.push(
+      `<library>\nThe learner's reading library (their notes are readable via list_notes):\n${ctx.library
+        .map(
+          (b) =>
+            `- ${b.title}${b.author ? ` — ${b.author}` : ""}${b.summary ? `: ${b.summary}` : ""}`,
+        )
+        .join("\n")}\n</library>`,
+    );
+  }
   return parts.join("\n\n");
 }
 
@@ -179,6 +226,15 @@ function mockTutorReply(ctx: TutorContext, message: string): string {
  *   forget memory: fact
  *   what do you remember        (reads the INJECTED context, not the DB —
  *                                the probe that memories reach the prompt)
+ *   add book: Title — summary
+ *   save note to Title: content
+ *   save note: content          (files to the chat's linked book, if any)
+ *   list notes
+ *   delete note: fragment
+ *   what are we reading         (reads ctx.book — the probe that book
+ *                                context reaches a book chat's prompt)
+ *   what have i read            (reads ctx.library — the probe that the
+ *                                library index reaches EVERY chat)
  */
 async function mockToolTurn(
   ctx: TutorContext,
@@ -249,6 +305,71 @@ async function mockToolTurn(
     return ctx.memories.length === 0
       ? "I don't have any memories saved about you yet."
       : `Here's what I remember about you: ${ctx.memories.join(" · ")}`;
+  }
+  const addBook = new RegExp(
+    `^add book:\\s*(.+?)${dash.source}(.+)$`,
+    "i",
+  ).exec(message);
+  if (addBook) {
+    const result = JSON.parse(
+      await execute("add_book", { title: addBook[1], summary: addBook[2] }),
+    ) as { saved?: boolean; reason?: string; error?: string };
+    if (result.error) return result.error;
+    if (result.saved === false && result.reason === "already_saved") {
+      return `“${addBook[1]}” is already in your library.`;
+    }
+    return `Added “${addBook[1]}” to your library.`;
+  }
+  const noteTo = /^save note to\s+(.+?):\s*(.+)$/i.exec(message);
+  const note = noteTo ?? /^save note:\s*(.+)$/i.exec(message);
+  if (note) {
+    const args = noteTo
+      ? { note: noteTo[2], book: noteTo[1] }
+      : { note: note[1] };
+    const result = JSON.parse(await execute("save_note", args)) as {
+      saved?: boolean;
+      book?: string | null;
+      error?: string;
+    };
+    if (result.error) return result.error;
+    return result.book
+      ? `Noted — saved to “${result.book === "this book" ? (ctx.book?.title ?? "this book") : result.book}”.`
+      : "Noted — saved as a loose note.";
+  }
+  if (/^list notes/i.test(message)) {
+    const result = JSON.parse(await execute("list_notes", {})) as {
+      count: number;
+      notes: { content: string; book: string | null }[];
+    };
+    return result.count === 0
+      ? "You have no saved notes yet."
+      : `You have ${result.count} note${result.count === 1 ? "" : "s"}: ${result.notes
+          .map((n) => `${n.content}${n.book ? ` (${n.book})` : ""}`)
+          .join(" · ")}`;
+  }
+  const delNote = /^delete note:\s*(.+)$/i.exec(message);
+  if (delNote) {
+    const result = JSON.parse(
+      await execute("delete_note", { note: delNote[1] }),
+    ) as { deleted?: string; error?: string };
+    return result.error ?? `Deleted the note: “${result.deleted}”.`;
+  }
+  if (/^what are we reading/i.test(message)) {
+    // Answers from ctx.book — proving the attached book's context
+    // (summary + notes) reached this turn's prompt assembly.
+    if (!ctx.book) return "This chat isn't attached to a library book.";
+    const notes =
+      ctx.book.notes.length === 0
+        ? "no notes on it yet"
+        : `${ctx.book.notes.length} note${ctx.book.notes.length === 1 ? "" : "s"}: ${ctx.book.notes.join(" · ")}`;
+    return `We're discussing “${ctx.book.title}”${ctx.book.author ? ` by ${ctx.book.author}` : ""} — you have ${notes}.`;
+  }
+  if (/^what have i read/i.test(message)) {
+    // Answers from ctx.library — proving the library index is injected
+    // into EVERY chat, not just book chats.
+    return ctx.library.length === 0
+      ? "Your library is empty."
+      : `Your library: ${ctx.library.map((b) => b.title).join(", ")}.`;
   }
   return null;
 }

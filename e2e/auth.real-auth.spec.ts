@@ -47,6 +47,8 @@ const PROTECTED_ROUTES = [
   "/settings",
   "/student",
   "/study",
+  "/study/library",
+  "/study/notes",
   "/study/vocab",
   "/study/vocab/review",
   "/study/account",

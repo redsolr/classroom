@@ -549,6 +549,67 @@ export const learners = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// Reading library — one entry per book/article the learner reads (HBR
+// pieces count), holding a short summary + their atomic NOTES (below).
+// Not the vocab "books" (study_vocab_lists): this is the general-learning
+// shelf — what I read, what I took from it, discussable in a chat.
+// Covers are generated from the title (src/lib/library-cover.ts) — no
+// stored artwork.
+// ---------------------------------------------------------------------------
+
+export const studyBooks = pgTable(
+  "study_books",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    learnerId: uuid("learner_id")
+      .notNull()
+      .references(() => learners.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    author: text("author"),
+    /** What this book/article was about — one short paragraph. */
+    summary: text("summary"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index("study_books_learner_id_idx").on(t.learnerId)],
+);
+
+// ---------------------------------------------------------------------------
+// Study notes — atomic "what I learned" entries. One idea per row, not a
+// growing blob: that's what makes recall and chat-injection work. Null
+// bookId = a loose note (the standalone Notes tab); deleting a book
+// frees its notes rather than destroying them (learner owns context).
+// ---------------------------------------------------------------------------
+
+export const studyNotes = pgTable(
+  "study_notes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    learnerId: uuid("learner_id")
+      .notNull()
+      .references(() => learners.id, { onDelete: "cascade" }),
+    bookId: uuid("book_id").references(() => studyBooks.id, {
+      onDelete: "set null",
+    }),
+    content: text("content").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("study_notes_learner_created_idx").on(t.learnerId, t.createdAt),
+    index("study_notes_book_id_idx").on(t.bookId),
+  ],
+);
+
+// ---------------------------------------------------------------------------
 // Study projects — ChatGPT-Projects-shaped containers: a name, optional
 // language (language projects get tutor behavior + vocab grounding),
 // and optional CUSTOM INSTRUCTIONS injected into every chat inside.
@@ -590,6 +651,12 @@ export const studyThreads = pgTable(
       .references(() => learners.id, { onDelete: "cascade" }),
     /** Null = a loose chat (sidebar "Chats"); deleting a project frees its chats. */
     projectId: uuid("project_id").references(() => studyProjects.id, {
+      onDelete: "set null",
+    }),
+    /** Set = a discussion attached to a library book — the book's
+     * summary + notes ride into the chat's context, and save_note files
+     * there by default. Deleting the book frees the chat. */
+    bookId: uuid("book_id").references(() => studyBooks.id, {
       onDelete: "set null",
     }),
     /** Copied from the project at creation; null = generic chat. */
@@ -813,6 +880,8 @@ export type AiMessage = typeof aiMessages.$inferSelect;
 export type Homework = typeof homework.$inferSelect;
 export type Insight = typeof insights.$inferSelect;
 export type Learner = typeof learners.$inferSelect;
+export type StudyBook = typeof studyBooks.$inferSelect;
+export type StudyNote = typeof studyNotes.$inferSelect;
 export type StudyProject = typeof studyProjects.$inferSelect;
 export type StudyThread = typeof studyThreads.$inferSelect;
 export type StudyMessage = typeof studyMessages.$inferSelect;
