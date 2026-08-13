@@ -1076,16 +1076,15 @@ test("review: swiping the revealed card right grades it Good, Tinder-style", asy
   await expect(progress).toHaveText(/Card 1 of \d+/);
   const total = Number((await progress.textContent())!.match(/of (\d+)/)![1]);
 
-  // Reveal happens IN PLACE: the grade bar is already on screen
-  // (disabled) before the reveal — nothing mounts or shifts, and the
-  // term's measured rect must not move by a single pixel.
-  const goodButton = page.getByRole("button", { name: /Good/ });
-  await expect(goodButton).toBeDisabled();
-  const term = page.locator(".review-card-front p").first();
+  // Reveal happens IN PLACE: the grade row is on screen the whole time
+  // (grading never requires revealing), and the term's measured rect
+  // must not move by a single pixel.
+  await expect(page.getByRole("button", { name: "Good" })).toBeEnabled();
+  // Scoped to the TOP card — the under card renders the same CardFace.
+  const term = page.locator(".review-card .review-card-front p").first();
   const termBefore = await term.boundingBox();
   await page.getByRole("button", { name: "Show answer" }).click();
   await expect(page.locator(".review-answer")).toBeVisible();
-  await expect(goodButton).toBeEnabled();
   expect(await term.boundingBox()).toEqual(termBefore);
 
   // Swipe right: the card follows the pointer, the Good badge shows

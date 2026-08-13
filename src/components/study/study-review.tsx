@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { PartyPopper } from "lucide-react";
+import { Check, Minus, PartyPopper, X, Zap } from "lucide-react";
 import { reviewStudyVocab } from "@/lib/actions/study";
 import type { ReviewGrade } from "@/lib/srs";
 import { cn } from "@/lib/utils";
@@ -16,15 +16,65 @@ type ReviewCard = {
   example: string | null;
 };
 
-const GRADES: { grade: ReviewGrade; label: string; hint: string }[] = [
-  { grade: "again", label: "Again", hint: "← forgot it" },
-  { grade: "hard", label: "Hard", hint: "↓ barely" },
-  { grade: "good", label: "Good", hint: "→ got it" },
-  { grade: "easy", label: "Easy", hint: "↑ instant" },
+/**
+ * Button row order mirrors the swipe axes left→right: ← / ↓ / ↑ / →.
+ * "again" is SRS jargon (Anki's "show it again soon") — surfaced as
+ * "Forgot", which is what it actually means.
+ */
+const GRADES: {
+  grade: ReviewGrade;
+  label: string;
+  dir: string;
+  icon: React.ComponentType<{ className?: string }>;
+  circleClass: string;
+  sizeClass: string;
+  iconClass: string;
+}[] = [
+  {
+    grade: "again",
+    label: "Forgot",
+    dir: "←",
+    icon: X,
+    circleClass:
+      "border-2 border-danger bg-surface text-danger hover:bg-danger-soft",
+    sizeClass: "size-14",
+    iconClass: "size-6",
+  },
+  {
+    grade: "hard",
+    label: "Hard",
+    dir: "↓",
+    icon: Minus,
+    circleClass:
+      "border-2 border-border-strong bg-surface text-fg-secondary hover:bg-surface-hover",
+    sizeClass: "size-12",
+    iconClass: "size-5",
+  },
+  {
+    grade: "easy",
+    label: "Easy",
+    dir: "↑",
+    icon: Zap,
+    circleClass:
+      "border-2 border-accent bg-surface text-accent-text hover:bg-accent-soft",
+    sizeClass: "size-12",
+    iconClass: "size-5",
+  },
+  {
+    grade: "good",
+    label: "Good",
+    dir: "→",
+    icon: Check,
+    circleClass: "bg-accent text-white shadow-sm hover:bg-accent-hover",
+    sizeClass: "size-14",
+    iconClass: "size-6",
+  },
 ];
 
 /** Drag distance (px, dominant axis) that commits a grade on release. */
 const SWIPE_THRESHOLD = 90;
+/** Under this, a release is a TAP — which flips the card. */
+const TAP_SLOP = 8;
 /** Fly-off animation length — advance happens when it lands. */
 const EXIT_MS = 280;
 
@@ -46,17 +96,76 @@ function gradeLabel(grade: ReviewGrade): string {
 }
 
 /**
+ * One card's interior — shared by the top card AND the next card
+ * peeking underneath, so promotion is seamless: when the top card flies
+ * off, the under card already shows exactly what the new top card will
+ * (same term, same divider, same footer), and nothing pops in.
+ */
+function CardFace({
+  card,
+  revealed,
+  onReveal,
+}: {
+  card: ReviewCard;
+  revealed: boolean;
+  onReveal?: () => void;
+}) {
+  return (
+    <>
+      {/* Two FIXED zones split by an always-drawn divider — the term
+          never moves and the answer fades into space that was reserved
+          from the start, so revealing changes zero geometry. */}
+      <div className="review-card-front flex h-[45%] shrink-0 flex-col items-center justify-end gap-1 pb-5">
+        <p className="text-[2rem] font-semibold tracking-tight">{card.term}</p>
+        {card.reading && (
+          <p className="text-[1rem] text-fg-secondary">{card.reading}</p>
+        )}
+      </div>
+      <div className="review-card-divider border-t border-border" />
+      <div className="review-answer-zone min-h-0 flex-1 pt-5">
+        {revealed && (
+          <div className="review-answer animate-panel-in">
+            <p className="text-[1.125rem]">{card.meaning ?? "—"}</p>
+            {card.example && (
+              <p className="mt-2 line-clamp-3 text-[0.9375rem] text-fg-secondary italic">
+                {card.example}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+      {/* Fixed-height slot — the button swaps for the swipe hint
+          without moving anything. */}
+      <div className="review-card-footer flex h-10 shrink-0 items-center justify-center">
+        {revealed ? (
+          <p className="text-[0.78rem] text-fg-tertiary">
+            Swipe the card, or tap a grade below
+          </p>
+        ) : (
+          <button
+            type="button"
+            onClick={onReveal}
+            className="rounded-md border border-border-strong bg-surface px-4 py-2 text-[0.9375rem] font-medium transition-colors hover:bg-surface-hover"
+          >
+            Show answer
+          </button>
+        )}
+      </div>
+    </>
+  );
+}
+
+/**
  * Flashcard session over the due deck — a Tinder-style card stack.
  *
- * Layout is FIXED for the whole session: the deck area, the grade bar,
- * and the progress line never move. Revealing fades the answer in
- * inside the card (no growth, no shifting chrome — the old build grew
- * the card and mounted the buttons below it, so everything jumped on
- * every reveal). Grading is a swipe (card follows the finger with
- * rotation, a grade badge fades in past the threshold, then the card
- * flies off while the next one scales up) or the four buttons, which
- * fire the same fly-off. Grades save optimistically — the deck never
- * waits on the network between cards.
+ * Layout is FIXED for the whole session: the deck area, the grade row,
+ * and the progress line never move; revealing fades the answer into
+ * reserved space inside the card. Swiping works the WHOLE card, any
+ * time — before reveal too (know it? just swipe); a sub-slop release is
+ * a tap and flips the card instead. Grades commit on swipe (drag-follow
+ * + rotation + threshold badge + fly-off) or via the Tinder-style
+ * circular buttons, which fire the same fly-off. Saves are optimistic —
+ * the deck never waits on the network between cards.
  *
  * The deck is snapshotted INTO STATE on mount: grading triggers a
  * revalidation, and any revalidatePath in a server action makes Next
@@ -121,7 +230,7 @@ export function StudyReview({ deck: initialDeck }: { deck: ReviewCard[] }) {
   };
 
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!revealed || exitingRef.current) return;
+    if (exitingRef.current) return;
     e.currentTarget.setPointerCapture(e.pointerId);
     dragOrigin.current = { x: e.clientX, y: e.clientY };
     setDrag({ dx: 0, dy: 0 });
@@ -139,11 +248,19 @@ export function StudyReview({ deck: initialDeck }: { deck: ReviewCard[] }) {
     if (!dragOrigin.current) return;
     dragOrigin.current = null;
     setDrag((d) => {
-      if (d && Math.max(Math.abs(d.dx), Math.abs(d.dy)) >= SWIPE_THRESHOLD) {
-        // commit() from inside an updater would double-fire in strict
-        // mode — decide here, act in a microtask.
-        queueMicrotask(() => commit(dominantGrade(d.dx, d.dy)));
-        return d;
+      // commit()/setRevealed() from inside an updater would double-fire
+      // in strict mode — decide here, act in a microtask.
+      if (d) {
+        const dist = Math.max(Math.abs(d.dx), Math.abs(d.dy));
+        if (dist >= SWIPE_THRESHOLD) {
+          queueMicrotask(() => commit(dominantGrade(d.dx, d.dy)));
+          return d;
+        }
+        if (dist < TAP_SLOP) {
+          // A tap flips the card (pointer capture retargets the click,
+          // so the Show-answer button's own onClick may never fire).
+          queueMicrotask(() => setRevealed(true));
+        }
       }
       return null;
     });
@@ -182,7 +299,10 @@ export function StudyReview({ deck: initialDeck }: { deck: ReviewCard[] }) {
   const badgeOpacity = exit
     ? 1
     : drag
-      ? Math.min(1, Math.max(Math.abs(drag.dx), Math.abs(drag.dy)) / SWIPE_THRESHOLD)
+      ? Math.min(
+          1,
+          Math.max(Math.abs(drag.dx), Math.abs(drag.dy)) / SWIPE_THRESHOLD,
+        )
       : 0;
 
   const cardStyle: React.CSSProperties = exit
@@ -195,20 +315,23 @@ export function StudyReview({ deck: initialDeck }: { deck: ReviewCard[] }) {
       ? {
           transform: `translate(${drag.dx}px, ${drag.dy}px) rotate(${drag.dx * 0.06}deg)`,
         }
-      : { transform: "none", transition: "transform 200ms ease-out" };
+      : {
+          // A real identity transform (not "none"): the card must ALWAYS
+          // be a stacking context so its ::after elevation shadow layers
+          // directly behind it instead of dropping under the stack.
+          transform: "translate(0px, 0px)",
+          transition: "transform 200ms ease-out",
+        };
 
   return (
     // Narrow portrait column — the deck must read as a CARD STACK, not
-    // a full-width panel (the first cut looked like a settings box).
+    // a full-width panel.
     <div className="study-review mx-auto max-w-sm select-none">
       <p className="review-progress mb-3 text-center text-[0.875rem] text-fg-tertiary">
         Card {index + 1} of {deck.length} · {card.language}
       </p>
 
       <div className="review-deck relative h-[24rem] sm:h-[26rem]">
-        {/* Two face-down cards fanned underneath (no spoilers) sell the
-            stack; the nearest one straightens up as the top card flies
-            off. */}
         {deck[index + 2] && (
           <div
             key={deck[index + 2].id}
@@ -216,17 +339,23 @@ export function StudyReview({ deck: initialDeck }: { deck: ReviewCard[] }) {
             className="review-card-under-2 absolute inset-0 translate-y-4 rotate-3 scale-[0.92] rounded-2xl border border-border bg-surface shadow-card"
           />
         )}
+        {/* The next card underneath shows its REAL question face (term
+            side only — no answer spoiler), so when it's promoted the
+            content is already there; it straightens as the top card
+            flies off. */}
         {nextCard && (
           <div
             key={nextCard.id}
             aria-hidden
             className={cn(
-              "review-card-under absolute inset-0 rounded-2xl border border-border bg-surface shadow-card transition-transform duration-200",
+              "review-card-under pointer-events-none absolute inset-0 flex flex-col rounded-2xl border border-border bg-surface px-6 py-6 text-center shadow-card transition-transform duration-200",
               exit
                 ? "translate-y-0 rotate-0 scale-100"
                 : "translate-y-2.5 -rotate-2 scale-[0.95]",
             )}
-          />
+          >
+            <CardFace card={nextCard} revealed={false} />
+          </div>
         )}
 
         {/* touch-none ALWAYS, and no inner scroll container: a nested
@@ -234,20 +363,17 @@ export function StudyReview({ deck: initialDeck }: { deck: ReviewCard[] }) {
             cancels the drag's pointer events — on phones the card was
             only swipeable on its padding edges.
 
-            KEYED by card id: an unkeyed div is REUSED across cards, so
-            after a fly-off the same DOM node — still sitting at the
-            exit transform — got the next card's content and animated
-            back to center (the "swiped card comes back as the new one"
-            glitch). A fresh node per card mounts at identity, no
-            stale transform to return from. */}
+            KEYED by card id so each card mounts as a fresh node (an
+            unkeyed node kept the exit transform and glided back with
+            the next card's content). The base shadow matches the
+            under card; the elevation fades in via .review-card::after
+            (globals.css) so promotion doesn't pop. */}
         <div
           key={card.id}
           className={cn(
-            "review-card absolute inset-0 flex touch-none flex-col rounded-2xl border border-border bg-surface px-6 py-6 text-center shadow-overlay",
-            revealed && "cursor-grab active:cursor-grabbing",
+            "review-card absolute inset-0 flex cursor-grab touch-none flex-col rounded-2xl border border-border bg-surface px-6 py-6 text-center shadow-card active:cursor-grabbing",
           )}
           style={cardStyle}
-          onClick={revealed ? undefined : () => setRevealed(true)}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerEnd}
@@ -271,78 +397,41 @@ export function StudyReview({ deck: initialDeck }: { deck: ReviewCard[] }) {
             </div>
           )}
 
-          {/* Two FIXED zones split by an always-drawn divider — the term
-              never moves and the answer fades into space that was
-              reserved from the start, so revealing changes zero
-              geometry (the old centered-group layout shoved the term up
-              on reveal). */}
-          <div className="review-card-front flex h-[45%] shrink-0 flex-col items-center justify-end gap-1 pb-5">
-            <p className="text-[2rem] font-semibold tracking-tight">
-              {card.term}
-            </p>
-            {card.reading && (
-              <p className="text-[1rem] text-fg-secondary">{card.reading}</p>
-            )}
-          </div>
-          <div className="review-card-divider border-t border-border" />
-          <div className="review-answer-zone min-h-0 flex-1 pt-5">
-            {revealed && (
-              <div className="review-answer animate-panel-in">
-                <p className="text-[1.125rem]">{card.meaning ?? "—"}</p>
-                {card.example && (
-                  <p className="mt-2 line-clamp-3 text-[0.9375rem] text-fg-secondary italic">
-                    {card.example}
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Fixed-height slot — the button swaps for the swipe hint
-              without moving anything. */}
-          <div className="review-card-footer flex h-10 shrink-0 items-center justify-center">
-            {revealed ? (
-              <p className="text-[0.78rem] text-fg-tertiary">
-                Swipe the card, or tap a grade below
-              </p>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setRevealed(true)}
-                className="rounded-md border border-border-strong bg-surface px-4 py-2 text-[0.9375rem] font-medium transition-colors hover:bg-surface-hover"
-              >
-                Show answer
-              </button>
-            )}
-          </div>
+          <CardFace
+            card={card}
+            revealed={revealed}
+            onReveal={() => setRevealed(true)}
+          />
         </div>
       </div>
 
-      {/* Always mounted, enabled on reveal — the bar never jumps in. */}
-      <div className="review-grades mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-        {GRADES.map(({ grade: g, label, hint }) => (
-          <button
-            key={g}
-            type="button"
-            disabled={!revealed || Boolean(exit)}
-            onClick={() => commit(g)}
-            className={cn(
-              "rounded-md border px-3 py-2.5 text-center transition-colors disabled:opacity-40",
-              g === "again"
-                ? "border-border-strong bg-surface text-danger hover:bg-danger-soft"
-                : "border-border-strong bg-surface hover:bg-surface-hover",
-            )}
-          >
-            <span className="block text-[0.9375rem] font-medium">{label}</span>
-            <span className="block text-[0.75rem] text-fg-tertiary">
-              {hint}
+      {/* Tinder-style circular grades, ordered by swipe axis ← ↓ ↑ →.
+          Always enabled — swiping doesn't require revealing either. */}
+      <div className="review-grades mt-5 flex items-start justify-center gap-4">
+        {GRADES.map(({ grade: g, label, dir, icon: Icon, circleClass, sizeClass, iconClass }) => (
+          <div key={g} className="flex flex-col items-center gap-1.5">
+            <button
+              type="button"
+              aria-label={label}
+              disabled={Boolean(exit)}
+              onClick={() => commit(g)}
+              className={cn(
+                "flex items-center justify-center rounded-full transition-colors disabled:opacity-40",
+                sizeClass,
+                circleClass,
+              )}
+            >
+              <Icon className={iconClass} />
+            </button>
+            <span className="text-[0.72rem] text-fg-tertiary">
+              {dir} {label}
             </span>
-          </button>
+          </div>
         ))}
       </div>
 
       {saveError && (
-        <p className="review-save-error mt-3 text-[0.875rem] text-danger">
+        <p className="review-save-error mt-3 text-center text-[0.875rem] text-danger">
           Some grades didn&rsquo;t save — they&rsquo;ll come back as due cards.
         </p>
       )}
