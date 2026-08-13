@@ -2,8 +2,7 @@
 
 import * as React from "react";
 import { createStudyProject } from "@/lib/actions/study";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { TransitionFormDialog } from "@/components/ui/form-dialog";
 import { ProjectFields } from "@/components/study/project-fields";
 
 /**
@@ -13,50 +12,18 @@ import { ProjectFields } from "@/components/study/project-fields";
  * the folder's ⋯ → Project settings.
  */
 export function NewProjectDialog({ children }: { children: React.ReactNode }) {
-  const [open, setOpen] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
-  const [pending, startTransition] = React.useTransition();
-
-  const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const data = new FormData(e.currentTarget);
-    setError(null);
-    startTransition(async () => {
-      try {
-        await createStudyProject(data);
-        setOpen(false);
-      } catch (err) {
-        console.error("study: failed to create project", err);
-        setError("Couldn't create the project — please try again.");
-      }
-    });
-  };
-
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next);
-        if (!next) setError(null);
+    <TransitionFormDialog
+      trigger={children}
+      title="New project"
+      description="A project groups chats and carries standing instructions the AI follows in every chat inside it."
+      submitLabel="Create project"
+      errorMessage="Couldn't create the project — please try again."
+      onSubmit={async (data) => {
+        await createStudyProject(data);
       }}
     >
-      <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent
-        title="New project"
-        description="A project groups chats and carries standing instructions the AI follows in every chat inside it."
-      >
-        <form onSubmit={onSubmit} className="space-y-4">
-          <ProjectFields />
-          {error && (
-            <p role="alert" className="text-[0.875rem] text-danger">
-              {error}
-            </p>
-          )}
-          <Button type="submit" variant="primary" loading={pending}>
-            Create project
-          </Button>
-        </form>
-      </DialogContent>
-    </Dialog>
+      <ProjectFields />
+    </TransitionFormDialog>
   );
 }

@@ -1,4 +1,14 @@
+import { expect, type Page } from "@playwright/test";
 import postgres from "postgres";
+
+/** Send a study-composer message and wait for the turn to settle (the
+ * composer takes focus back in the send handler's finally block).
+ * Shared by every spec that drives the chat. */
+export async function sendMessage(page: Page, text: string) {
+  await page.getByLabel("Message").fill(text);
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(page.getByLabel("Message")).toBeFocused();
+}
 
 function sql() {
   return postgres(

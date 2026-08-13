@@ -1,13 +1,5 @@
-import { expect, test, type Page } from "@playwright/test";
-import { resetMockLearner } from "./helpers";
-
-/** Send a composer message and wait for the turn to settle (the
- * composer takes focus back in the send handler's finally block). */
-async function sendMessage(page: Page, text: string) {
-  await page.getByLabel("Message").fill(text);
-  await page.getByRole("button", { name: "Send" }).click();
-  await expect(page.getByLabel("Message")).toBeFocused();
-}
+import { expect, test } from "@playwright/test";
+import { resetMockLearner, sendMessage } from "./helpers";
 
 /**
  * The self-study space (/chat): projects with custom instructions
