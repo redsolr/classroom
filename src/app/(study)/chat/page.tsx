@@ -73,7 +73,7 @@ export default async function StudyChatPage({
     <ChatMenu
       threadId={active.id}
       pinned={active.pinned}
-      canExtract={Boolean(chatLanguage) && messages.length > 0}
+      canExtract={messages.length > 0}
       projectId={active.projectId}
       projects={projects}
     />

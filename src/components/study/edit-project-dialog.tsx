@@ -18,7 +18,6 @@ export function EditProjectDialog({
   project: {
     id: string;
     name: string;
-    language: string | null;
     instructions: string | null;
   };
   children: React.ReactNode;

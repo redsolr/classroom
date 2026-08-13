@@ -12,8 +12,8 @@
 
 - **Zero-step chat landing** — `/chat` opens straight into the composer as a DRAFT chat; the thread is created server-side on the first send, URL follows via replaceState — no hero, no "New chat" tap (2026-08-12)
 - **Streaming tutor chat** — OpenAI-backed, per-message model picker (Terra default / Sol / Luna roster, server-validated; answering model persisted + shown per reply); deterministic offline mock when no key
-- **Language-tutor persona** — chats in a language project get the tutor (corrections, learner-vocab drilling, `VOCAB:` chip suggestions → one-tap add); loose chats stay generic assistant
-- **Projects (ChatGPT Projects shape)** — name + optional language + custom instructions injected into every chat in the project; create via dialog, settings page, delete frees chats
+- **One study-partner prompt, instructions-driven** — no language "mode" anywhere (2026-08-14 refactor): what a chat is for comes from account/project instructions and the conversation; tutoring guidance (corrections, learner-vocab drilling) activates when practice happens; `VOCAB: term — meaning — Language` chip suggestions work in EVERY chat, each word carrying its own roster language
+- **Projects (ChatGPT Projects shape, generic)** — name + custom instructions injected into every chat in the project (a "French tutor" project is just instructions); create via dialog, settings dialog on the project page, delete frees chats
 - **Long-term memory (ChatGPT Memory shape)** — tutor saves durable facts via `remember`/`forget_memory` tools; `<learner_memory>` injected into EVERY chat; managed on /account: list, per-item delete, **Delete all**, **Pause/Resume** (pause stops saving AND using, keeps rows) (2026-08-12)
 - **About-you standing instructions** — account-level custom instructions injected into every chat, alongside per-project ones (2026-08-12)
 - **Chat management** — pinned chats (sidebar Pinned section), inline rename, delete with confirm, **move to project / remove from project** (sidebar row + header ⋯ submenus), **branch in new chat** (copies the conversation prefix), copy + read-aloud (speechSynthesis) per message, Stop button with partial-reply persist (move: 2026-08-13)
@@ -28,7 +28,7 @@
 - **Drag-to-reorder book rows** — dnd-kit grip handle, optimistic order (2026-08-12)
 - **Pinned books in the sidebar** — one-tap open + quick-add dialog (adopts existing words)
 - **Tutor vocab CRUD from chat** — add/update/delete/list words + create/manage lists as chat tool calls (offline mock speaks the same executor)
-- **Chat→vocab bulk extraction** — "Save words from this chat": whole-conversation extraction → checkbox review → deduped bulk save
+- **Chat→vocab bulk extraction** — "Save words from this chat" on ANY chat: whole-conversation extraction → checkbox review (each candidate labeled with its own language) → per-language deduped bulk save (2026-08-14)
 - **SRS review (`/vocab/review`)** — SM-2-lite flashcards; status DERIVED from review evidence, never asserted; **Tinder-style deck**: full-bleed language-tinted cover cards (coverHue keyed by language), fixed layout with in-place answer reveal (white sheet over the cover), whole-card swipe to grade before or after reveal (→ Good ← Forgot ↑ Easy ↓ Hard) with drag-follow + badge + fly-off + seamless keyed-stack promotion, circular grade buttons ordered by swipe axis; **practice-again cram rounds** (shuffled ≤50 words, schedule-neutral per Anki convention) from the completion/nothing-due screen (2026-08-14)
 - **Categories + personal lists** — word-class categories, ordered lists, save-current-view-as-list
 - **Curated packs (`/packs`)** — product-shipped collections (Persona 5 / Anime / Gaming JA, Café FR); per-word add or import-all → personal list

@@ -30,12 +30,13 @@ test("study space opens straight into the composer — no extra step", async ({
   await expect(page.getByRole("button", { name: "Send" })).toBeVisible();
 });
 
-test("language project with custom instructions: tutor reply is grounded AND follows instructions", async ({
+test("project with custom instructions: instructions reach the reply, chips carry their own language", async ({
   page,
 }) => {
   // New project is a DIALOG (ChatGPT shape): create → it closes, the
   // folder lands in the sidebar, and the learner stays put — no
-  // redirect to a settings page.
+  // redirect to a settings page. Projects are GENERIC (name +
+  // instructions, no language mode — 2026-08-14 refactor).
   await page.goto("/chat");
   await page
     .getByRole("complementary")
@@ -43,7 +44,6 @@ test("language project with custom instructions: tutor reply is grounded AND fol
     .click();
   const projectDialog = page.getByRole("dialog");
   await projectDialog.getByLabel("Name").fill("French");
-  await projectDialog.getByLabel(/Language/).selectOption("French");
   await projectDialog
     .getByLabel(/Custom instructions/)
     .fill("Always be brief.");
@@ -51,20 +51,21 @@ test("language project with custom instructions: tutor reply is grounded AND fol
   await expect(projectDialog).not.toBeVisible();
   expect(new URL(page.url()).pathname).toBe("/chat");
 
-  // A chat started from the new folder inherits language + instructions.
+  // A chat started from the new folder inherits the instructions.
   await page.getByRole("button", { name: "Start French chat" }).click();
   await page.waitForURL(/\/chat\?t=[0-9a-f-]{36}/);
 
   await page.getByLabel("Message").fill("Bonjour! Je veux apprendre.");
   await page.getByRole("button", { name: "Send" }).click();
 
-  // Mock tutor: language mode + the instructions-reached-the-prompt probe.
-  await expect(page.getByText(/Let's practice your French/)).toBeVisible();
+  // Mock tutor: the instructions-reached-the-prompt probe.
+  await expect(page.getByText(/A good word to start your list/)).toBeVisible();
   await expect(
     page.getByText(/Following your project instructions/),
   ).toBeVisible();
 
-  // With an empty vocab list it suggests a starter word as a chip.
+  // The suggested word rides a VOCAB line CARRYING ITS OWN LANGUAGE —
+  // the chip files it under French with no project mode anywhere.
   const chip = page.getByRole("button", { name: /bonjour — hello/ });
   await expect(chip).toBeVisible();
   await chip.click();
@@ -92,9 +93,12 @@ test("a loose chat is generic: no tutor persona, no instructions tail", async ({
 
   await expect(page.getByText(/Happy to help with anything/)).toBeVisible();
   await page.waitForURL(/\/chat\?t=[0-9a-f-]{36}/);
-  await expect(page.getByText(/Let's practice your/)).not.toBeVisible();
+  // No project → no instructions tail, and nothing suggested a chip.
   await expect(
     page.getByText(/Following your project instructions/),
+  ).not.toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /bonjour — hello/ }),
   ).not.toBeVisible();
 });
 
@@ -158,12 +162,13 @@ test("editing project instructions + name applies to later replies and the sideb
   // chat opens from the project page's own list.
   await page.getByRole("main").getByRole("link", { name: /Bonjour/ }).click();
   await page.waitForURL(/\/chat\?t=[0-9a-f-]{36}/);
-  await page.getByLabel("Message").fill("encore une fois");
+  // "drill me" probes that the learner's vocabulary (bonjour, saved in
+  // the first test) is injected — with NO language mode on the chat.
+  await page.getByLabel("Message").fill("drill me");
   await page.getByRole("button", { name: "Send" }).click();
   await expect(
     page.getByText(/Following your project instructions/).last(),
   ).toBeVisible();
-  // And with “bonjour” saved, the tutor drills the learner's own word.
   await expect(page.getByText(/Try using/).last()).toBeVisible();
 });
 
@@ -183,7 +188,8 @@ test("the tutor CRUDs vocabulary from chat: add, list, delete land in the table"
 
   const send = (text: string) => sendMessage(page, text);
 
-  await send("add vocab: fromage — cheese");
+  // The word names its OWN language — the chat has no language mode.
+  await send("add vocab: fromage — cheese — French");
   await expect(page.getByText(/added “fromage”/)).toBeVisible();
 
   // The word is real table data now, not chat prose.
@@ -377,8 +383,8 @@ test("deleting a chat removes it after the confirm dialog", async ({
 test("branch in new chat copies the conversation up to that reply", async ({
   page,
 }) => {
-  // The French thread carries 4 turns by now (Bonjour + reply, encore +
-  // reply). Branching from the FIRST reply must copy exactly two.
+  // The French thread carries 4 turns by now (Bonjour + reply, drill me
+  // + reply). Branching from the FIRST reply must copy exactly two.
   await page.goto("/chat");
   await page
     .getByRole("complementary")
@@ -393,7 +399,7 @@ test("branch in new chat copies the conversation up to that reply", async ({
 
   const firstReply = page
     .getByRole("main")
-    .getByText(/Let's practice your/)
+    .getByText(/A good word to start your list/)
     .first();
   await firstReply.hover();
   await page.getByRole("button", { name: "More actions" }).first().click();
@@ -412,8 +418,10 @@ test("branch in new chat copies the conversation up to that reply", async ({
   // all contain the phrase.)
   const main = page.getByRole("main");
   await expect(main.getByText(/Je veux apprendre/).first()).toBeVisible();
-  await expect(main.getByText(/Let's practice your/).first()).toBeVisible();
-  await expect(main.getByText(/encore une fois/)).not.toBeVisible();
+  await expect(
+    main.getByText(/A good word to start your list/).first(),
+  ).toBeVisible();
+  await expect(main.getByText(/drill me/)).not.toBeVisible();
 
   // Both threads live on — the project page now lists the pair.
   await page.goto(projectUrl);
@@ -899,27 +907,14 @@ test("curated packs: browse, add one word, import all as a personal list", async
 test("chat→vocab bulk extraction: review dialog, bulk save, dedup", async ({
   page,
 }) => {
-  // A German project: its vocab list is empty, so the mock tutor
-  // suggests its starter word as a VOCAB line.
+  // A LOOSE GENERIC chat — extraction needs no language mode anymore;
+  // the mock's VOCAB line carries the word's own language, exactly like
+  // the real model is instructed to.
   await page.goto("/chat");
-  await page
-    .getByRole("complementary")
-    .getByRole("button", { name: "New project" })
-    .click();
-  const projectDialog = page.getByRole("dialog");
-  await projectDialog.getByLabel("Name").fill("German");
-  await projectDialog.getByLabel(/Language/).selectOption("German");
-  await projectDialog.getByRole("button", { name: "Create project" }).click();
-  await expect(projectDialog).not.toBeVisible();
-
-  await page.getByRole("button", { name: "Start German chat" }).click();
+  await sendMessage(page, "merci beaucoup!");
   await page.waitForURL(/\/chat\?t=[0-9a-f-]{36}/);
   const threadUrl = page.url();
-
-  // One send — counts against the suite's shared cap budget.
-  await page.getByLabel("Message").fill("Guten Tag! Ich lerne Deutsch.");
-  await page.getByRole("button", { name: "Send" }).click();
-  await expect(page.getByText(/Let's practice your German/)).toBeVisible();
+  await expect(page.getByText(/A word worth keeping/)).toBeVisible();
 
   // The tutor marked a word; do NOT tap its chip — extraction must find
   // it by reading the transcript (via the header's ⋯ menu).
@@ -933,18 +928,19 @@ test("chat→vocab bulk extraction: review dialog, bulk save, dedup", async ({
     .getByRole("menuitem", { name: "Save words from this chat" })
     .click();
   const dialog = page.getByRole("dialog");
-  await expect(dialog.getByText("bonjour")).toBeVisible();
+  await expect(dialog.getByText("merci")).toBeVisible();
+  // The candidate row shows the language the word itself carries.
+  await expect(dialog.getByText("· French")).toBeVisible();
   await dialog.getByRole("button", { name: "Add 1 word" }).click();
   await expect(dialog.getByText(/Added 1 word/)).toBeVisible();
   await dialog.getByRole("link", { name: /Open my vocabulary/ }).click();
 
-  // Filed under German (bonjour also exists under French — the term
-  // dedup is per language): the German language filter still shows it.
+  // Filed under French — from the WORD's language, no chat mode around.
   await page.waitForURL("**/vocab");
   await page.goto("/vocab?book=all");
-  await page.getByLabel("Filter language").selectOption("German");
+  await page.getByLabel("Filter language").selectOption("French");
   await expect(
-    page.getByRole("main").locator("tbody tr").filter({ hasText: "bonjour" }),
+    page.getByRole("main").locator("tbody tr").filter({ hasText: "merci" }),
   ).toBeVisible();
 
   // Round 2 proves dedup: the word is on the list now, so extraction

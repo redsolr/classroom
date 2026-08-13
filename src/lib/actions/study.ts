@@ -51,14 +51,11 @@ import { countTutorMessagesLast24h } from "@/lib/study-usage";
 
 const languageSchema = z.string().trim().min(2).max(40);
 
+// Projects are generic containers (2026-08-14): name + instructions
+// only. The legacy `language` column stays readable as a filing default
+// on old rows but is never written from the UI anymore.
 const projectSchema = z.object({
   name: z.string().trim().min(1).max(80),
-  language: z
-    .string()
-    .trim()
-    .max(40)
-    .optional()
-    .transform((v) => (v ? v : undefined)),
   instructions: z
     .string()
     .trim()
@@ -70,7 +67,6 @@ const projectSchema = z.object({
 function parseProjectForm(formData: FormData) {
   return projectSchema.parse({
     name: formData.get("name"),
-    language: formData.get("language") || undefined,
     instructions: formData.get("instructions") || undefined,
   });
 }
@@ -91,7 +87,6 @@ export async function createStudyProject(
     .values({
       learnerId: learner.id,
       name: parsed.name,
-      language: parsed.language ?? null,
       instructions: parsed.instructions ?? null,
     })
     .returning({ id: studyProjects.id });
@@ -108,11 +103,12 @@ export async function updateStudyProject(
   const id = z.string().uuid().parse(projectId);
   const parsed = parseProjectForm(formData);
 
+  // `language` deliberately untouched: legacy rows keep their filing
+  // default; the UI no longer writes it.
   const updated = await db
     .update(studyProjects)
     .set({
       name: parsed.name,
-      language: parsed.language ?? null,
       instructions: parsed.instructions ?? null,
       updatedAt: new Date(),
     })
@@ -674,6 +670,18 @@ async function savedTermsFor(learnerId: string, language: string) {
   return new Set(rows.map((r) => r.term.toLowerCase()));
 }
 
+/** Cross-language dedup keys — `language:term`, lowercased. Extraction
+ * candidates carry their own language now, so dedup must too. */
+async function savedLanguageTermKeys(learnerId: string) {
+  const rows = await db
+    .select({ term: studyVocab.term, language: studyVocab.language })
+    .from(studyVocab)
+    .where(eq(studyVocab.learnerId, learnerId));
+  return new Set(
+    rows.map((r) => `${r.language.toLowerCase()}:${r.term.toLowerCase()}`),
+  );
+}
+
 /**
  * Chat→vocab bulk extraction, step 1: propose candidates from the whole
  * conversation (LLM with a key, deterministic VOCAB-line mock without).
@@ -682,19 +690,15 @@ async function savedTermsFor(learnerId: string, language: string) {
  * is a paid model call.
  */
 export async function extractStudyVocab(threadId: string): Promise<{
-  language: string;
   candidates: VocabCandidate[];
 }> {
   const learner = await requireLearner();
+  // Works on ANY chat — the thread's legacy language, when present, is
+  // only a fallback fill for candidates the model couldn't place.
   const { threadId: id, language } = await resolveThreadLanguage(
     learner.id,
     threadId,
   );
-  if (!language) {
-    throw new Error(
-      "This chat isn't tied to a language — vocabulary extraction needs one.",
-    );
-  }
 
   const cap = dailyCapFor(learner);
   if ((await countTutorMessagesLast24h(learner.id)) >= cap) {
@@ -703,55 +707,77 @@ export async function extractStudyVocab(threadId: string): Promise<{
     );
   }
 
-  const [turns, saved] = await Promise.all([
+  const [turns, savedKeys] = await Promise.all([
     db
       .select({ role: studyMessages.role, content: studyMessages.content })
       .from(studyMessages)
       .where(eq(studyMessages.threadId, id))
       .orderBy(asc(studyMessages.createdAt)),
-    savedTermsFor(learner.id, language),
+    savedLanguageTermKeys(learner.id),
   ]);
 
-  const candidates = (await extractVocabCandidates(
-    language,
-    turns,
-    [...saved],
-  )).filter((c) => !saved.has(c.term.toLowerCase()));
+  const candidates = (
+    await extractVocabCandidates(language, turns, [
+      ...new Set([...savedKeys].map((k) => k.split(":").slice(1).join(":"))),
+    ])
+  )
+    // Fill undetermined languages from the thread default; a candidate
+    // with neither can't be filed — drop it rather than show a chip
+    // that cannot save.
+    .map((c) => ({ ...c, language: c.language ?? language }))
+    .filter(
+      (c): c is VocabCandidate & { language: string } => c.language !== null,
+    )
+    .filter(
+      (c) =>
+        !savedKeys.has(`${c.language.toLowerCase()}:${c.term.toLowerCase()}`),
+    );
 
-  return { language, candidates };
+  return { candidates };
 }
 
 const bulkItemsSchema = z.array(vocabCandidateSchema).min(1).max(40);
 
 /**
- * Step 2: save the candidates the learner picked. Language comes from
- * the thread server-side (never the client), and already-saved terms are
- * skipped again — the list may have changed since extraction.
+ * Step 2: save the candidates the learner picked. Each item carries its
+ * own language (thread legacy language as server-side fallback; items
+ * with neither are skipped), and already-saved terms are skipped again
+ * — the list may have changed since extraction.
  */
 export async function addStudyVocabBulk(
   threadId: string,
   items: VocabCandidate[],
 ): Promise<{ added: number }> {
   const learner = await requireLearner();
-  const { language } = await resolveThreadLanguage(learner.id, threadId);
-  if (!language) throw new Error("This chat isn't tied to a language.");
+  const { language: threadLanguage } = await resolveThreadLanguage(
+    learner.id,
+    threadId,
+  );
 
   const parsed = bulkItemsSchema.parse(items);
-  const saved = await savedTermsFor(learner.id, language);
+  const savedKeys = await savedLanguageTermKeys(learner.id);
 
-  const fresh: typeof parsed = [];
+  const fresh: { term: string; reading: string | null; meaning: string | null; language: string }[] =
+    [];
   for (const item of parsed) {
-    const key = item.term.toLowerCase();
-    if (saved.has(key)) continue;
-    saved.add(key); // also dedups within the submitted batch
-    fresh.push(item);
+    const language = item.language ?? threadLanguage;
+    if (!language) continue;
+    const key = `${language.toLowerCase()}:${item.term.toLowerCase()}`;
+    if (savedKeys.has(key)) continue;
+    savedKeys.add(key); // also dedups within the submitted batch
+    fresh.push({
+      term: item.term,
+      reading: item.reading,
+      meaning: item.meaning,
+      language,
+    });
   }
 
   if (fresh.length > 0) {
     await db.insert(studyVocab).values(
       fresh.map((item) => ({
         learnerId: learner.id,
-        language,
+        language: item.language,
         term: item.term,
         reading: item.reading || null,
         meaning: item.meaning || null,

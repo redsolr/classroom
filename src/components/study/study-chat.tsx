@@ -47,22 +47,32 @@ const SPEECH_LANGS: Record<string, string> = {
   Portuguese: "pt-PT",
 };
 
+/** A VOCAB line whose filing language is resolved (line's own language
+ * first, the chat's default second). */
+type ResolvedVocabLine = VocabLine & { language: string };
+
 /**
  * One assistant reply can carry vocabulary suggestions on their own
- * lines (`VOCAB: term — meaning`, the convention set in the tutor
- * prompt — parser shared in lib/vocab-lines.ts). They render as
- * add-to-list chips; the rest renders as text.
+ * lines (`VOCAB: term — meaning — Language`, the convention set in the
+ * tutor prompt — parser shared in lib/vocab-lines.ts). They render as
+ * add-to-list chips in ANY chat; a line with no resolvable filing
+ * language stays visible as plain text rather than becoming a chip
+ * that can't save.
  */
-function parseReply(content: string): {
+function parseReply(
+  content: string,
+  chatLanguage: string | null,
+): {
   text: string;
-  vocab: VocabLine[];
+  vocab: ResolvedVocabLine[];
 } {
-  const vocab: VocabLine[] = [];
+  const vocab: ResolvedVocabLine[] = [];
   const kept: string[] = [];
   for (const line of content.split("\n")) {
     const parsed = parseVocabLine(line);
-    if (parsed) {
-      vocab.push(parsed);
+    const language = parsed && (parsed.language ?? chatLanguage);
+    if (parsed && language) {
+      vocab.push({ ...parsed, language });
     } else {
       kept.push(line);
     }
@@ -408,25 +418,23 @@ export function StudyChat({
                 </div>
               );
             }
-            // VOCAB chips need a language to file the word under — generic
-            // chats render replies verbatim.
-            const { text, vocab } = language
-              ? parseReply(m.content)
-              : { text: m.content, vocab: [] };
+            // Chips work in EVERY chat — each VOCAB line carries its
+            // own filing language (chat language as fallback).
+            const { text, vocab } = parseReply(m.content, language);
             return (
               <div key={m.id} className="chat-assistant-message group">
                 <div className="chat-assistant-bubble mr-10 rounded-lg bg-surface px-4 py-2.5 shadow-card sm:mr-16">
                   <p className="whitespace-pre-wrap text-[0.9375rem] leading-relaxed">
                     {text || (streaming ? "…" : "")}
                   </p>
-                  {language && vocab.length > 0 && (
+                  {vocab.length > 0 && (
                     <div className="mt-2.5 flex flex-wrap gap-1.5">
                       {vocab.map((v) => (
                         <VocabChip
                           key={`${m.id}-${v.term}`}
                           term={v.term}
                           meaning={v.meaning}
-                          language={language}
+                          language={v.language}
                         />
                       ))}
                     </div>

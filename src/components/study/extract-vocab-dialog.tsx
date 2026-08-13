@@ -137,6 +137,11 @@ export function ExtractVocabDialog({
                       {c.meaning && (
                         <span className="text-fg-secondary"> — {c.meaning}</span>
                       )}
+                      {c.language && (
+                        <span className="ml-1.5 text-[0.8125rem] text-fg-tertiary">
+                          · {c.language}
+                        </span>
+                      )}
                     </span>
                   </label>
                 </li>

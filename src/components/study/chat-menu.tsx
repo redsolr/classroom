@@ -36,7 +36,7 @@ export function ChatMenu({
 }: {
   threadId: string;
   pinned: boolean;
-  /** Extraction needs a language and a conversation to read. */
+  /** Extraction needs a conversation to read. */
   canExtract: boolean;
   projectId: string | null;
   projects: ProjectOption[];

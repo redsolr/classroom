@@ -105,7 +105,8 @@ export async function POST(req: NextRequest) {
     })
     .where(eq(studyThreads.id, thread.id));
 
-  // Project (if any) supplies language mode + standing instructions.
+  // Project (if any) supplies standing instructions — plus a legacy
+  // filing-default language on old rows (never a behavior mode).
   const project = thread.projectId
     ? await db.query.studyProjects.findFirst({
         where: and(
@@ -129,24 +130,25 @@ export async function POST(req: NextRequest) {
 
   const [vocab, historyRows, memoryRows, bookNoteRows, libraryRows] =
     await Promise.all([
-    language
-      ? db
-          .select({
-            term: studyVocab.term,
-            reading: studyVocab.reading,
-            meaning: studyVocab.meaning,
-            status: studyVocab.status,
-          })
-          .from(studyVocab)
-          .where(
-            and(
-              eq(studyVocab.learnerId, learner.id),
-              eq(studyVocab.language, language),
-            ),
-          )
-          .orderBy(sql`${studyVocab.srsDueAt} asc nulls first`)
-          .limit(VOCAB_CONTEXT_ITEMS)
-      : Promise.resolve([]),
+    // Vocabulary grounds EVERY chat (entries carry their own language) —
+    // a chat-level language only narrows the drill focus, never gates.
+    db
+      .select({
+        term: studyVocab.term,
+        reading: studyVocab.reading,
+        meaning: studyVocab.meaning,
+        status: studyVocab.status,
+        language: studyVocab.language,
+      })
+      .from(studyVocab)
+      .where(
+        and(
+          eq(studyVocab.learnerId, learner.id),
+          ...(language ? [eq(studyVocab.language, language)] : []),
+        ),
+      )
+      .orderBy(sql`${studyVocab.srsDueAt} asc nulls first`)
+      .limit(VOCAB_CONTEXT_ITEMS),
     db
       .select({ role: studyMessages.role, content: studyMessages.content })
       .from(studyMessages)

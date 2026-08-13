@@ -4,6 +4,7 @@ import {
   STUDY_TOOL_DEFS,
   type StudyToolExecutor,
 } from "@/lib/ai/study-tools";
+import { STUDY_LANGUAGES } from "@/lib/study-languages";
 
 /**
  * The self-study tutor (/chat) — OpenAI-backed, unlike the roster
@@ -43,10 +44,16 @@ export function resolveStudyModel(requested?: string | null): string {
 
 export type TutorContext = {
   learnerName: string | null;
-  /** Null = a generic chat (no tutor persona, no vocab grounding). */
+  /** A default language for FILING words (legacy project value or a
+   * language thread) — behavior never forks on it; instructions do. */
   language: string | null;
-  /** The learner's own vocab in this language — grounding material. */
-  vocab: Pick<StudyVocabItem, "term" | "reading" | "meaning" | "status">[];
+  /** The learner's own vocabulary — grounding material in EVERY chat
+   * (scoped to `language` when one is set, recent across languages
+   * otherwise). */
+  vocab: Pick<
+    StudyVocabItem,
+    "term" | "reading" | "meaning" | "status" | "language"
+  >[];
   projectName: string | null;
   /** The project's standing custom instructions, verbatim. */
   projectInstructions: string | null;
@@ -70,21 +77,23 @@ export type TutorContext = {
 
 export type TutorTurn = { role: "user" | "assistant"; content: string };
 
-const TUTOR_PROMPT = `You are a personal language tutor inside Classroom's self-study space. The learner studies on their own schedule; you are their always-available practice partner and explainer.
-
-How to tutor:
-- Adapt to the learner's level from how they write. Reply mostly in the language they use with you; when they practice the target language, respond in it at a level slightly above theirs, with brief native-language glosses for anything new.
-- Correct mistakes briefly and kindly: show the corrected form, a one-line why, then keep the conversation moving. Never lecture.
-- Weave the learner's own vocabulary list (provided as context) into your replies and practice prompts — reviewing their words beats introducing random ones.
-- When a genuinely useful new word or phrase comes up, mark it on its own line as: VOCAB: term — meaning. Only mark words worth memorizing, at most a couple per reply.
-- Keep replies short and conversational (a few sentences, or a compact list when drilling). This is a chat, not a textbook.
-- Never invent facts about the learner's history that are not in the context.`;
-
-const GENERIC_PROMPT = `You are the learner's personal assistant inside Classroom's self-study space. This chat is not tied to a language course — help with whatever they bring: writing, planning, questions, thinking things through.
+/**
+ * ONE prompt for every chat (2026-08-14 generic-projects refactor):
+ * what a chat is FOR comes from the learner's instructions and the
+ * conversation itself, never from a project "language mode". The
+ * tutoring guidance simply activates when the conversation is language
+ * practice — the same way it would for a human tutor-assistant.
+ */
+const STUDY_PROMPT = `You are the learner's personal study partner inside Classroom's self-study space — tutor, explainer, and assistant in one. Help with whatever they bring: language practice, reading, writing, planning, thinking things through. The learner's standing instructions (account-level and per-project, provided below when set) define what a chat is for — follow them.
 
 - Be concise and conversational; this is a chat, not a report.
-- If the conversation turns into language practice, you may mark a genuinely useful word on its own line as: VOCAB: term — meaning.
-- Never invent facts about the learner's history that are not in the context.`;
+- Never invent facts about the learner's history that are not in the context.
+
+When the conversation is language practice:
+- Adapt to the learner's level from how they write. Reply mostly in the language they use with you; when they practice a target language, respond in it at a level slightly above theirs, with brief glosses for anything new.
+- Correct mistakes briefly and kindly: show the corrected form, a one-line why, then keep the conversation moving. Never lecture.
+- Weave the learner's own vocabulary (provided as context) into your replies and practice prompts — reviewing their words beats introducing random ones.
+- When a genuinely useful new word or phrase comes up, mark it on its own line as: VOCAB: term — meaning — Language (the language of the term, from this fixed set: ${STUDY_LANGUAGES.join(", ")}). Only mark words worth memorizing, at most a couple per reply.`;
 
 const TOOLS_PROMPT = `
 You also MANAGE the learner's personal vocabulary when asked, via tools:
@@ -120,22 +129,24 @@ You also keep long-term MEMORY about the learner across conversations:
 function renderTutorContext(ctx: TutorContext): string {
   const lines = [`Learner: ${ctx.learnerName ?? "(no name given)"}`];
   if (ctx.language) {
-    lines.push(`Studying: ${ctx.language}`);
-    if (ctx.vocab.length > 0) {
-      lines.push(
-        `Their current vocabulary list (${ctx.vocab.length} shown): ${ctx.vocab
-          .map((v) => {
-            const reading = v.reading ? ` [${v.reading}]` : "";
-            const meaning = v.meaning ? ` = ${v.meaning}` : "";
-            return `${v.term}${reading}${meaning} (${v.status})`;
-          })
-          .join("; ")}`,
-      );
-    } else {
-      lines.push(
-        "Their vocabulary list is empty — suggest starting one from this conversation.",
-      );
-    }
+    lines.push(`This chat files vocabulary under: ${ctx.language}`);
+  }
+  // Vocabulary grounds EVERY chat now — each entry is labeled with its
+  // own language, so nothing depends on a chat-level mode.
+  if (ctx.vocab.length > 0) {
+    lines.push(
+      `Their current vocabulary (${ctx.vocab.length} shown): ${ctx.vocab
+        .map((v) => {
+          const reading = v.reading ? ` [${v.reading}]` : "";
+          const meaning = v.meaning ? ` = ${v.meaning}` : "";
+          return `${v.term}${reading}${meaning} (${v.language}, ${v.status})`;
+        })
+        .join("; ")}`,
+    );
+  } else {
+    lines.push(
+      "Their vocabulary list is empty — when language practice comes up, suggest starting one from the conversation.",
+    );
   }
   return lines.join("\n");
 }
@@ -143,7 +154,7 @@ function renderTutorContext(ctx: TutorContext): string {
 /** Full instructions block: persona + tools + learner context + project rules. */
 function buildInstructions(ctx: TutorContext): string {
   const parts = [
-    (ctx.language ? TUTOR_PROMPT : GENERIC_PROMPT) + TOOLS_PROMPT,
+    STUDY_PROMPT + TOOLS_PROMPT,
     `<learner_context>\n${renderTutorContext(ctx)}\n</learner_context>`,
   ];
   if (ctx.learnerInstructions?.trim()) {
@@ -192,8 +203,14 @@ function buildInstructions(ctx: TutorContext): string {
 
 /**
  * Deterministic fallback when no OPENAI_API_KEY is configured — keeps
- * local dev and e2e free and offline, and demonstrably grounded: it
- * references the learner's own vocabulary.
+ * local dev and e2e free and offline. Keyed on MESSAGE content, never
+ * on a chat-level language mode (there is none anymore): the word in
+ * the message decides the behavior, mirroring how the real model infers
+ * language from the conversation. Probes:
+ *   "drill me"          → drills the first injected vocab item — the
+ *                         probe that vocabulary reaches EVERY chat
+ *   contains "bonjour"  → VOCAB chip line carrying its own language
+ *   contains "merci"    → a second chip word (extraction round-trips)
  */
 function mockTutorReply(ctx: TutorContext, message: string): string {
   // The e2e suite's probes that standing instructions actually reach
@@ -207,24 +224,28 @@ function mockTutorReply(ctx: TutorContext, message: string): string {
       ? "\n(Following your standing instructions.)"
       : "");
 
-  if (!ctx.language) {
-    return `Hi${ctx.learnerName ? ` ${ctx.learnerName}` : ""}! You said: “${message.slice(0, 80)}”. Happy to help with anything.${instructionsTail}`;
+  if (/^drill me/i.test(message)) {
+    const vocab = ctx.vocab[0];
+    return vocab
+      ? `Try using “${vocab.term}”${vocab.meaning ? ` (${vocab.meaning})` : ""} in a sentence.${instructionsTail}`
+      : `Your vocabulary list is empty — save a word and I'll drill you on it.${instructionsTail}`;
   }
-
-  const intro = `Bienvenue${ctx.learnerName ? `, ${ctx.learnerName}` : ""}! Let's practice your ${ctx.language}.`;
-  const vocab = ctx.vocab[0];
-  if (vocab) {
-    return `${intro} Try using “${vocab.term}”${vocab.meaning ? ` (${vocab.meaning})` : ""} in a sentence.${instructionsTail}`;
+  if (/bonjour/i.test(message)) {
+    // VOCAB suggestions live on their own line and carry their own
+    // language — same convention the system prompt demands of the real
+    // model (that's what the chip parser reads).
+    return `Bienvenue${ctx.learnerName ? `, ${ctx.learnerName}` : ""}! You said: “${message.slice(0, 80)}”. A good word to start your list with:${instructionsTail}\nVOCAB: bonjour — hello — French`;
   }
-  // VOCAB suggestions live on their own line — same convention the system
-  // prompt demands of the real model (that's what the chip parser reads).
-  return `${intro} You said: “${message.slice(0, 80)}”. A good word to start your list with:${instructionsTail}\nVOCAB: bonjour — hello`;
+  if (/merci/i.test(message)) {
+    return `De rien! A word worth keeping from this:${instructionsTail}\nVOCAB: merci — thank you — French`;
+  }
+  return `Hi${ctx.learnerName ? ` ${ctx.learnerName}` : ""}! You said: “${message.slice(0, 80)}”. Happy to help with anything.${instructionsTail}`;
 }
 
 /**
  * Deterministic tool commands for the offline mock — same executor the
  * real model calls, so e2e proves chat → DB for real. Grammar:
- *   add vocab: term — meaning
+ *   add vocab: term — meaning[ — language]
  *   update vocab: term — new meaning
  *   delete vocab: term
  *   list my vocab
@@ -248,18 +269,23 @@ async function mockToolTurn(
   execute: StudyToolExecutor,
 ): Promise<string | null> {
   const dash = /\s*(?:—|–|-)\s*/;
-  const add = new RegExp(`^add vocab:\\s*(.+?)${dash.source}(.+)$`, "i").exec(
-    message,
-  );
+  const add = new RegExp(
+    `^add vocab:\\s*(.+?)${dash.source}(.+?)(?:${dash.source}([^—–-]+?))?$`,
+    "i",
+  ).exec(message);
   if (add) {
     const result = JSON.parse(
-      await execute("add_vocab", { term: add[1], meaning: add[2] }),
+      await execute("add_vocab", {
+        term: add[1],
+        meaning: add[2],
+        ...(add[3] ? { language: add[3].trim() } : {}),
+      }),
     ) as { saved?: boolean; reason?: string; error?: string };
     if (result.error) return result.error;
     if (result.saved === false && result.reason === "already_saved") {
       return `“${add[1]}” is already on your list.`;
     }
-    return `Done — added “${add[1]}” (${add[2]}) to your ${ctx.language ?? ""} vocabulary.`;
+    return `Done — added “${add[1]}” (${add[2]}) to your vocabulary.`;
   }
   const update = new RegExp(
     `^update vocab:\\s*(.+?)${dash.source}(.+)$`,
