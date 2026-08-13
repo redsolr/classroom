@@ -7,8 +7,10 @@ import { cn } from "@/lib/utils";
  * shelf. Server-renderable (no hooks).
  */
 
-/** Deterministic 0–359 hue from the title. */
-function coverHue(title: string): number {
+/** Deterministic 0–359 hue from a seed string — shared with the review
+ * deck, which keys it by LANGUAGE so every Japanese card wears the same
+ * tint everywhere in the app. */
+export function coverHue(title: string): number {
   let hash = 0;
   for (let i = 0; i < title.length; i++) {
     hash = (hash * 31 + title.charCodeAt(i)) | 0;

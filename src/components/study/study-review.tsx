@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { Check, Minus, PartyPopper, X, Zap } from "lucide-react";
 import { reviewStudyVocab } from "@/lib/actions/study";
+import { coverHue } from "@/components/study/book-cover";
 import type { ReviewGrade } from "@/lib/srs";
 import { cn } from "@/lib/utils";
 
@@ -110,19 +111,31 @@ function CardFace({
   revealed: boolean;
   onReveal?: () => void;
 }) {
+  // Keyed by LANGUAGE (not term): every Japanese card wears the same
+  // tint, matching the library's generated covers.
+  const hue = coverHue(card.language);
   return (
     <>
-      {/* Two FIXED zones split by an always-drawn divider — the term
-          never moves and the answer fades into space that was reserved
-          from the start, so revealing changes zero geometry. */}
-      <div className="review-card-front flex h-[45%] shrink-0 flex-col items-center justify-end gap-1 pb-5">
+      {/* Two FIXED zones — the tinted "cover" (term side) over the
+          white answer sheet; their edge is the divider. The term never
+          moves and the answer fades into space reserved from the
+          start, so revealing changes zero geometry. Like the book
+          covers, the tint keeps its colors in both themes. */}
+      <div
+        className="review-card-front relative flex h-[45%] shrink-0 flex-col items-center justify-end gap-1 rounded-t-[calc(1rem_-_1px)] px-6 pb-6 text-white"
+        style={{
+          background: `linear-gradient(160deg, hsl(${hue} 52% 42%) 0%, hsl(${(hue + 38) % 360} 55% 26%) 100%)`,
+        }}
+      >
+        <span className="review-language-chip absolute top-4 left-4 rounded-full bg-white/15 px-2.5 py-0.5 text-[0.75rem] font-medium">
+          {card.language}
+        </span>
         <p className="text-[2rem] font-semibold tracking-tight">{card.term}</p>
         {card.reading && (
-          <p className="text-[1rem] text-fg-secondary">{card.reading}</p>
+          <p className="text-[1rem] text-white/75">{card.reading}</p>
         )}
       </div>
-      <div className="review-card-divider border-t border-border" />
-      <div className="review-answer-zone min-h-0 flex-1 pt-5">
+      <div className="review-answer-zone min-h-0 flex-1 px-6 pt-6">
         {revealed && (
           <div className="review-answer animate-panel-in">
             <p className="text-[1.125rem]">{card.meaning ?? "—"}</p>
@@ -136,7 +149,7 @@ function CardFace({
       </div>
       {/* Fixed-height slot — the button swaps for the swipe hint
           without moving anything. */}
-      <div className="review-card-footer flex h-10 shrink-0 items-center justify-center">
+      <div className="review-card-footer mb-5 flex h-10 shrink-0 items-center justify-center px-6">
         {revealed ? (
           <p className="text-[0.78rem] text-fg-tertiary">
             Swipe the card, or tap a grade below
@@ -327,8 +340,9 @@ export function StudyReview({ deck: initialDeck }: { deck: ReviewCard[] }) {
     // Narrow portrait column — the deck must read as a CARD STACK, not
     // a full-width panel.
     <div className="study-review mx-auto max-w-sm select-none">
+      {/* Language moved onto the card's cover chip. */}
       <p className="review-progress mb-3 text-center text-[0.875rem] text-fg-tertiary">
-        Card {index + 1} of {deck.length} · {card.language}
+        Card {index + 1} of {deck.length}
       </p>
 
       <div className="review-deck relative h-[24rem] sm:h-[26rem]">
@@ -348,7 +362,7 @@ export function StudyReview({ deck: initialDeck }: { deck: ReviewCard[] }) {
             key={nextCard.id}
             aria-hidden
             className={cn(
-              "review-card-under pointer-events-none absolute inset-0 flex flex-col rounded-2xl border border-border bg-surface px-6 py-6 text-center shadow-card transition-transform duration-200",
+              "review-card-under pointer-events-none absolute inset-0 flex flex-col rounded-2xl border border-border bg-surface text-center shadow-card transition-transform duration-200",
               exit
                 ? "translate-y-0 rotate-0 scale-100"
                 : "translate-y-2.5 -rotate-2 scale-[0.95]",
@@ -371,7 +385,7 @@ export function StudyReview({ deck: initialDeck }: { deck: ReviewCard[] }) {
         <div
           key={card.id}
           className={cn(
-            "review-card absolute inset-0 flex cursor-grab touch-none flex-col rounded-2xl border border-border bg-surface px-6 py-6 text-center shadow-card active:cursor-grabbing",
+            "review-card absolute inset-0 flex cursor-grab touch-none flex-col rounded-2xl border border-border bg-surface text-center shadow-card active:cursor-grabbing",
           )}
           style={cardStyle}
           onPointerDown={onPointerDown}
