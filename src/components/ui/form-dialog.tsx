@@ -67,6 +67,7 @@ export function TransitionFormDialog({
   errorMessage,
   onSubmit,
   children,
+  footer,
 }: {
   trigger: React.ReactNode;
   title: string;
@@ -76,6 +77,8 @@ export function TransitionFormDialog({
   errorMessage: string;
   onSubmit: (formData: FormData) => Promise<void>;
   children: React.ReactNode;
+  /** Rendered below the form — e.g. a settings dialog's danger zone. */
+  footer?: React.ReactNode;
 }) {
   const [open, setOpen] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -117,6 +120,7 @@ export function TransitionFormDialog({
             {submitLabel}
           </Button>
         </form>
+        {footer}
       </DialogContent>
     </Dialog>
   );

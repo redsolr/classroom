@@ -2,15 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { and, desc, eq } from "drizzle-orm";
-import { Folder, Plus } from "lucide-react";
+import { Folder, Plus, Settings } from "lucide-react";
 import { db, studyProjects, studyThreads } from "@/db";
-import {
-  createStudyThread,
-  deleteStudyProject,
-  updateStudyProject,
-} from "@/lib/actions/study";
+import { createStudyThread } from "@/lib/actions/study";
 import { requireLearner } from "@/lib/auth";
-import { ProjectFields } from "@/components/study/project-fields";
+import { EditProjectDialog } from "@/components/study/edit-project-dialog";
 import { SubmitButton } from "@/components/ui/button";
 
 export const metadata: Metadata = { title: "Project" };
@@ -53,29 +49,28 @@ export default async function StudyProjectPage({
           <Folder className="size-6 shrink-0 text-accent" />
           <span className="truncate">{project.name}</span>
         </h1>
-        <form action={createStudyThread}>
-          <input type="hidden" name="projectId" value={project.id} />
-          <SubmitButton>
-            <Plus className="size-3.5" />
-            New chat
-          </SubmitButton>
-        </form>
+        <div className="flex items-center gap-2">
+          {/* Settings live behind the dialog — the page leads with its
+              CHATS (the settings card used to push them below the
+              fold on phones). */}
+          <EditProjectDialog project={project}>
+            <button
+              type="button"
+              className="flex items-center gap-1.5 rounded-md border border-border-strong bg-surface px-3 py-2 text-[0.875rem] font-medium transition-colors hover:bg-surface-hover"
+            >
+              <Settings className="size-4 text-fg-tertiary" />
+              Settings
+            </button>
+          </EditProjectDialog>
+          <form action={createStudyThread}>
+            <input type="hidden" name="projectId" value={project.id} />
+            <SubmitButton>
+              <Plus className="size-3.5" />
+              New chat
+            </SubmitButton>
+          </form>
+        </div>
       </header>
-
-      <section className="mb-6 rounded-lg bg-surface p-4 shadow-card sm:p-5">
-        <h2 className="mb-3 text-[0.9375rem] font-semibold">
-          Project settings
-        </h2>
-        <form
-          action={updateStudyProject.bind(null, project.id)}
-          className="space-y-4"
-        >
-          <ProjectFields defaults={project} />
-          <div className="flex items-center justify-between">
-            <SubmitButton>Save project</SubmitButton>
-          </div>
-        </form>
-      </section>
 
       <section className="mb-6">
         <h2 className="mb-2.5 text-[1rem] font-semibold">Chats</h2>
@@ -99,20 +94,6 @@ export default async function StudyProjectPage({
         )}
       </section>
 
-      <form
-        action={deleteStudyProject.bind(null, project.id)}
-        className="border-t border-border pt-4"
-      >
-        <button
-          type="submit"
-          className="text-[0.875rem] text-danger hover:underline"
-        >
-          Delete project
-        </button>
-        <span className="ml-2 text-[0.8125rem] text-fg-tertiary">
-          Its chats survive and move to “Chats”.
-        </span>
-      </form>
     </div>
   );
 }

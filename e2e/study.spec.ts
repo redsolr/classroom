@@ -141,9 +141,13 @@ test("editing project instructions + name applies to later replies and the sideb
   await page.getByRole("menuitem", { name: "Project settings" }).click();
   await page.waitForURL(/\/project\/[0-9a-f-]{36}/);
 
-  await page.getByLabel("Name").fill("Français");
-  await page.getByLabel(/Custom instructions/).fill("Use emojis.");
-  await page.getByRole("button", { name: "Save project" }).click();
+  // The page leads with chats; the settings form is behind its button.
+  await page.getByRole("button", { name: "Settings" }).click();
+  const settingsDialog = page.getByRole("dialog");
+  await settingsDialog.getByLabel("Name").fill("Français");
+  await settingsDialog.getByLabel(/Custom instructions/).fill("Use emojis.");
+  await settingsDialog.getByRole("button", { name: "Save project" }).click();
+  await expect(settingsDialog).not.toBeVisible();
   await expect(
     page
       .getByRole("complementary")
