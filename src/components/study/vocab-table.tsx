@@ -703,7 +703,7 @@ function SortableRow({
   return (
     <tr
       ref={setNodeRef}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
+      style={{ transform: CSS.Translate.toString(transform), transition }}
       onClick={onClick}
       className={cn(className, isDragging && "relative z-10 opacity-70")}
     >
