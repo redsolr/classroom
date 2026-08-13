@@ -25,6 +25,9 @@ export function DropdownContent({
       <DropdownPrimitive.Content
         sideOffset={6}
         align="end"
+        // Menus keep a margin from the viewport edges (ChatGPT-style)
+        // instead of Radix's default flush collision placement.
+        collisionPadding={12}
         className={cn(contentClass, className)}
         {...props}
       >
@@ -70,6 +73,7 @@ export function DropdownSubContent({
     <DropdownPrimitive.Portal>
       <DropdownPrimitive.SubContent
         sideOffset={4}
+        collisionPadding={12}
         className={cn(contentClass, className)}
         {...props}
       />
