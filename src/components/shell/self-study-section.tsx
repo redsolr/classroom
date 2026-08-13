@@ -24,6 +24,7 @@ import {
   createStudyThread,
   deleteStudyProject,
   deleteStudyThread,
+  moveStudyThreadToProject,
   renameStudyThread,
   toggleStudyThreadPin,
 } from "@/lib/actions/study";
@@ -35,6 +36,10 @@ import {
   DropdownTrigger,
 } from "@/components/ui/dropdown";
 import { InlineRenameInput } from "@/components/ui/inline-rename-input";
+import {
+  MoveToProjectMenu,
+  type ProjectOption,
+} from "@/components/study/move-to-project-menu";
 import { NewProjectDialog } from "@/components/study/new-project-dialog";
 import { QuickAddVocabDialog } from "@/components/study/quick-add-vocab-dialog";
 import type { SidebarStudy, SidebarThread } from "@/lib/study-sidebar";
@@ -83,9 +88,11 @@ const rowActionClass =
 function ThreadRow({
   thread,
   active,
+  projects,
 }: {
   thread: SidebarThread;
   active: boolean;
+  projects: ProjectOption[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
@@ -123,6 +130,17 @@ function ThreadRow({
         router.refresh();
       } catch (error) {
         console.error("sidebar: failed to delete thread", error);
+      }
+    });
+  };
+
+  const moveToProject = (projectId: string | null) => {
+    startTransition(async () => {
+      try {
+        await moveStudyThreadToProject(thread.id, projectId);
+        router.refresh();
+      } catch (error) {
+        console.error("sidebar: failed to move thread", error);
       }
     });
   };
@@ -186,6 +204,12 @@ function ThreadRow({
             <Pencil className="size-4 text-fg-tertiary" />
             Rename
           </DropdownItem>
+          <MoveToProjectMenu
+            projects={projects}
+            currentProjectId={thread.projectId}
+            disabled={pending}
+            onMove={moveToProject}
+          />
           <DropdownSeparator />
           <DropdownItem
             disabled={pending}
@@ -319,6 +343,7 @@ function StudyChatTree({ study }: { study: SidebarStudy }) {
                 key={thread.id}
                 thread={thread}
                 active={thread.id === activeId}
+                projects={study.projects}
               />
             ))}
             {/* Pinned vocabulary BOOKS — name opens the book, + adds a
@@ -436,6 +461,7 @@ function StudyChatTree({ study }: { study: SidebarStudy }) {
                 key={thread.id}
                 thread={thread}
                 active={thread.id === activeId}
+                projects={study.projects}
               />
             ))}
           </div>

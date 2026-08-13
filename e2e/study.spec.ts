@@ -960,6 +960,145 @@ test("chat→vocab bulk extraction: review dialog, bulk save, dedup", async ({
   ).toBeVisible();
 });
 
+test("move to project: sidebar row menu files a loose chat; header menu pulls it back", async ({
+  page,
+}) => {
+  // A fresh loose chat born from the draft composer.
+  await page.goto("/chat");
+  await sendMessage(page, "move me into a folder");
+  await page.waitForURL(/\/chat\?t=[0-9a-f-]{36}/);
+
+  const sidebar = page.getByRole("complementary");
+  const row = sidebar
+    .locator("div.group")
+    .filter({ has: page.getByRole("link", { name: /move me into a folder/ }) });
+  await expect(row).toBeVisible();
+
+  // A destination folder.
+  await sidebar.getByRole("button", { name: "New project" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Name").fill("Filing Cabinet");
+  await dialog.getByRole("button", { name: "Create project" }).click();
+  await expect(dialog).not.toBeVisible();
+
+  // Sidebar row ⋯ → Move to project ▸ Filing Cabinet.
+  await row.hover();
+  await row.getByRole("button", { name: /options/ }).click();
+  await page.getByRole("menuitem", { name: "Move to project" }).click();
+  await page.getByRole("menuitem", { name: "Filing Cabinet" }).click();
+
+  // Project chats live on the PROJECT PAGE, not the sidebar (ChatGPT
+  // shape) — the row leaves Chats and the chat lists under the project.
+  await expect(
+    sidebar.getByRole("link", { name: /move me into a folder/ }),
+  ).not.toBeVisible();
+  await sidebar
+    .getByRole("link", { name: "Filing Cabinet", exact: true })
+    .click();
+  await page.waitForURL(/\/project\/[0-9a-f-]{36}/);
+  const chatLink = page
+    .getByRole("main")
+    .getByRole("link", { name: /move me into a folder/ });
+  await expect(chatLink).toBeVisible();
+
+  // Open it — the header subtitle names the project; the header ⋯ menu
+  // offers the way back out.
+  await chatLink.click();
+  await page.waitForURL(/\/chat\?t=[0-9a-f-]{36}/);
+  const header = page.locator("main header");
+  await expect(
+    header.getByRole("link", { name: "Filing Cabinet" }),
+  ).toBeVisible();
+  await header.getByRole("button", { name: "Chat options" }).click();
+  await page.getByRole("menuitem", { name: "Move to project" }).click();
+  // Keyboard select (also covers the keyboard path): the header ⋯ sits
+  // at the right viewport edge, so the submenu collision-flips LEFT
+  // while Radix's pointer-grace area still faces right — a mouse
+  // travelling to the item exits the grace area and closes the submenu
+  // mid-click (flaked exactly there). Focus + Enter moves no pointer.
+  const removeItem = page.getByRole("menuitem", {
+    name: "Remove from project",
+  });
+  await expect(removeItem).toBeVisible();
+  await removeItem.press("Enter");
+
+  // Loose again: the subtitle drops the project link, the row returns.
+  await expect(
+    header.getByRole("link", { name: "Filing Cabinet" }),
+  ).not.toBeVisible();
+  await expect(
+    sidebar.getByRole("link", { name: /move me into a folder/ }),
+  ).toBeVisible();
+});
+
+test("drag-to-ask: selecting reply text grows an Ask pill that quotes it into the composer", async ({
+  page,
+}) => {
+  await page.goto("/chat");
+  await sendMessage(page, "tell me something quotable");
+  await page.waitForURL(/\/chat\?t=[0-9a-f-]{36}/);
+  const reply = page.getByText(/Happy to help with anything/).last();
+  await expect(reply).toBeVisible();
+
+  // Double-click selects a word inside the reply — the pill appears
+  // above the selection.
+  await reply.dblclick();
+  const pill = page.getByRole("button", { name: "Ask tutor" });
+  await expect(pill).toBeVisible();
+  await pill.click();
+
+  // The selection landed as a `>` quote, composer focused, pill gone.
+  await expect(page.getByLabel("Message")).toHaveValue(/^> \w+/);
+  await expect(page.getByLabel("Message")).toBeFocused();
+  await expect(pill).not.toBeVisible();
+});
+
+test("review: swiping the revealed card right grades it Good, Tinder-style", async ({
+  page,
+}) => {
+  // Guarantee at least one due card no matter what earlier tests graded.
+  await page.goto("/vocab");
+  await page.getByRole("button", { name: "New word" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Language").selectOption("Japanese");
+  await dialog.getByLabel("Word or phrase").fill("犬");
+  await dialog.getByLabel("Meaning").fill("dog");
+  await dialog.getByRole("button", { name: "Add word" }).click();
+  await expect(dialog).not.toBeVisible();
+
+  await page.goto("/vocab/review");
+  const progress = page.locator(".review-progress");
+  await expect(progress).toHaveText(/Card 1 of \d+/);
+  const total = Number((await progress.textContent())!.match(/of (\d+)/)![1]);
+
+  // Reveal happens IN PLACE: the grade bar is already on screen
+  // (disabled) before the reveal — nothing mounts or shifts.
+  const goodButton = page.getByRole("button", { name: /Good/ });
+  await expect(goodButton).toBeDisabled();
+  await page.getByRole("button", { name: "Show answer" }).click();
+  await expect(page.locator(".review-answer")).toBeVisible();
+  await expect(goodButton).toBeEnabled();
+
+  // Swipe right: the card follows the pointer, the Good badge shows
+  // past the threshold, release grades and advances the deck.
+  const box = await page.locator(".review-card").boundingBox();
+  if (!box) throw new Error("review card not measurable");
+  const cx = box.x + box.width / 2;
+  const cy = box.y + box.height / 2;
+  await page.mouse.move(cx, cy);
+  await page.mouse.down();
+  await page.mouse.move(cx + 120, cy, { steps: 6 });
+  await expect(page.locator(".review-swipe-badge")).toHaveText("Good");
+  await page.mouse.move(cx + 170, cy, { steps: 4 });
+  await page.mouse.up();
+
+  if (total > 1) {
+    await expect(progress).toHaveText(new RegExp(`Card 2 of ${total}`));
+  } else {
+    await expect(page.getByText(/1 card reviewed/)).toBeVisible();
+  }
+});
+
 test("free daily cap blocks the tutor and points at the upgrade", async ({
   page,
 }) => {

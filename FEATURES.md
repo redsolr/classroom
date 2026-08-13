@@ -16,7 +16,8 @@
 - **Projects (ChatGPT Projects shape)** — name + optional language + custom instructions injected into every chat in the project; create via dialog, settings page, delete frees chats
 - **Long-term memory (ChatGPT Memory shape)** — tutor saves durable facts via `remember`/`forget_memory` tools; `<learner_memory>` injected into EVERY chat; managed on /account: list, per-item delete, **Delete all**, **Pause/Resume** (pause stops saving AND using, keeps rows) (2026-08-12)
 - **About-you standing instructions** — account-level custom instructions injected into every chat, alongside per-project ones (2026-08-12)
-- **Chat management** — pinned chats (sidebar Pinned section), inline rename, delete with confirm, **branch in new chat** (copies the conversation prefix), copy + read-aloud (speechSynthesis) per message, Stop button with partial-reply persist
+- **Chat management** — pinned chats (sidebar Pinned section), inline rename, delete with confirm, **move to project / remove from project** (sidebar row + header ⋯ submenus), **branch in new chat** (copies the conversation prefix), copy + read-aloud (speechSynthesis) per message, Stop button with partial-reply persist (move: 2026-08-13)
+- **Drag-to-ask** — select any transcript text → floating "Ask tutor" pill quotes it into the composer (all StudyChat surfaces incl. the Ask dock) (2026-08-13)
 - **Ask dock** — Ctrl/Cmd+J floating assistant on every study page (real loose thread, reload-on-open)
 - **Free-tier cap** — rolling-24h message cap (free 10/day → Study Pro 500); 429 points at the upgrade
 
@@ -28,7 +29,7 @@
 - **Pinned books in the sidebar** — one-tap open + quick-add dialog (adopts existing words)
 - **Tutor vocab CRUD from chat** — add/update/delete/list words + create/manage lists as chat tool calls (offline mock speaks the same executor)
 - **Chat→vocab bulk extraction** — "Save words from this chat": whole-conversation extraction → checkbox review → deduped bulk save
-- **SRS review (`/vocab/review`)** — SM-2-lite flashcards; status DERIVED from review evidence, never asserted
+- **SRS review (`/vocab/review`)** — SM-2-lite flashcards; status DERIVED from review evidence, never asserted; **Tinder-style deck**: fixed layout, in-place answer reveal, swipe to grade (→ Good ← Again ↑ Easy ↓ Hard) with drag-follow + badge + fly-off, buttons kept for desktop/a11y, optimistic saves (2026-08-13)
 - **Categories + personal lists** — word-class categories, ordered lists, save-current-view-as-list
 - **Curated packs (`/packs`)** — product-shipped collections (Persona 5 / Anime / Gaming JA, Café FR); per-word add or import-all → personal list
 - **Anki-ready CSV export** — learner-scoped `/vocab/export.csv` (UTF-8 BOM, CRLF)

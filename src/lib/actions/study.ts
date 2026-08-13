@@ -360,6 +360,43 @@ export async function renameStudyThread(threadId: string, title: string) {
 }
 
 /**
+ * ChatGPT's "Move to project": reassign the chat's container — or null
+ * to pull it back out into loose Chats. The chat itself (messages,
+ * title, language) is untouched; only where it lives changes.
+ */
+export async function moveStudyThreadToProject(
+  threadId: string,
+  projectId: string | null,
+) {
+  const learner = await requireLearner();
+  const id = z.string().uuid().parse(threadId);
+  const targetId =
+    projectId === null ? null : z.string().uuid().parse(projectId);
+
+  if (targetId) {
+    const project = await db.query.studyProjects.findFirst({
+      where: and(
+        eq(studyProjects.id, targetId),
+        eq(studyProjects.learnerId, learner.id),
+      ),
+      columns: { id: true },
+    });
+    if (!project) throw new Error("Project not found");
+  }
+
+  const updated = await db
+    .update(studyThreads)
+    .set({ projectId: targetId, updatedAt: new Date() })
+    .where(
+      and(eq(studyThreads.id, id), eq(studyThreads.learnerId, learner.id)),
+    )
+    .returning({ id: studyThreads.id });
+  if (updated.length === 0) throw new Error("Chat not found");
+
+  revalidateStudyTree();
+}
+
+/**
  * ChatGPT's "Branch in new chat": a new thread in the same container
  * (project, language, title) carrying the conversation up to and
  * including the branched-from message. The cut point is the message's

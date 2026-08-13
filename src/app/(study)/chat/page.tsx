@@ -39,6 +39,15 @@ export default async function StudyChatPage({
     : undefined;
   const chatLanguage = project?.language ?? active?.language ?? null;
 
+  // The ⋯ menu's "Move to project" roster.
+  const projects = active
+    ? await db
+        .select({ id: studyProjects.id, name: studyProjects.name })
+        .from(studyProjects)
+        .where(eq(studyProjects.learnerId, learner.id))
+        .orderBy(asc(studyProjects.name))
+    : [];
+
   const messages = active
     ? await db
         .select({
@@ -65,6 +74,8 @@ export default async function StudyChatPage({
       threadId={active.id}
       pinned={active.pinned}
       canExtract={Boolean(chatLanguage) && messages.length > 0}
+      projectId={active.projectId}
+      projects={projects}
     />
   ) : null;
 

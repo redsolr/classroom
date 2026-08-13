@@ -20,6 +20,7 @@ import {
   DropdownItem,
   DropdownTrigger,
 } from "@/components/ui/dropdown";
+import { SelectionAskPill } from "@/components/study/selection-ask-pill";
 import { cn } from "@/lib/utils";
 import { parseVocabLine, type VocabLine } from "@/lib/vocab-lines";
 
@@ -188,6 +189,7 @@ export function StudyChat({
   );
   const [, startBranch] = React.useTransition();
   const endRef = React.useRef<HTMLDivElement>(null);
+  const transcriptRef = React.useRef<HTMLDivElement>(null);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const abortRef = React.useRef<AbortController | null>(null);
   const copiedTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
@@ -350,6 +352,21 @@ export function StudyChat({
     });
   };
 
+  /**
+   * Drag-to-ask (ChatGPT's "Ask" on selection): the selected passage
+   * lands in the composer as a `>` quote, ready for the follow-up
+   * question underneath. Capped so a select-all can't stuff the box.
+   */
+  const askAboutSelection = (text: string) => {
+    const snippet = text.length > 600 ? `${text.slice(0, 600)}…` : text;
+    const quoted = snippet
+      .split("\n")
+      .map((line) => `> ${line}`)
+      .join("\n");
+    setInput((prev) => (prev.trim() ? `${prev}\n${quoted}\n` : `${quoted}\n`));
+    textareaRef.current?.focus();
+  };
+
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // isComposing: Enter while an IME (Japanese/Chinese/Korean…) is
     // converting must COMMIT the composition, never send the message —
@@ -366,7 +383,7 @@ export function StudyChat({
           edge); the readable column inside stays capped and centered.
           No empty-state greeting or suggestion chips — a blank screen
           and the composer are the whole invitation (ChatGPT shape). */}
-      <div className="chat-scroll-region min-h-0 flex-1 overflow-y-auto">
+      <div ref={transcriptRef} className="chat-scroll-region min-h-0 flex-1 overflow-y-auto">
         <div className="chat-thread-column mx-auto w-full max-w-3xl space-y-4 px-4 py-5 sm:px-6">
           {messages.map((m, index) => {
             // The in-flight reply has no persisted row yet — its actions
@@ -473,6 +490,7 @@ export function StudyChat({
           <div ref={endRef} />
         </div>
       </div>
+      <SelectionAskPill containerRef={transcriptRef} onAsk={askAboutSelection} />
 
       <div className="chat-composer-bar px-4 pt-1 pb-4 sm:px-6">
         <div className="chat-composer-column mx-auto w-full max-w-3xl">

@@ -3,7 +3,11 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { BookmarkPlus, MoreHorizontal, Pin, PinOff, Trash2 } from "lucide-react";
-import { deleteStudyThread, toggleStudyThreadPin } from "@/lib/actions/study";
+import {
+  deleteStudyThread,
+  moveStudyThreadToProject,
+  toggleStudyThreadPin,
+} from "@/lib/actions/study";
 import {
   Dropdown,
   DropdownContent,
@@ -12,6 +16,10 @@ import {
   DropdownTrigger,
 } from "@/components/ui/dropdown";
 import { ExtractVocabDialog } from "@/components/study/extract-vocab-dialog";
+import {
+  MoveToProjectMenu,
+  type ProjectOption,
+} from "@/components/study/move-to-project-menu";
 
 /**
  * The chat header's single ⋯ menu (ChatGPT-shaped chrome: the header
@@ -23,11 +31,15 @@ export function ChatMenu({
   threadId,
   pinned,
   canExtract,
+  projectId,
+  projects,
 }: {
   threadId: string;
   pinned: boolean;
   /** Extraction needs a language and a conversation to read. */
   canExtract: boolean;
+  projectId: string | null;
+  projects: ProjectOption[];
 }) {
   const router = useRouter();
   const [extractOpen, setExtractOpen] = React.useState(false);
@@ -53,6 +65,18 @@ export function ChatMenu({
       } catch (error) {
         console.error("study chat: failed to delete thread", error);
         router.refresh();
+      }
+    });
+  };
+
+  const moveToProject = (targetId: string | null) => {
+    startTransition(async () => {
+      try {
+        await moveStudyThreadToProject(threadId, targetId);
+        // Stay in the chat — the header subtitle re-reads the project.
+        router.refresh();
+      } catch (error) {
+        console.error("study chat: failed to move thread", error);
       }
     });
   };
@@ -83,6 +107,12 @@ export function ChatMenu({
               Save words from this chat
             </DropdownItem>
           )}
+          <MoveToProjectMenu
+            projects={projects}
+            currentProjectId={projectId}
+            disabled={pending}
+            onMove={moveToProject}
+          />
           <DropdownSeparator />
           <DropdownItem
             disabled={pending}
