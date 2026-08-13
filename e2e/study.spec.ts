@@ -1107,6 +1107,41 @@ test("review: swiping the revealed card right grades it Good, Tinder-style", asy
   }
 });
 
+test("practice again: finishing the deck offers an SRS-neutral cram round", async ({
+  page,
+}) => {
+  await page.goto("/vocab/review");
+  const progress = page.locator(".review-progress");
+
+  // Finish whatever the due deck holds (grade buttons don't require
+  // reveal, and clicks auto-wait while the fly-off disables them).
+  if (await page.locator(".review-card").count()) {
+    const total = Number(
+      (await progress.textContent())!.match(/of (\d+)/)![1],
+    );
+    for (let i = 0; i < total; i++) {
+      await page.getByRole("button", { name: "Good" }).click();
+    }
+    await expect(page.getByText(/cards? reviewed/)).toBeVisible();
+    await page.getByRole("button", { name: "Practice again" }).click();
+  } else {
+    // Everything already graded by earlier tests — same offer, other label.
+    await page.getByRole("button", { name: "Practice anyway" }).click();
+  }
+
+  // A shuffled cram deck deals through the same swipe UI, marked as
+  // schedule-neutral.
+  await expect(progress).toHaveText(/Card 1 of \d+/);
+  await expect(page.getByText(/practice — doesn/)).toBeVisible();
+  await page.getByRole("button", { name: "Good" }).click();
+
+  // Cram never reschedules: nothing became due again.
+  await page.goto("/vocab");
+  await expect(
+    page.getByRole("link", { name: /Review \d+ due/ }),
+  ).not.toBeVisible();
+});
+
 test("free daily cap blocks the tutor and points at the upgrade", async ({
   page,
 }) => {

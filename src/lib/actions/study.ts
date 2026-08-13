@@ -360,6 +360,30 @@ export async function renameStudyThread(threadId: string, title: string) {
 }
 
 /**
+ * A shuffled cram deck over the learner's whole dictionary — the
+ * "practice again" round after (or instead of) the due deck. Anki
+ * convention: practicing NEVER reschedules; the SRS state stays
+ * derived from real due reviews only, so the caller must not grade
+ * these through reviewStudyVocab.
+ */
+export async function loadStudyPracticeDeck() {
+  const learner = await requireLearner();
+  return db
+    .select({
+      id: studyVocab.id,
+      language: studyVocab.language,
+      term: studyVocab.term,
+      reading: studyVocab.reading,
+      meaning: studyVocab.meaning,
+      example: studyVocab.example,
+    })
+    .from(studyVocab)
+    .where(eq(studyVocab.learnerId, learner.id))
+    .orderBy(sql`random()`)
+    .limit(50);
+}
+
+/**
  * ChatGPT's "Move to project": reassign the chat's container — or null
  * to pull it back out into loose Chats. The chat itself (messages,
  * title, language) is untouched; only where it lives changes.

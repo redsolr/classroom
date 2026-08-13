@@ -2,8 +2,8 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Check, Minus, PartyPopper, X, Zap } from "lucide-react";
-import { reviewStudyVocab } from "@/lib/actions/study";
+import { Check, Minus, PartyPopper, RotateCcw, X, Zap } from "lucide-react";
+import { loadStudyPracticeDeck, reviewStudyVocab } from "@/lib/actions/study";
 import { coverHue } from "@/components/study/book-cover";
 import type { ReviewGrade } from "@/lib/srs";
 import { cn } from "@/lib/utils";
@@ -96,6 +96,13 @@ function gradeLabel(grade: ReviewGrade): string {
   return GRADES.find((g) => g.grade === grade)?.label ?? grade;
 }
 
+/** Full-bleed cover gradient, keyed by LANGUAGE (same tint app-wide,
+ * matching the library's generated covers; theme-fixed like them). */
+function coverGradient(language: string): string {
+  const hue = coverHue(language);
+  return `linear-gradient(160deg, hsl(${hue} 52% 42%) 0%, hsl(${(hue + 38) % 360} 55% 26%) 100%)`;
+}
+
 /**
  * One card's interior — shared by the top card AND the next card
  * peeking underneath, so promotion is seamless: when the top card flies
@@ -111,22 +118,15 @@ function CardFace({
   revealed: boolean;
   onReveal?: () => void;
 }) {
-  // Keyed by LANGUAGE (not term): every Japanese card wears the same
-  // tint, matching the library's generated covers.
-  const hue = coverHue(card.language);
   return (
+    // The card containers carry the full-bleed cover gradient; this
+    // face only lays out ON it. Two FIXED zones as ever: the term never
+    // moves, and the answer fades in on a white sheet OVER the lower
+    // cover — revealing changes zero geometry. Colors are hardcoded
+    // light-on-tint / dark-on-white because the cover (like the
+    // library's) keeps its own colors in both themes.
     <>
-      {/* Two FIXED zones — the tinted "cover" (term side) over the
-          white answer sheet; their edge is the divider. The term never
-          moves and the answer fades into space reserved from the
-          start, so revealing changes zero geometry. Like the book
-          covers, the tint keeps its colors in both themes. */}
-      <div
-        className="review-card-front relative flex h-[45%] shrink-0 flex-col items-center justify-end gap-1 rounded-t-[calc(1rem_-_1px)] px-6 pb-6 text-white"
-        style={{
-          background: `linear-gradient(160deg, hsl(${hue} 52% 42%) 0%, hsl(${(hue + 38) % 360} 55% 26%) 100%)`,
-        }}
-      >
+      <div className="review-card-front relative flex h-[45%] shrink-0 flex-col items-center justify-end gap-1 px-6 pb-6 text-white">
         <span className="review-language-chip absolute top-4 left-4 rounded-full bg-white/15 px-2.5 py-0.5 text-[0.75rem] font-medium">
           {card.language}
         </span>
@@ -135,12 +135,12 @@ function CardFace({
           <p className="text-[1rem] text-white/75">{card.reading}</p>
         )}
       </div>
-      <div className="review-answer-zone min-h-0 flex-1 px-6 pt-6">
+      <div className="review-answer-zone min-h-0 flex-1 px-5 pt-1">
         {revealed && (
-          <div className="review-answer animate-panel-in">
+          <div className="review-answer animate-panel-in rounded-xl bg-white/95 px-4 py-4 text-neutral-900 shadow-sm">
             <p className="text-[1.125rem]">{card.meaning ?? "—"}</p>
             {card.example && (
-              <p className="mt-2 line-clamp-3 text-[0.9375rem] text-fg-secondary italic">
+              <p className="mt-2 line-clamp-3 text-[0.9375rem] text-neutral-600 italic">
                 {card.example}
               </p>
             )}
@@ -151,14 +151,14 @@ function CardFace({
           without moving anything. */}
       <div className="review-card-footer mb-5 flex h-10 shrink-0 items-center justify-center px-6">
         {revealed ? (
-          <p className="text-[0.78rem] text-fg-tertiary">
+          <p className="text-[0.78rem] text-white/75">
             Swipe the card, or tap a grade below
           </p>
         ) : (
           <button
             type="button"
             onClick={onReveal}
-            className="rounded-md border border-border-strong bg-surface px-4 py-2 text-[0.9375rem] font-medium transition-colors hover:bg-surface-hover"
+            className="rounded-md border border-white/30 bg-white/15 px-4 py-2 text-[0.9375rem] font-medium text-white transition-colors hover:bg-white/25"
           >
             Show answer
           </button>
@@ -186,8 +186,18 @@ function CardFace({
  * consuming the prop directly strands the session mid-deck (learned
  * from e2e: "Card 1 of 2" → completion after one card).
  */
-export function StudyReview({ deck: initialDeck }: { deck: ReviewCard[] }) {
-  const [deck] = React.useState(initialDeck);
+export function StudyReview({
+  deck: initialDeck,
+  totalWords,
+}: {
+  deck: ReviewCard[];
+  /** Dictionary size — a practice round is offered whenever it's > 0. */
+  totalWords: number;
+}) {
+  const [deck, setDeck] = React.useState(initialDeck);
+  /** "due" grades for real (SM-2); "practice" is an Anki-style cram
+   * round — same swipes, NEVER touches the schedule. */
+  const [mode, setMode] = React.useState<"due" | "practice">("due");
   const [index, setIndex] = React.useState(0);
   const [revealed, setRevealed] = React.useState(false);
   const [graded, setGraded] = React.useState(0);
@@ -201,6 +211,8 @@ export function StudyReview({ deck: initialDeck }: { deck: ReviewCard[] }) {
     dy: number;
   } | null>(null);
   const [, startTransition] = React.useTransition();
+
+  const [loadingPractice, startPractice] = React.useTransition();
 
   const dragOrigin = React.useRef<{ x: number; y: number } | null>(null);
   const exitingRef = React.useRef(false);
@@ -223,15 +235,18 @@ export function StudyReview({ deck: initialDeck }: { deck: ReviewCard[] }) {
 
     // Optimistic: the animation IS the pacing — a save failure surfaces
     // as a note under the deck instead of freezing the session.
-    const cardId = card.id;
-    startTransition(async () => {
-      try {
-        await reviewStudyVocab(cardId, grade);
-      } catch (error) {
-        console.error("study review: failed to save grade", error);
-        setSaveError(true);
-      }
-    });
+    // Practice rounds never persist (cram must not reschedule).
+    if (mode === "due") {
+      const cardId = card.id;
+      startTransition(async () => {
+        try {
+          await reviewStudyVocab(cardId, grade);
+        } catch (error) {
+          console.error("study review: failed to save grade", error);
+          setSaveError(true);
+        }
+      });
+    }
 
     exitTimerRef.current = setTimeout(() => {
       exitingRef.current = false;
@@ -279,18 +294,48 @@ export function StudyReview({ deck: initialDeck }: { deck: ReviewCard[] }) {
     });
   };
 
+  const practiceAgain = () => {
+    startPractice(async () => {
+      try {
+        const cards = await loadStudyPracticeDeck();
+        if (cards.length === 0) return;
+        setMode("practice");
+        setDeck(cards);
+        setIndex(0);
+        setGraded(0);
+        setRevealed(false);
+        setSaveError(false);
+      } catch (error) {
+        console.error("study review: failed to load practice deck", error);
+      }
+    });
+  };
+
   if (!card) {
     return (
       <div className="rounded-lg bg-surface px-6 py-10 text-center shadow-card">
         <PartyPopper className="mx-auto mb-3 size-6 text-accent" />
         <h2 className="text-[1.125rem] font-semibold">
           {graded > 0
-            ? `Nice — ${graded} card${graded === 1 ? "" : "s"} reviewed.`
+            ? `Nice — ${graded} card${graded === 1 ? "" : "s"} ${mode === "practice" ? "practiced" : "reviewed"}.`
             : "Nothing due right now."}
         </h2>
         <p className="mt-1 text-[0.9375rem] text-fg-secondary">
-          Come back when more cards are due, or add new words as you chat.
+          {totalWords > 0
+            ? "Deal the deck again any time — practice rounds don't change your schedule."
+            : "Add new words as you chat and they'll show up here."}
         </p>
+        {totalWords > 0 && (
+          <button
+            type="button"
+            onClick={practiceAgain}
+            disabled={loadingPractice}
+            className="mx-auto mt-5 flex items-center gap-2 rounded-md bg-accent px-4 py-2 text-[0.9375rem] font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
+          >
+            <RotateCcw className="size-4" />
+            {graded > 0 ? "Practice again" : "Practice anyway"}
+          </button>
+        )}
         <div className="mt-5 flex justify-center gap-3 text-[0.9375rem] font-medium">
           <Link href="/chat" className="text-accent-text hover:underline">
             Back to chat
@@ -343,6 +388,12 @@ export function StudyReview({ deck: initialDeck }: { deck: ReviewCard[] }) {
       {/* Language moved onto the card's cover chip. */}
       <p className="review-progress mb-3 text-center text-[0.875rem] text-fg-tertiary">
         Card {index + 1} of {deck.length}
+        {mode === "practice" && (
+          <span className="review-practice-note">
+            {" "}
+            · practice — doesn&rsquo;t change your schedule
+          </span>
+        )}
       </p>
 
       <div className="review-deck relative h-[24rem] sm:h-[26rem]">
@@ -351,6 +402,7 @@ export function StudyReview({ deck: initialDeck }: { deck: ReviewCard[] }) {
             key={deck[index + 2].id}
             aria-hidden
             className="review-card-under-2 absolute inset-0 translate-y-4 rotate-3 scale-[0.92] rounded-2xl border border-border bg-surface shadow-card"
+            style={{ background: coverGradient(deck[index + 2].language) }}
           />
         )}
         {/* The next card underneath shows its REAL question face (term
@@ -367,6 +419,7 @@ export function StudyReview({ deck: initialDeck }: { deck: ReviewCard[] }) {
                 ? "translate-y-0 rotate-0 scale-100"
                 : "translate-y-2.5 -rotate-2 scale-[0.95]",
             )}
+            style={{ background: coverGradient(nextCard.language) }}
           >
             <CardFace card={nextCard} revealed={false} />
           </div>
@@ -387,7 +440,7 @@ export function StudyReview({ deck: initialDeck }: { deck: ReviewCard[] }) {
           className={cn(
             "review-card absolute inset-0 flex cursor-grab touch-none flex-col rounded-2xl border border-border bg-surface text-center shadow-card active:cursor-grabbing",
           )}
-          style={cardStyle}
+          style={{ ...cardStyle, background: coverGradient(card.language) }}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerEnd}
