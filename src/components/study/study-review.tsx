@@ -198,27 +198,38 @@ export function StudyReview({ deck: initialDeck }: { deck: ReviewCard[] }) {
       : { transform: "none", transition: "transform 200ms ease-out" };
 
   return (
-    <div className="study-review select-none">
-      <p className="review-progress mb-3 text-[0.875rem] text-fg-tertiary">
+    // Narrow portrait column — the deck must read as a CARD STACK, not
+    // a full-width panel (the first cut looked like a settings box).
+    <div className="study-review mx-auto max-w-sm select-none">
+      <p className="review-progress mb-3 text-center text-[0.875rem] text-fg-tertiary">
         Card {index + 1} of {deck.length} · {card.language}
       </p>
 
-      <div className="review-deck relative h-[21rem] sm:h-[22rem]">
-        {/* The next card peeking underneath — face down (no spoilers),
-            it scales up as the top card flies off. */}
+      <div className="review-deck relative h-[24rem] sm:h-[26rem]">
+        {/* Two face-down cards fanned underneath (no spoilers) sell the
+            stack; the nearest one straightens up as the top card flies
+            off. */}
+        {deck[index + 2] && (
+          <div
+            aria-hidden
+            className="review-card-under-2 absolute inset-0 translate-y-4 rotate-3 scale-[0.92] rounded-2xl border border-border bg-surface shadow-card"
+          />
+        )}
         {nextCard && (
           <div
             aria-hidden
             className={cn(
-              "review-card-under absolute inset-0 rounded-xl bg-surface shadow-card transition-transform duration-200",
-              exit ? "translate-y-0 scale-100" : "translate-y-2.5 scale-[0.94]",
+              "review-card-under absolute inset-0 rounded-2xl border border-border bg-surface shadow-card transition-transform duration-200",
+              exit
+                ? "translate-y-0 rotate-0 scale-100"
+                : "translate-y-2.5 -rotate-2 scale-[0.95]",
             )}
           />
         )}
 
         <div
           className={cn(
-            "review-card absolute inset-0 flex flex-col rounded-xl bg-surface px-6 py-6 text-center shadow-card",
+            "review-card absolute inset-0 flex flex-col rounded-2xl border border-border bg-surface px-6 py-6 text-center shadow-overlay",
             revealed && "cursor-grab touch-none active:cursor-grabbing",
           )}
           style={cardStyle}
@@ -247,7 +258,7 @@ export function StudyReview({ deck: initialDeck }: { deck: ReviewCard[] }) {
           )}
 
           <div className="review-card-face flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto">
-            <p className="text-[1.75rem] font-semibold tracking-tight">
+            <p className="text-[2rem] font-semibold tracking-tight">
               {card.term}
             </p>
             {card.reading && (
