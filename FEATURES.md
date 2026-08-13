@@ -29,7 +29,7 @@
 - **Pinned books in the sidebar** — one-tap open + quick-add dialog (adopts existing words)
 - **Tutor vocab CRUD from chat** — add/update/delete/list words + create/manage lists as chat tool calls (offline mock speaks the same executor)
 - **Chat→vocab bulk extraction** — "Save words from this chat": whole-conversation extraction → checkbox review → deduped bulk save
-- **SRS review (`/vocab/review`)** — SM-2-lite flashcards; status DERIVED from review evidence, never asserted; **Tinder-style deck**: fixed layout, in-place answer reveal, swipe to grade (→ Good ← Again ↑ Easy ↓ Hard) with drag-follow + badge + fly-off, buttons kept for desktop/a11y, optimistic saves (2026-08-13)
+- **SRS review (`/vocab/review`)** — SM-2-lite flashcards; status DERIVED from review evidence, never asserted; **Tinder-style deck**: full-bleed language-tinted cover cards (coverHue keyed by language), fixed layout with in-place answer reveal (white sheet over the cover), whole-card swipe to grade before or after reveal (→ Good ← Forgot ↑ Easy ↓ Hard) with drag-follow + badge + fly-off + seamless keyed-stack promotion, circular grade buttons ordered by swipe axis; **practice-again cram rounds** (shuffled ≤50 words, schedule-neutral per Anki convention) from the completion/nothing-due screen (2026-08-14)
 - **Categories + personal lists** — word-class categories, ordered lists, save-current-view-as-list
 - **Curated packs (`/packs`)** — product-shipped collections (Persona 5 / Anime / Gaming JA, Café FR); per-word add or import-all → personal list
 - **Anki-ready CSV export** — learner-scoped `/vocab/export.csv` (UTF-8 BOM, CRLF)
