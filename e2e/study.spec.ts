@@ -1041,10 +1041,15 @@ test("drag-to-ask: selecting reply text grows an Ask pill that quotes it into th
   await expect(reply).toBeVisible();
 
   // Double-click selects a word inside the reply — the pill appears
-  // above the selection.
-  await reply.dblclick();
+  // above the selection. Retried as a unit: the settled turn's
+  // router.refresh() re-renders the transcript, and a dblclick landing
+  // exactly on the DOM swap leaves the selection in a detached node
+  // (the pill rightly ignores it) — a human would simply re-select.
   const pill = page.getByRole("button", { name: "Ask tutor" });
-  await expect(pill).toBeVisible();
+  await expect(async () => {
+    await reply.dblclick();
+    await expect(pill).toBeVisible({ timeout: 1000 });
+  }).toPass({ timeout: 15000 });
   await pill.click();
 
   // The selection landed as a `>` quote, composer focused, pill gone.
@@ -1072,12 +1077,16 @@ test("review: swiping the revealed card right grades it Good, Tinder-style", asy
   const total = Number((await progress.textContent())!.match(/of (\d+)/)![1]);
 
   // Reveal happens IN PLACE: the grade bar is already on screen
-  // (disabled) before the reveal — nothing mounts or shifts.
+  // (disabled) before the reveal — nothing mounts or shifts, and the
+  // term's measured rect must not move by a single pixel.
   const goodButton = page.getByRole("button", { name: /Good/ });
   await expect(goodButton).toBeDisabled();
+  const term = page.locator(".review-card-front p").first();
+  const termBefore = await term.boundingBox();
   await page.getByRole("button", { name: "Show answer" }).click();
   await expect(page.locator(".review-answer")).toBeVisible();
   await expect(goodButton).toBeEnabled();
+  expect(await term.boundingBox()).toEqual(termBefore);
 
   // Swipe right: the card follows the pointer, the Good badge shows
   // past the threshold, release grades and advances the deck.

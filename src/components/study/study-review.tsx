@@ -211,12 +211,14 @@ export function StudyReview({ deck: initialDeck }: { deck: ReviewCard[] }) {
             off. */}
         {deck[index + 2] && (
           <div
+            key={deck[index + 2].id}
             aria-hidden
             className="review-card-under-2 absolute inset-0 translate-y-4 rotate-3 scale-[0.92] rounded-2xl border border-border bg-surface shadow-card"
           />
         )}
         {nextCard && (
           <div
+            key={nextCard.id}
             aria-hidden
             className={cn(
               "review-card-under absolute inset-0 rounded-2xl border border-border bg-surface shadow-card transition-transform duration-200",
@@ -227,10 +229,22 @@ export function StudyReview({ deck: initialDeck }: { deck: ReviewCard[] }) {
           />
         )}
 
+        {/* touch-none ALWAYS, and no inner scroll container: a nested
+            overflow-y-auto hands touch gestures to the scroller and
+            cancels the drag's pointer events — on phones the card was
+            only swipeable on its padding edges.
+
+            KEYED by card id: an unkeyed div is REUSED across cards, so
+            after a fly-off the same DOM node — still sitting at the
+            exit transform — got the next card's content and animated
+            back to center (the "swiped card comes back as the new one"
+            glitch). A fresh node per card mounts at identity, no
+            stale transform to return from. */}
         <div
+          key={card.id}
           className={cn(
-            "review-card absolute inset-0 flex flex-col rounded-2xl border border-border bg-surface px-6 py-6 text-center shadow-overlay",
-            revealed && "cursor-grab touch-none active:cursor-grabbing",
+            "review-card absolute inset-0 flex touch-none flex-col rounded-2xl border border-border bg-surface px-6 py-6 text-center shadow-overlay",
+            revealed && "cursor-grab active:cursor-grabbing",
           )}
           style={cardStyle}
           onClick={revealed ? undefined : () => setRevealed(true)}
@@ -257,20 +271,26 @@ export function StudyReview({ deck: initialDeck }: { deck: ReviewCard[] }) {
             </div>
           )}
 
-          <div className="review-card-face flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto">
+          {/* Two FIXED zones split by an always-drawn divider — the term
+              never moves and the answer fades into space that was
+              reserved from the start, so revealing changes zero
+              geometry (the old centered-group layout shoved the term up
+              on reveal). */}
+          <div className="review-card-front flex h-[45%] shrink-0 flex-col items-center justify-end gap-1 pb-5">
             <p className="text-[2rem] font-semibold tracking-tight">
               {card.term}
             </p>
             {card.reading && (
-              <p className="mt-1 text-[1rem] text-fg-secondary">
-                {card.reading}
-              </p>
+              <p className="text-[1rem] text-fg-secondary">{card.reading}</p>
             )}
+          </div>
+          <div className="review-card-divider border-t border-border" />
+          <div className="review-answer-zone min-h-0 flex-1 pt-5">
             {revealed && (
-              <div className="review-answer animate-panel-in mt-5 w-full border-t border-border pt-4">
+              <div className="review-answer animate-panel-in">
                 <p className="text-[1.125rem]">{card.meaning ?? "—"}</p>
                 {card.example && (
-                  <p className="mt-2 text-[0.9375rem] text-fg-secondary italic">
+                  <p className="mt-2 line-clamp-3 text-[0.9375rem] text-fg-secondary italic">
                     {card.example}
                   </p>
                 )}
