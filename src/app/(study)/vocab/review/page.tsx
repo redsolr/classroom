@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
+import { BookOpenCheck } from "lucide-react";
 import { and, eq, isNull, lte, or, sql } from "drizzle-orm";
 import { db, studyVocab } from "@/db";
 import { requireLearner } from "@/lib/auth";
 import { StudyReview } from "@/components/study/study-review";
-import { PageHeader } from "@/components/ui/page-header";
+import { PageHeader, PageShell } from "@/components/ui/page-header";
 
 export const metadata: Metadata = { title: "Review" };
 
@@ -38,9 +39,17 @@ export default async function StudyReviewPage() {
   ]);
 
   return (
-    <div className="mx-auto w-full max-w-xl px-4 py-8 sm:px-6">
-      <PageHeader title="Review" />
-      <StudyReview deck={deck} totalWords={totalWords} />
-    </div>
+    <PageShell>
+      <PageHeader
+        icon={BookOpenCheck}
+        title="Review"
+        subtitle="Swipe through what's due — spaced repetition handles the rest."
+      />
+      {/* The deck is a stage — centered in the shell like a player,
+          while the title stays on the shared page edge. */}
+      <div className="mx-auto w-full max-w-xl">
+        <StudyReview deck={deck} totalWords={totalWords} />
+      </div>
+    </PageShell>
   );
 }

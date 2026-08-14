@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { asc, desc, eq } from "drizzle-orm";
-import { ArrowLeft, BookMarked, BookOpenCheck } from "lucide-react";
+import { BookOpenCheck, Layers } from "lucide-react";
 import {
   db,
   studyVocab,
@@ -20,7 +20,7 @@ import {
   type VocabListSummary,
 } from "@/components/study/vocab-table";
 import { Button } from "@/components/ui/button";
-import { PageHeader } from "@/components/ui/page-header";
+import { BackLink, PageHeader, PageShell } from "@/components/ui/page-header";
 
 export const metadata: Metadata = { title: "My vocabulary" };
 
@@ -88,14 +88,8 @@ export default async function StudyVocabPage({
     const bookLanguage = visible[0]?.language;
 
     return (
-      <div className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-6">
-        <Link
-          href="/vocab"
-          className="mb-3 inline-flex items-center gap-1.5 text-[0.875rem] text-fg-secondary hover:text-fg"
-        >
-          <ArrowLeft className="size-3.5" />
-          My books
-        </Link>
+      <PageShell>
+        <BackLink href="/vocab">My books</BackLink>
         <PageHeader
           title={activeBook?.name ?? "All words"}
           subtitle={`${visible.length} word${visible.length === 1 ? "" : "s"}`}
@@ -113,20 +107,24 @@ export default async function StudyVocabPage({
             )
           }
         />
-        <VocabTable
-          items={visible}
-          lists={lists}
-          view={activeBook ? { id: activeBook.id, name: activeBook.name } : "all"}
-        />
-      </div>
+        <div className="max-w-4xl">
+          <VocabTable
+            items={visible}
+            lists={lists}
+            view={
+              activeBook ? { id: activeBook.id, name: activeBook.name } : "all"
+            }
+          />
+        </div>
+      </PageShell>
     );
   }
 
   // ── Landing: the learner's bookshelf ──
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6">
+    <PageShell>
       <PageHeader
-        icon={<BookMarked className="size-6 shrink-0 text-accent" />}
+        icon={Layers}
         title="My vocabulary"
         subtitle={
           items.length === 0
@@ -146,7 +144,9 @@ export default async function StudyVocabPage({
         }
       />
 
-      <VocabShelf lists={lists} totalWords={items.length} />
-    </div>
+      <div className="max-w-3xl">
+        <VocabShelf lists={lists} totalWords={items.length} />
+      </div>
+    </PageShell>
   );
 }

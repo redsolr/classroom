@@ -8,7 +8,7 @@ import { createStudyThread } from "@/lib/actions/study";
 import { requireLearner } from "@/lib/auth";
 import { EditProjectDialog } from "@/components/study/edit-project-dialog";
 import { SubmitButton } from "@/components/ui/button";
-import { PageHeader } from "@/components/ui/page-header";
+import { PageHeader, PageShell } from "@/components/ui/page-header";
 
 export const metadata: Metadata = { title: "Project" };
 
@@ -44,12 +44,12 @@ export default async function StudyProjectPage({
     .orderBy(desc(studyThreads.updatedAt));
 
   return (
-    <div className="mx-auto w-full max-w-2xl px-4 py-8 sm:px-6">
+    <PageShell>
       {/* Settings live behind the dialog — the page leads with its
           CHATS (the settings card used to push them below the fold on
           phones). */}
       <PageHeader
-        icon={<Folder className="size-6 shrink-0 text-accent" />}
+        icon={Folder}
         title={project.name}
         actions={
           <>
@@ -73,7 +73,7 @@ export default async function StudyProjectPage({
         }
       />
 
-      <section className="mb-6">
+      <section className="mb-6 max-w-2xl">
         <h2 className="mb-2.5 text-[1rem] font-semibold">Chats</h2>
         {threads.length === 0 ? (
           <p className="text-[0.9375rem] text-fg-tertiary">
@@ -94,7 +94,6 @@ export default async function StudyProjectPage({
           </ul>
         )}
       </section>
-
-    </div>
+    </PageShell>
   );
 }

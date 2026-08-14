@@ -69,7 +69,7 @@
 
 - **ChatGPT-shaped URLs** — chat at `/chat`, everything else at root (`/vocab`, `/library`, `/notes`, `/packs`, `/account`, `/project/[id]`); old `/study/*` links redirect (2026-08-12)
 - **Unified sidebar** — New chat + bare study tabs, Library/Notes under a "More" expander, Pinned/Projects/Chats tree, pinned books; Plan & usage lives in the footer account menu
-- **One PageHeader convention** — every top-level page (teacher, student, study) renders its title through `components/ui/page-header.tsx` (1.625rem title, subtitle, optional icon/actions) — no hand-rolled page h1s (2026-08-14)
+- **One PageHeader + PageShell convention** — every top-level page (teacher, student, study) renders inside `PageShell` (one max-w-6xl geometry, so the title starts at the same x on every screen; narrower content caps itself INSIDE the shell) and titles through `PageHeader` (1.625rem, subtitle, actions; section pages carry their sidebar icon via the typed `icon` prop — greetings and entity titles don't); `BackLink` is the one ← style on detail pages — all in `components/ui/page-header.tsx`; no hand-rolled page columns, h1s, or back links (2026-08-14)
 - **Mobile chrome** — ChatGPT-style animated drawer (slide + backdrop fade, navbar-aligned header), hamburger + quick new-chat topbar with a portal slot for the chat ⋯ menu (2026-08-12)
 - **PWA** — installable, manifest start_url `/chat`
 - **Auth** — own WorkOS project (email+password, Google, Apple); learner role auto-provisioned on first visit; per-app cookie name

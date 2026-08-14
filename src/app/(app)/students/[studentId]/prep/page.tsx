@@ -3,7 +3,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { format, formatDistanceToNow } from "date-fns";
 import {
-  ArrowLeft,
   ArrowRight,
   BookOpenText,
   ClipboardCheck,
@@ -23,7 +22,7 @@ import {
   insightTypeTone,
   vocabularyStatusTone,
 } from "@/components/ui/badge";
-import { Card, CardHeader } from "@/components/ui/page-header";
+import { BackLink, Card, CardHeader } from "@/components/ui/page-header";
 import { NewLessonDialog } from "@/components/lessons/new-lesson-dialog";
 
 export const metadata: Metadata = { title: "Prep sheet" };
@@ -103,16 +102,12 @@ export default async function PrepSheetPage({
   const { student, lastLesson } = sheet;
 
   return (
-    <div className="mx-auto max-w-3xl">
-      <Link
-        href={`/students/${student.id}`}
-        className="inline-flex items-center gap-1 text-[0.8125rem] text-fg-tertiary transition-colors hover:text-fg"
-      >
-        <ArrowLeft className="size-3.5" />
+    <div className="max-w-3xl">
+      <BackLink href={`/students/${student.id}`}>
         Back to {student.name}
-      </Link>
+      </BackLink>
 
-      <div className="mt-2 mb-6 flex flex-wrap items-start justify-between gap-3">
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-start gap-3">
           <Avatar name={student.name} size="lg" />
           <div>

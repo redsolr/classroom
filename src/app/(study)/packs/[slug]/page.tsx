@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { and, asc, eq } from "drizzle-orm";
-import { ArrowLeft } from "lucide-react";
 import { db, studyPackItems, studyPacks, studyVocab } from "@/db";
 import { requireLearner } from "@/lib/auth";
 import { PackView } from "@/components/study/pack-view";
-import { PageHeader } from "@/components/ui/page-header";
+import {
+  BackLink,
+  PageHeader,
+  PageShell,
+} from "@/components/ui/page-header";
 
 export const metadata: Metadata = { title: "Curated list" };
 
@@ -42,14 +44,8 @@ export default async function StudyPackPage({
   const savedTerms = savedRows.map((r) => r.term.toLowerCase());
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6">
-      <Link
-        href="/packs"
-        className="mb-4 inline-flex items-center gap-1.5 text-[0.875rem] text-fg-secondary hover:text-fg"
-      >
-        <ArrowLeft className="size-3.5" />
-        All curated lists
-      </Link>
+    <PageShell>
+      <BackLink href="/packs">All curated lists</BackLink>
       <PageHeader
         title={pack.name}
         subtitle={`${pack.language} · ${items.length} words`}
@@ -61,7 +57,9 @@ export default async function StudyPackPage({
         )}
       </PageHeader>
 
-      <PackView pack={pack} items={items} initialSavedTerms={savedTerms} />
-    </div>
+      <div className="max-w-3xl">
+        <PackView pack={pack} items={items} initialSavedTerms={savedTerms} />
+      </div>
+    </PageShell>
   );
 }

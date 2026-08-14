@@ -4,7 +4,7 @@ import { asc, eq, sql } from "drizzle-orm";
 import { BookMarked } from "lucide-react";
 import { db, studyPackItems, studyPacks } from "@/db";
 import { requireLearner } from "@/lib/auth";
-import { PageHeader } from "@/components/ui/page-header";
+import { PageHeader, PageShell } from "@/components/ui/page-header";
 
 export const metadata: Metadata = { title: "Curated lists" };
 
@@ -26,9 +26,9 @@ export default async function StudyPacksPage() {
     .orderBy(asc(studyPacks.name));
 
   return (
-    <div className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6">
+    <PageShell>
       <PageHeader
-        icon={<BookMarked className="size-6 shrink-0 text-accent" />}
+        icon={BookMarked}
         title="Curated lists"
         subtitle="Ready-made vocabulary for the things you actually do — pick a pack, add the words you want (or the whole thing) to your own dictionary."
       />
@@ -38,7 +38,7 @@ export default async function StudyPacksPage() {
           No curated lists yet — they're on the way.
         </p>
       ) : (
-        <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <ul className="grid max-w-4xl grid-cols-1 gap-3 sm:grid-cols-2">
           {packs.map((pack) => (
             <li key={pack.id}>
               <Link
@@ -59,6 +59,6 @@ export default async function StudyPacksPage() {
           ))}
         </ul>
       )}
-    </div>
+    </PageShell>
   );
 }

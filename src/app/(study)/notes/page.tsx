@@ -6,7 +6,7 @@ import { db, studyBooks, studyNotes } from "@/db";
 import { requireLearner } from "@/lib/auth";
 import { NoteComposer, NoteList } from "@/components/study/note-cards";
 import { EmptyState } from "@/components/ui/empty-state";
-import { PageHeader } from "@/components/ui/page-header";
+import { PageHeader, PageShell } from "@/components/ui/page-header";
 
 export const metadata: Metadata = { title: "Notes" };
 
@@ -34,13 +34,14 @@ export default async function NotesPage() {
     .limit(200);
 
   return (
-    <div className="notes-page mx-auto w-full max-w-2xl px-4 py-8 sm:px-6">
+    <PageShell className="notes-page">
       <PageHeader
+        icon={NotebookPen}
         title="Notes"
         subtitle="Ideas worth keeping — on their own, or filed under a book in your library."
       />
 
-      <div className="space-y-3">
+      <div className="max-w-2xl space-y-3">
         <NoteComposer placeholder="Jot something down…" />
         {notes.length === 0 ? (
           <EmptyState
@@ -63,6 +64,6 @@ export default async function NotesPage() {
           />
         )}
       </div>
-    </div>
+    </PageShell>
   );
 }

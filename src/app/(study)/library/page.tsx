@@ -1,14 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { desc, eq, sql } from "drizzle-orm";
-import { BookOpen, Plus } from "lucide-react";
+import { BookOpen, LibraryBig, Plus } from "lucide-react";
 import { db, studyBooks, studyNotes } from "@/db";
 import { requireLearner } from "@/lib/auth";
 import { AddBookDialog } from "@/components/study/add-book-dialog";
 import { BookCover } from "@/components/study/book-cover";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { PageHeader } from "@/components/ui/page-header";
+import { PageHeader, PageShell } from "@/components/ui/page-header";
 
 export const metadata: Metadata = { title: "Library" };
 
@@ -35,8 +35,9 @@ export default async function LibraryPage() {
     .orderBy(desc(studyBooks.createdAt));
 
   return (
-    <div className="library-page mx-auto w-full max-w-4xl px-4 py-8 sm:px-6">
+    <PageShell className="library-page">
       <PageHeader
+        icon={LibraryBig}
         title="Library"
         subtitle="What you're reading, and what you took from it."
         actions={
@@ -64,7 +65,7 @@ export default async function LibraryPage() {
           }
         />
       ) : (
-        <div className="library-shelf grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+        <div className="library-shelf grid max-w-4xl grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
           {books.map((book) => (
             <Link
               key={book.id}
@@ -86,6 +87,6 @@ export default async function LibraryPage() {
           ))}
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }

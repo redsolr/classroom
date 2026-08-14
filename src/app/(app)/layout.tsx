@@ -1,6 +1,7 @@
 import { requireTeacher } from "@/lib/auth";
 import { getSidebarStudy } from "@/lib/study-sidebar";
 import { Sidebar } from "@/components/shell/sidebar";
+import { PageShell } from "@/components/ui/page-header";
 
 export default async function AppLayout({
   children,
@@ -18,9 +19,7 @@ export default async function AppLayout({
         study={study}
       />
       <main className="min-w-0 flex-1">
-        <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
-          {children}
-        </div>
+        <PageShell>{children}</PageShell>
       </main>
     </div>
   );

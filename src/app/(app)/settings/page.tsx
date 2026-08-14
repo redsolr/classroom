@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Settings } from "lucide-react";
 import { requireTeacher } from "@/lib/auth";
 import { updateTeacherProfile } from "@/lib/actions/teacher";
 import { SubmitButton } from "@/components/ui/button";
@@ -13,7 +14,11 @@ export default async function SettingsPage() {
 
   return (
     <div>
-      <PageHeader title="Settings" subtitle="Your profile and preferences" />
+      <PageHeader
+        icon={Settings}
+        title="Settings"
+        subtitle="Your profile and preferences"
+      />
       <div className="mb-4">
         <AppearanceSection />
       </div>
