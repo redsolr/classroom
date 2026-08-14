@@ -20,6 +20,7 @@ import {
   type VocabListSummary,
 } from "@/components/study/vocab-table";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
 
 export const metadata: Metadata = { title: "My vocabulary" };
 
@@ -95,27 +96,23 @@ export default async function StudyVocabPage({
           <ArrowLeft className="size-3.5" />
           My books
         </Link>
-        <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-[1.375rem] font-semibold tracking-tight">
-              {activeBook?.name ?? "All words"}
-            </h1>
-            <p className="mt-0.5 text-[0.875rem] text-fg-tertiary">
-              {visible.length} word{visible.length === 1 ? "" : "s"}
-            </p>
-          </div>
-          {activeBook ? (
-            <QuickAddVocabDialog
-              bookId={activeBook.id}
-              bookName={activeBook.name}
-              defaultLanguage={bookLanguage}
-            >
-              <Button variant="primary">New word</Button>
-            </QuickAddVocabDialog>
-          ) : (
-            <AddWordDialogButton />
-          )}
-        </header>
+        <PageHeader
+          title={activeBook?.name ?? "All words"}
+          subtitle={`${visible.length} word${visible.length === 1 ? "" : "s"}`}
+          actions={
+            activeBook ? (
+              <QuickAddVocabDialog
+                bookId={activeBook.id}
+                bookName={activeBook.name}
+                defaultLanguage={bookLanguage}
+              >
+                <Button variant="primary">New word</Button>
+              </QuickAddVocabDialog>
+            ) : (
+              <AddWordDialogButton />
+            )
+          }
+        />
         <VocabTable
           items={visible}
           lists={lists}
@@ -128,28 +125,26 @@ export default async function StudyVocabPage({
   // ── Landing: the learner's bookshelf ──
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6">
-      <header className="mb-6 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="flex items-center gap-2.5 text-[1.625rem] font-semibold tracking-tight">
-            <BookMarked className="size-6 text-accent" />
-            My vocabulary
-          </h1>
-          <p className="mt-1 text-[0.9375rem] text-fg-secondary">
-            {items.length === 0
-              ? "Your personal dictionary — organized into books."
-              : `${items.length} word${items.length === 1 ? "" : "s"} across ${lists.length} book${lists.length === 1 ? "" : "s"}`}
-          </p>
-        </div>
-        {dueCount > 0 && (
-          <Link
-            href="/vocab/review"
-            className="inline-flex h-9 items-center gap-2 rounded-md bg-accent px-3.5 text-[0.9375rem] font-medium text-white shadow-sm transition-colors hover:bg-accent-hover"
-          >
-            <BookOpenCheck className="size-4" />
-            Review {dueCount} due
-          </Link>
-        )}
-      </header>
+      <PageHeader
+        icon={<BookMarked className="size-6 shrink-0 text-accent" />}
+        title="My vocabulary"
+        subtitle={
+          items.length === 0
+            ? "Your personal dictionary — organized into books."
+            : `${items.length} word${items.length === 1 ? "" : "s"} across ${lists.length} book${lists.length === 1 ? "" : "s"}`
+        }
+        actions={
+          dueCount > 0 && (
+            <Link
+              href="/vocab/review"
+              className="inline-flex h-9 items-center gap-2 rounded-md bg-accent px-3.5 text-[0.9375rem] font-medium text-white shadow-sm transition-colors hover:bg-accent-hover"
+            >
+              <BookOpenCheck className="size-4" />
+              Review {dueCount} due
+            </Link>
+          )
+        }
+      />
 
       <VocabShelf lists={lists} totalWords={items.length} />
     </div>

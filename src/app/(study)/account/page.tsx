@@ -32,6 +32,7 @@ import { STUDY_MODEL, STUDY_MODELS } from "@/lib/ai/study-tutor";
 import { requireLearner } from "@/lib/auth";
 import { countTutorMessagesLast24h } from "@/lib/study-usage";
 import { SubmitButton } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
 
 export const metadata: Metadata = { title: "Account" };
 
@@ -60,10 +61,7 @@ export default async function StudyAccountPage({
 
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-8 sm:px-6">
-      <h1 className="text-[1.625rem] font-semibold tracking-tight">Account</h1>
-      <p className="mt-1 mb-6 text-[0.9375rem] text-fg-secondary">
-        {learner.name ?? learner.email}
-      </p>
+      <PageHeader title="Account" subtitle={learner.name ?? learner.email} />
 
       {checkout === "success" && (
         <div className="mb-5 flex items-start gap-2.5 rounded-lg border border-border-strong bg-accent-soft px-4 py-3 text-[0.9375rem]">

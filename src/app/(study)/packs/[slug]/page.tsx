@@ -6,6 +6,7 @@ import { ArrowLeft } from "lucide-react";
 import { db, studyPackItems, studyPacks, studyVocab } from "@/db";
 import { requireLearner } from "@/lib/auth";
 import { PackView } from "@/components/study/pack-view";
+import { PageHeader } from "@/components/ui/page-header";
 
 export const metadata: Metadata = { title: "Curated list" };
 
@@ -49,19 +50,16 @@ export default async function StudyPackPage({
         <ArrowLeft className="size-3.5" />
         All curated lists
       </Link>
-      <header className="mb-5">
-        <h1 className="text-[1.625rem] font-semibold tracking-tight">
-          {pack.name}
-        </h1>
-        <p className="mt-0.5 text-[0.875rem] text-fg-tertiary">
-          {pack.language} · {items.length} words
-        </p>
+      <PageHeader
+        title={pack.name}
+        subtitle={`${pack.language} · ${items.length} words`}
+      >
         {pack.description && (
           <p className="mt-2 text-[0.9375rem] leading-relaxed text-fg-secondary">
             {pack.description}
           </p>
         )}
-      </header>
+      </PageHeader>
 
       <PackView pack={pack} items={items} initialSavedTerms={savedTerms} />
     </div>

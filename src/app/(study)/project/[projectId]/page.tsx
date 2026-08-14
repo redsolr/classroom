@@ -8,6 +8,7 @@ import { createStudyThread } from "@/lib/actions/study";
 import { requireLearner } from "@/lib/auth";
 import { EditProjectDialog } from "@/components/study/edit-project-dialog";
 import { SubmitButton } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
 
 export const metadata: Metadata = { title: "Project" };
 
@@ -44,33 +45,33 @@ export default async function StudyProjectPage({
 
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-8 sm:px-6">
-      <header className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="flex min-w-0 items-center gap-2.5 text-[1.625rem] font-semibold tracking-tight">
-          <Folder className="size-6 shrink-0 text-accent" />
-          <span className="truncate">{project.name}</span>
-        </h1>
-        <div className="flex items-center gap-2">
-          {/* Settings live behind the dialog — the page leads with its
-              CHATS (the settings card used to push them below the
-              fold on phones). */}
-          <EditProjectDialog project={project}>
-            <button
-              type="button"
-              className="flex items-center gap-1.5 rounded-md border border-border-strong bg-surface px-3 py-2 text-[0.875rem] font-medium transition-colors hover:bg-surface-hover"
-            >
-              <Settings className="size-4 text-fg-tertiary" />
-              Settings
-            </button>
-          </EditProjectDialog>
-          <form action={createStudyThread}>
-            <input type="hidden" name="projectId" value={project.id} />
-            <SubmitButton>
-              <Plus className="size-3.5" />
-              New chat
-            </SubmitButton>
-          </form>
-        </div>
-      </header>
+      {/* Settings live behind the dialog — the page leads with its
+          CHATS (the settings card used to push them below the fold on
+          phones). */}
+      <PageHeader
+        icon={<Folder className="size-6 shrink-0 text-accent" />}
+        title={project.name}
+        actions={
+          <>
+            <EditProjectDialog project={project}>
+              <button
+                type="button"
+                className="flex items-center gap-1.5 rounded-md border border-border-strong bg-surface px-3 py-2 text-[0.875rem] font-medium transition-colors hover:bg-surface-hover"
+              >
+                <Settings className="size-4 text-fg-tertiary" />
+                Settings
+              </button>
+            </EditProjectDialog>
+            <form action={createStudyThread}>
+              <input type="hidden" name="projectId" value={project.id} />
+              <SubmitButton>
+                <Plus className="size-3.5" />
+                New chat
+              </SubmitButton>
+            </form>
+          </>
+        }
+      />
 
       <section className="mb-6">
         <h2 className="mb-2.5 text-[1rem] font-semibold">Chats</h2>

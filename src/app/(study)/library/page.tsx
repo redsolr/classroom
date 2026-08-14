@@ -8,6 +8,7 @@ import { AddBookDialog } from "@/components/study/add-book-dialog";
 import { BookCover } from "@/components/study/book-cover";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
 
 export const metadata: Metadata = { title: "Library" };
 
@@ -35,22 +36,18 @@ export default async function LibraryPage() {
 
   return (
     <div className="library-page mx-auto w-full max-w-4xl px-4 py-8 sm:px-6">
-      <header className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-[1.625rem] font-semibold tracking-tight">
-            Library
-          </h1>
-          <p className="mt-0.5 text-[0.9375rem] text-fg-secondary">
-            What you&apos;re reading, and what you took from it.
-          </p>
-        </div>
-        <AddBookDialog>
-          <Button variant="primary">
-            <Plus className="size-3.5" />
-            Add book
-          </Button>
-        </AddBookDialog>
-      </header>
+      <PageHeader
+        title="Library"
+        subtitle="What you're reading, and what you took from it."
+        actions={
+          <AddBookDialog>
+            <Button variant="primary">
+              <Plus className="size-3.5" />
+              Add book
+            </Button>
+          </AddBookDialog>
+        }
+      />
 
       {books.length === 0 ? (
         <EmptyState

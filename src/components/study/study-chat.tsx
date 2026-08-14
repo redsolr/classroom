@@ -387,12 +387,114 @@ export function StudyChat({
     }
   };
 
+  // One composer, two homes: centered in the empty state, docked at the
+  // bottom once the conversation exists.
+  const composerPanel = (
+    <>
+      {capHit && (
+        <div className="chat-cap-notice mb-2.5 rounded-md border border-border-strong bg-surface px-3 py-2.5 text-[0.875rem]">
+          {capHit.pro ? (
+            <span>
+              You&rsquo;ve hit today&rsquo;s practice brake ({capHit.cap}{" "}
+              messages in 24h). It resets on its own — rest your brain! 🌙
+            </span>
+          ) : (
+            <span>
+              You&rsquo;ve used your {capHit.cap} free messages for today.{" "}
+              <Link
+                href="/account"
+                className="font-medium text-accent-text underline underline-offset-2"
+              >
+                Upgrade to keep practicing
+              </Link>
+              .
+            </span>
+          )}
+        </div>
+      )}
+      {sendError && (
+        <p className="chat-send-error mb-2.5 text-[0.875rem] text-danger">
+          {sendError}
+        </p>
+      )}
+
+      {/* ChatGPT-style pill composer: textarea on top, controls below. */}
+      <div className="chat-composer rounded-2xl border border-border-strong bg-surface px-3 pt-2.5 pb-2 shadow-sm transition-colors focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/20">
+        <textarea
+          ref={textareaRef}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={onKeyDown}
+          rows={Math.min(5, Math.max(1, input.split("\n").length))}
+          maxLength={4000}
+          placeholder={language ? `Practice your ${language}…` : "Ask anything…"}
+          aria-label="Message"
+          className="chat-composer-input max-h-40 w-full resize-none border-0 bg-transparent text-[0.9375rem] leading-relaxed placeholder:text-fg-tertiary focus:outline-none"
+        />
+        <div className="chat-composer-controls mt-1 flex items-center justify-between">
+          <select
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+            title="Model for the next message"
+            aria-label="Model"
+            className="chat-model-select h-7 rounded-md bg-transparent px-1 text-[0.8125rem] font-medium text-fg-secondary transition-colors hover:bg-surface-hover focus:outline-none"
+          >
+            {models.map((m) => (
+              <option key={m} value={m}>
+                {modelLabel(m)}
+              </option>
+            ))}
+          </select>
+          {streaming ? (
+            <button
+              type="button"
+              onClick={stop}
+              aria-label="Stop"
+              title="Stop generating"
+              className="chat-stop-button flex size-8 items-center justify-center rounded-full bg-accent text-white shadow-sm transition-colors hover:bg-accent-hover"
+            >
+              <Square className="size-3 fill-current" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => void send()}
+              disabled={input.trim().length === 0}
+              aria-label="Send"
+              className="chat-send-button flex size-8 items-center justify-center rounded-full bg-accent text-white shadow-sm transition-colors hover:bg-accent-hover disabled:pointer-events-none disabled:opacity-40"
+            >
+              <CornerDownLeft className="size-4" />
+            </button>
+          )}
+        </div>
+      </div>
+    </>
+  );
+
+  // Empty chat: greeting + composer centered mid-pane (Claude's landing
+  // shape) — the pair is the whole invitation, no suggestion chips. The
+  // composer drops to the bottom bar once the first message lands.
+  if (messages.length === 0) {
+    return (
+      <div className="study-chat flex min-h-0 flex-1 flex-col">
+        <div className="chat-empty-state flex min-h-0 flex-1 flex-col justify-center px-4 pb-16 sm:px-6">
+          <div className="chat-empty-column mx-auto w-full max-w-3xl">
+            <h1 className="chat-empty-greeting mb-5 text-center text-[1.75rem] font-semibold tracking-tight">
+              {language
+                ? `Ready to practice your ${language}?`
+                : "What are we learning today?"}
+            </h1>
+            {composerPanel}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="study-chat flex min-h-0 flex-1 flex-col">
       {/* The scroll region spans the full pane (scrollbar at the window
-          edge); the readable column inside stays capped and centered.
-          No empty-state greeting or suggestion chips — a blank screen
-          and the composer are the whole invitation (ChatGPT shape). */}
+          edge); the readable column inside stays capped and centered. */}
       <div ref={transcriptRef} className="chat-scroll-region min-h-0 flex-1 overflow-y-auto">
         <div className="chat-thread-column mx-auto w-full max-w-3xl space-y-4 px-4 py-5 sm:px-6">
           {messages.map((m, index) => {
@@ -402,7 +504,10 @@ export function StudyChat({
             if (m.role === "user") {
               return (
                 <div key={m.id} className="chat-user-message group">
-                  <div className="chat-user-bubble ml-10 rounded-lg bg-accent-soft px-4 py-2.5 sm:ml-16">
+                  {/* fit-content + right-hugged (ChatGPT/Claude shape) —
+                      a block bubble would stretch the full column and
+                      leave a slab of dead space after short messages. */}
+                  <div className="chat-user-bubble ml-auto w-fit max-w-[85%] rounded-lg bg-accent-soft px-4 py-2.5">
                     <p className="whitespace-pre-wrap text-[0.9375rem] leading-relaxed">
                       {m.content}
                     </p>
@@ -502,83 +607,7 @@ export function StudyChat({
 
       <div className="chat-composer-bar px-4 pt-1 pb-4 sm:px-6">
         <div className="chat-composer-column mx-auto w-full max-w-3xl">
-          {capHit && (
-            <div className="chat-cap-notice mb-2.5 rounded-md border border-border-strong bg-surface px-3 py-2.5 text-[0.875rem]">
-              {capHit.pro ? (
-                <span>
-                  You&rsquo;ve hit today&rsquo;s practice brake ({capHit.cap}{" "}
-                  messages in 24h). It resets on its own — rest your brain! 🌙
-                </span>
-              ) : (
-                <span>
-                  You&rsquo;ve used your {capHit.cap} free messages for today.{" "}
-                  <Link
-                    href="/account"
-                    className="font-medium text-accent-text underline underline-offset-2"
-                  >
-                    Upgrade to keep practicing
-                  </Link>
-                  .
-                </span>
-              )}
-            </div>
-          )}
-          {sendError && (
-            <p className="chat-send-error mb-2.5 text-[0.875rem] text-danger">
-              {sendError}
-            </p>
-          )}
-
-          {/* ChatGPT-style pill composer: textarea on top, controls below. */}
-          <div className="chat-composer rounded-2xl border border-border-strong bg-surface px-3 pt-2.5 pb-2 shadow-sm transition-colors focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/20">
-            <textarea
-              ref={textareaRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={onKeyDown}
-              rows={Math.min(5, Math.max(1, input.split("\n").length))}
-              maxLength={4000}
-              placeholder={language ? `Practice your ${language}…` : "Ask anything…"}
-              aria-label="Message"
-              className="chat-composer-input max-h-40 w-full resize-none border-0 bg-transparent text-[0.9375rem] leading-relaxed placeholder:text-fg-tertiary focus:outline-none"
-            />
-            <div className="chat-composer-controls mt-1 flex items-center justify-between">
-              <select
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                title="Model for the next message"
-                aria-label="Model"
-                className="chat-model-select h-7 rounded-md bg-transparent px-1 text-[0.8125rem] font-medium text-fg-secondary transition-colors hover:bg-surface-hover focus:outline-none"
-              >
-                {models.map((m) => (
-                  <option key={m} value={m}>
-                    {modelLabel(m)}
-                  </option>
-                ))}
-              </select>
-              {streaming ? (
-                <button
-                  type="button"
-                  onClick={stop}
-                  aria-label="Stop"
-                  title="Stop generating"
-                  className="chat-stop-button flex size-8 items-center justify-center rounded-full bg-accent text-white shadow-sm transition-colors hover:bg-accent-hover"
-                >
-                  <Square className="size-3 fill-current" />
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => void send()}
-                  disabled={input.trim().length === 0}
-                  aria-label="Send"
-                  className="chat-send-button flex size-8 items-center justify-center rounded-full bg-accent text-white shadow-sm transition-colors hover:bg-accent-hover disabled:pointer-events-none disabled:opacity-40"
-                >
-                  <CornerDownLeft className="size-4" />
-                </button>
-              )}
-            </div>
-          </div>
+          {composerPanel}
         </div>
       </div>
     </div>

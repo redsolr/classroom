@@ -3,6 +3,7 @@ import { and, eq, isNull, lte, or, sql } from "drizzle-orm";
 import { db, studyVocab } from "@/db";
 import { requireLearner } from "@/lib/auth";
 import { StudyReview } from "@/components/study/study-review";
+import { PageHeader } from "@/components/ui/page-header";
 
 export const metadata: Metadata = { title: "Review" };
 
@@ -38,9 +39,7 @@ export default async function StudyReviewPage() {
 
   return (
     <div className="mx-auto w-full max-w-xl px-4 py-8 sm:px-6">
-      <h1 className="mb-5 text-[1.625rem] font-semibold tracking-tight">
-        Review
-      </h1>
+      <PageHeader title="Review" />
       <StudyReview deck={deck} totalWords={totalWords} />
     </div>
   );

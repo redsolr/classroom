@@ -10,7 +10,7 @@
 
 ## Self-study — AI chat (`/chat`)
 
-- **Zero-step chat landing** — `/chat` opens straight into the composer as a DRAFT chat; the thread is created server-side on the first send, URL follows via replaceState — no hero, no "New chat" tap (2026-08-12)
+- **Zero-step chat landing** — `/chat` opens straight into the composer as a DRAFT chat; the thread is created server-side on the first send, URL follows via replaceState — no "New chat" tap; the empty state centers a greeting + the composer mid-pane (Claude landing shape) and docks the composer to the bottom once the first message lands; user bubbles hug the right at fit-content (2026-08-14)
 - **Streaming tutor chat** — OpenAI-backed, per-message model picker (Terra default / Sol / Luna roster, server-validated; answering model persisted + shown per reply); deterministic offline mock when no key
 - **One study-partner prompt, instructions-driven** — no language "mode" anywhere (2026-08-14 refactor): what a chat is for comes from account/project instructions and the conversation; tutoring guidance (corrections, learner-vocab drilling) activates when practice happens; `VOCAB: term — meaning — Language` chip suggestions work in EVERY chat, each word carrying its own roster language
 - **Projects (ChatGPT Projects shape, generic)** — name + custom instructions injected into every chat in the project (a "French tutor" project is just instructions); create via dialog, settings dialog on the project page, delete frees chats
@@ -69,6 +69,7 @@
 
 - **ChatGPT-shaped URLs** — chat at `/chat`, everything else at root (`/vocab`, `/library`, `/notes`, `/packs`, `/account`, `/project/[id]`); old `/study/*` links redirect (2026-08-12)
 - **Unified sidebar** — New chat + bare study tabs, Library/Notes under a "More" expander, Pinned/Projects/Chats tree, pinned books; Plan & usage lives in the footer account menu
+- **One PageHeader convention** — every top-level page (teacher, student, study) renders its title through `components/ui/page-header.tsx` (1.625rem title, subtitle, optional icon/actions) — no hand-rolled page h1s (2026-08-14)
 - **Mobile chrome** — ChatGPT-style animated drawer (slide + backdrop fade, navbar-aligned header), hamburger + quick new-chat topbar with a portal slot for the chat ⋯ menu (2026-08-12)
 - **PWA** — installable, manifest start_url `/chat`
 - **Auth** — own WorkOS project (email+password, Google, Apple); learner role auto-provisioned on first visit; per-app cookie name

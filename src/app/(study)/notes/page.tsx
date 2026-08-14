@@ -6,6 +6,7 @@ import { db, studyBooks, studyNotes } from "@/db";
 import { requireLearner } from "@/lib/auth";
 import { NoteComposer, NoteList } from "@/components/study/note-cards";
 import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
 
 export const metadata: Metadata = { title: "Notes" };
 
@@ -34,13 +35,10 @@ export default async function NotesPage() {
 
   return (
     <div className="notes-page mx-auto w-full max-w-2xl px-4 py-8 sm:px-6">
-      <header className="mb-6">
-        <h1 className="text-[1.625rem] font-semibold tracking-tight">Notes</h1>
-        <p className="mt-0.5 text-[0.9375rem] text-fg-secondary">
-          Ideas worth keeping — on their own, or filed under a book in your
-          library.
-        </p>
-      </header>
+      <PageHeader
+        title="Notes"
+        subtitle="Ideas worth keeping — on their own, or filed under a book in your library."
+      />
 
       <div className="space-y-3">
         <NoteComposer placeholder="Jot something down…" />
