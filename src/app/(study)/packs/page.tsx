@@ -4,6 +4,7 @@ import { asc, eq, sql } from "drizzle-orm";
 import { BookMarked } from "lucide-react";
 import { db, studyPackItems, studyPacks } from "@/db";
 import { requireLearner } from "@/lib/auth";
+import { PackCover } from "@/components/study/pack-cover";
 import { PageHeader, PageShell } from "@/components/ui/page-header";
 
 export const metadata: Metadata = { title: "Curated lists" };
@@ -17,7 +18,6 @@ export default async function StudyPacksPage() {
       slug: studyPacks.slug,
       name: studyPacks.name,
       language: studyPacks.language,
-      description: studyPacks.description,
       itemCount: sql<number>`count(${studyPackItems.id})`,
     })
     .from(studyPacks)
@@ -38,26 +38,28 @@ export default async function StudyPacksPage() {
           No curated lists yet — they're on the way.
         </p>
       ) : (
-        <ul className="grid max-w-4xl grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="packs-shelf grid max-w-4xl grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
           {packs.map((pack) => (
-            <li key={pack.id}>
-              <Link
-                href={`/packs/${pack.slug}`}
-                className="block h-full rounded-xl bg-surface p-4 shadow-card transition-colors hover:bg-surface-hover"
-              >
-                <p className="text-[1rem] font-semibold">{pack.name}</p>
-                <p className="mt-0.5 text-[0.8125rem] text-fg-tertiary">
-                  {pack.language} · {pack.itemCount} words
-                </p>
-                {pack.description && (
-                  <p className="mt-2 text-[0.875rem] leading-relaxed text-fg-secondary">
-                    {pack.description}
-                  </p>
-                )}
-              </Link>
-            </li>
+            <Link
+              key={pack.id}
+              href={`/packs/${pack.slug}`}
+              className="pack-volume group block"
+            >
+              <PackCover
+                slug={pack.slug}
+                name={pack.name}
+                language={pack.language}
+                className="transition-transform group-hover:-translate-y-1"
+              />
+              <span className="mt-2 block truncate text-[0.875rem] font-medium">
+                {pack.name}
+              </span>
+              <span className="block text-[0.8125rem] text-fg-tertiary">
+                {pack.itemCount} word{pack.itemCount === 1 ? "" : "s"}
+              </span>
+            </Link>
           ))}
-        </ul>
+        </div>
       )}
     </PageShell>
   );
