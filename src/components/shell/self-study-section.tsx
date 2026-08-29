@@ -10,6 +10,7 @@ import {
   Layers,
   LibraryBig,
   MessageCircle,
+  MessageSquareQuote,
   MoreHorizontal,
   NotebookPen,
   Pencil,
@@ -87,6 +88,16 @@ import { cn } from "@/lib/utils";
 const PRIMARY_ITEMS = [
   { href: "/vocab", label: "Books", icon: Layers, exact: true },
   { href: "/vocab/review", label: "Decks", icon: BookOpenCheck, exact: false },
+  // The SECOND card type gets its own row, not a filter inside Decks:
+  // "what does this word mean" and "can I still supply it when a
+  // sentence needs it" are different sessions, and the learner chooses
+  // between them before anything else.
+  {
+    href: "/sentences",
+    label: "Sentences",
+    icon: MessageSquareQuote,
+    exact: false,
+  },
   // ONE row, not an expanded list of every title: the covers do the
   // selling on the Books page itself, and nine text rows here would just
   // compete with the learner's own books for attention.

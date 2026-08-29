@@ -1,19 +1,24 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { BookOpenCheck } from "lucide-react";
+import { BookOpenCheck, MessageSquareQuote } from "lucide-react";
 import { and, asc, eq, isNull, lte, or, sql } from "drizzle-orm";
 import {
   db,
   studyPackItems,
   studyPacks,
+  studySentences,
   studyVocab,
   studyVocabListItems,
   studyVocabLists,
 } from "@/db";
 import { requireLearner } from "@/lib/auth";
 import { isCardDue } from "@/lib/srs";
-import { DeckShelf, DeckShelfEmpty } from "@/components/study/deck-shelf";
+import {
+  DeckShelf,
+  DeckShelfEmpty,
+  type DeckSummary,
+} from "@/components/study/deck-shelf";
 import { OfficialShelf } from "@/components/study/official-shelf";
 import { SectionTabs } from "@/components/study/section-tabs";
 import { StudyReview } from "@/components/study/study-review";
@@ -36,10 +41,85 @@ export const metadata: Metadata = { title: "Decks" };
 export default async function StudyReviewPage({
   searchParams,
 }: {
-  searchParams: Promise<{ book?: string; pack?: string }>;
+  searchParams: Promise<{ book?: string; pack?: string; sentences?: string }>;
 }) {
   const learner = await requireLearner();
-  const { book, pack } = await searchParams;
+  const { book, pack, sentences } = await searchParams;
+
+  // ── Sentence deck ──
+  // The same stack, the same swipes, the same scheduler — a different
+  // question. `?sentences=all` draws from every sentence card; a book id
+  // narrows to the ones generated from that book.
+  if (sentences) {
+    const list =
+      sentences !== "all"
+        ? await db.query.studyVocabLists.findFirst({
+            where: and(
+              eq(studyVocabLists.id, sentences),
+              eq(studyVocabLists.learnerId, learner.id),
+            ),
+          })
+        : null;
+    if (sentences !== "all" && !list) notFound();
+
+    const scope = and(
+      eq(studySentences.learnerId, learner.id),
+      list ? eq(studySentences.listId, list.id) : undefined,
+    );
+    const [cards, [{ total }]] = await Promise.all([
+      db
+        .select({
+          id: studySentences.id,
+          language: studySentences.language,
+          text: studySentences.text,
+          translation: studySentences.translation,
+          note: studySentences.note,
+        })
+        .from(studySentences)
+        .where(
+          and(
+            scope,
+            or(
+              isNull(studySentences.srsDueAt),
+              lte(studySentences.srsDueAt, new Date()),
+            ),
+          ),
+        )
+        .orderBy(sql`${studySentences.srsDueAt} asc nulls first`)
+        .limit(50),
+      db
+        .select({ total: sql<number>`count(*)::int` })
+        .from(studySentences)
+        .where(scope),
+    ]);
+
+    return (
+      <PageShell>
+        <BackLink href="/vocab/review">All decks</BackLink>
+        <PageHeader
+          icon={MessageSquareQuote}
+          title={list ? `Sentences — ${list.name}` : "Sentences"}
+          subtitle="Fill the blank from the sentence around it — the test isn't what the word means, it's whether you can still supply it."
+          actions={
+            <Link
+              href="/sentences"
+              className="inline-flex h-9 items-center rounded-md bg-surface px-3.5 text-[0.9375rem] font-medium shadow-card transition-colors hover:bg-surface-hover"
+            >
+              Manage sentences
+            </Link>
+          }
+        />
+        <div className="mx-auto w-full max-w-xl">
+          <StudyReview
+            deck={cards.map((row) => ({ ...row, kind: "sentence" as const }))}
+            totalWords={total}
+            listId={list?.id ?? null}
+            deckKind="sentence"
+          />
+        </div>
+      </PageShell>
+    );
+  }
 
   // ── Official book, drilled without saving it ──
   // The second of the two doors onto one catalog: browse-and-copy lives
@@ -77,7 +157,7 @@ export default async function StudyReviewPage({
         />
         <div className="mx-auto w-full max-w-xl">
           <StudyReview
-            deck={packCards}
+            deck={packCards.map((row) => ({ ...row, kind: "word" as const }))}
             totalWords={packCards.length}
             packSlug={officialBook.slug}
             initialMode="practice"
@@ -90,7 +170,8 @@ export default async function StudyReviewPage({
   // ── The shelf ──
   if (!book) {
     const now = new Date();
-    const [words, listRows, listItemRows, officialRows] = await Promise.all([
+    const [words, listRows, listItemRows, sentenceRows, officialRows] =
+      await Promise.all([
       db
         .select({ id: studyVocab.id, srsDueAt: studyVocab.srsDueAt })
         .from(studyVocab)
@@ -113,6 +194,14 @@ export default async function StudyReviewPage({
         .where(eq(studyVocabLists.learnerId, learner.id)),
       db
         .select({
+          id: studySentences.id,
+          listId: studySentences.listId,
+          srsDueAt: studySentences.srsDueAt,
+        })
+        .from(studySentences)
+        .where(eq(studySentences.learnerId, learner.id)),
+      db
+        .select({
           id: studyPacks.id,
           slug: studyPacks.slug,
           name: studyPacks.name,
@@ -123,19 +212,21 @@ export default async function StudyReviewPage({
         .leftJoin(studyPackItems, eq(studyPackItems.packId, studyPacks.id))
         .groupBy(studyPacks.id)
         .orderBy(asc(studyPacks.name)),
-    ]);
+      ]);
 
     const dueById = new Map(
       words.map((w) => [w.id, isCardDue(w.srsDueAt, now)]),
     );
     const totalDue = words.filter((w) => isCardDue(w.srsDueAt, now)).length;
 
-    const decks = [
+    const decks: DeckSummary[] = [
       {
         id: "all",
         name: "All words",
+        href: "/vocab/review?book=all",
         totalWords: words.length,
         dueCount: totalDue,
+        art: "liked",
       },
       ...listRows.map((list) => {
         const memberIds = listItemRows
@@ -144,11 +235,49 @@ export default async function StudyReviewPage({
         return {
           id: list.id,
           name: list.name,
+          href: `/vocab/review?book=${list.id}`,
           totalWords: memberIds.length,
           dueCount: memberIds.filter((id) => dueById.get(id)).length,
+          art: "book" as const,
         };
       }),
     ];
+
+    // Sentence decks are their OWN shelf, not rows mixed in with the
+    // word books: the two ask different questions, and a learner
+    // choosing "what shall I drill" is choosing between them first.
+    const sentenceDue = sentenceRows.filter((s) =>
+      isCardDue(s.srsDueAt, now),
+    ).length;
+    const sentenceDecks: DeckSummary[] =
+      sentenceRows.length === 0
+        ? []
+        : [
+            {
+              id: "sentences-all",
+              name: "All sentences",
+              href: "/vocab/review?sentences=all",
+              totalWords: sentenceRows.length,
+              dueCount: sentenceDue,
+              art: "sentences",
+            },
+            ...listRows
+              .map((list) => {
+                const scoped = sentenceRows.filter(
+                  (s) => s.listId === list.id,
+                );
+                return {
+                  id: `sentences-${list.id}`,
+                  name: list.name,
+                  href: `/vocab/review?sentences=${list.id}`,
+                  totalWords: scoped.length,
+                  dueCount: scoped.filter((s) => isCardDue(s.srsDueAt, now))
+                    .length,
+                  art: "sentences" as const,
+                };
+              })
+              .filter((deck) => deck.totalWords > 0),
+          ];
 
     return (
       <PageShell>
@@ -173,7 +302,39 @@ export default async function StudyReviewPage({
           {words.length === 0 ? (
             <DeckShelfEmpty />
           ) : (
-            <DeckShelf decks={decks} />
+            <>
+              <h2 className="mb-2 text-[1rem] font-semibold">Word decks</h2>
+              <DeckShelf decks={decks} />
+
+              <h2 className="mt-8 mb-2 text-[1rem] font-semibold">
+                Sentence decks
+              </h2>
+              {sentenceDecks.length > 0 ? (
+                <DeckShelf decks={sentenceDecks} />
+              ) : (
+                // Not an empty shelf: the feature is invisible until
+                // someone makes the first card, so the absence has to
+                // say what it is and how to get one.
+                <div className="rounded-xl bg-surface px-5 py-6 text-center shadow-card">
+                  <p className="text-[0.9375rem] font-medium">
+                    No sentence cards yet
+                  </p>
+                  <p className="mx-auto mt-1 max-w-md text-[0.875rem] text-fg-tertiary">
+                    A sentence card blanks out one word inside a real
+                    sentence — knowing what a word means and being able to
+                    supply it are different skills, and only one of them is
+                    speaking.
+                  </p>
+                  <Link
+                    href="/sentences"
+                    className="mt-4 inline-flex h-9 items-center gap-1.5 rounded-md bg-accent px-3.5 text-[0.9375rem] font-medium text-white transition-colors hover:bg-accent-hover"
+                  >
+                    <MessageSquareQuote className="size-3.5" />
+                    Make sentence cards
+                  </Link>
+                </div>
+              )}
+            </>
           )}
         </div>
 
@@ -286,7 +447,7 @@ export default async function StudyReviewPage({
           while the title stays on the shared page edge. */}
       <div className="mx-auto w-full max-w-xl">
         <StudyReview
-          deck={deck}
+          deck={deck.map((row) => ({ ...row, kind: "word" as const }))}
           totalWords={totalWords}
           listId={list?.id ?? null}
         />

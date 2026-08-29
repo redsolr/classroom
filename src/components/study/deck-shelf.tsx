@@ -1,14 +1,35 @@
 import Link from "next/link";
 import { Play, Sparkles } from "lucide-react";
-import { BookTile, LikedCover } from "@/components/study/study-covers";
+import {
+  BookTile,
+  LikedCover,
+  SentenceCover,
+} from "@/components/study/study-covers";
 
 export type DeckSummary = {
-  /** "all" = the whole vocabulary; otherwise a book id. */
   id: string;
   name: string;
+  /** Where pressing this deck goes — word decks and sentence decks live
+   * on different query params, so the row carries its own destination
+   * instead of the shelf guessing from the id. */
+  href: string;
   totalWords: number;
   dueCount: number;
+  /** Which tile to wear. "liked" and "sentences" are fixed app-level
+   * covers; "book" generates one from the name. */
+  art: "liked" | "book" | "sentences";
 };
+
+/** A deck's one-line status. Sentence decks count CARDS, not words —
+ * calling a sentence card a "word" would be the kind of small lie that
+ * makes people stop trusting the numbers. */
+function deckMeta(deck: DeckSummary): string {
+  const unit = deck.art === "sentences" ? "card" : "word";
+  const size = `${deck.totalWords} ${unit}${deck.totalWords === 1 ? "" : "s"}`;
+  if (deck.dueCount > 0) return `${deck.dueCount} due · ${size}`;
+  if (deck.totalWords === 0) return `Empty — no ${unit}s yet`;
+  return `All caught up · ${size}`;
+}
 
 /**
  * The DECK SHELF — what /vocab/review opens on.
@@ -28,11 +49,13 @@ export function DeckShelf({ decks }: { decks: DeckSummary[] }) {
       {decks.map((deck) => (
         <li key={deck.id} className="deck-row group">
           <Link
-            href={`/vocab/review?book=${deck.id}`}
+            href={deck.href}
             className="flex items-center gap-3.5 px-3 py-3 transition-colors hover:bg-surface-hover sm:px-4"
           >
-            {deck.id === "all" ? (
+            {deck.art === "liked" ? (
               <LikedCover className="w-12 shrink-0 sm:w-14" />
+            ) : deck.art === "sentences" ? (
+              <SentenceCover className="w-12 shrink-0 sm:w-14" />
             ) : (
               <BookTile name={deck.name} className="w-12 shrink-0 sm:w-14" />
             )}
@@ -41,11 +64,7 @@ export function DeckShelf({ decks }: { decks: DeckSummary[] }) {
                 {deck.name}
               </span>
               <span className="block text-[0.8125rem] text-fg-tertiary">
-                {deck.dueCount > 0
-                  ? `${deck.dueCount} due · ${deck.totalWords} word${deck.totalWords === 1 ? "" : "s"}`
-                  : deck.totalWords === 0
-                    ? "Empty — no words yet"
-                    : `All caught up · ${deck.totalWords} word${deck.totalWords === 1 ? "" : "s"}`}
+                {deckMeta(deck)}
               </span>
             </span>
             {deck.dueCount > 0 && (

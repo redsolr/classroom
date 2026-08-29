@@ -1216,7 +1216,9 @@ test("decks: the shelf lists every deck, and opening one drills it", async ({
   // The drill surface LANDS on a shelf now — arriving straight on a card
   // meant the app chose the deck and never showed you the others.
   await page.goto("/vocab/review");
-  await expect(page.getByRole("heading", { name: "Decks" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Decks", exact: true }),
+  ).toBeVisible();
 
   const shelf = page.locator(".deck-shelf");
   // "All words" leads: it's the liked layer, every word regardless of book.
@@ -1291,4 +1293,79 @@ test("books: a default book is where a one-tap heart files words", async ({
   await shelf.getByRole("button", { name: "Filing Test options" }).click();
   await page.getByRole("menuitem", { name: "Clear default book" }).click();
   await expect(shelf.getByText("Default")).toBeHidden();
+});
+
+test("sentence cards: generate from words, drill the blank, land on the shelf", async ({
+  page,
+}) => {
+  // A word to build from — self-contained, so the test doesn't depend
+  // on what earlier tests left behind.
+  await page.goto("/vocab");
+  await page.getByRole("button", { name: "New word" }).click();
+  const wordDialog = page.getByRole("dialog");
+  await wordDialog.getByLabel("Language").selectOption("Japanese");
+  await wordDialog.getByLabel("Word or phrase").fill("宝箱");
+  await wordDialog.getByLabel("Meaning").fill("treasure chest");
+  await wordDialog.getByRole("button", { name: "Add word" }).click();
+  await expect(wordDialog).not.toBeVisible();
+
+  // The whole point of the feature: the learner never hand-writes a
+  // cloze card unless they want to. Offline (no OPENAI_API_KEY) the
+  // deterministic generator runs, which is what keeps this testable.
+  await page.goto("/sentences");
+  await expect(
+    page.getByRole("heading", { name: "Sentences", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("No sentence cards yet")).toBeVisible();
+
+  await page.getByRole("button", { name: "Make cards" }).click();
+  await page.getByRole("menuitem", { name: "All words" }).click();
+  await expect(page.getByText(/Made \d+ cards?\./)).toBeVisible();
+
+  const shelf = page.locator(".sentence-shelf");
+  await expect(shelf.locator(".sentence-row").first()).toBeVisible();
+  // A card is a sentence with a BLANK — the marked span renders as one.
+  await expect(shelf.locator(".sentence-blank").first()).toBeVisible();
+
+  // Hand-written cards are still possible, and the blank is required:
+  // text with no {{…}} is refused rather than stored as a card the
+  // drill can't render.
+  await page.getByRole("button", { name: "New sentence" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Language").selectOption("French");
+  await dialog.getByLabel("Sentence").fill("Je voudrais un café.");
+  await dialog.getByLabel("Translation").fill("I would like a coffee.");
+  await dialog.getByRole("button", { name: "Add card" }).click();
+  await expect(dialog.getByText(/double braces/)).toBeVisible();
+  // With the blank marked, it saves.
+  await dialog.getByLabel("Sentence").fill("Je voudrais un {{café}}.");
+  await dialog.getByRole("button", { name: "Add card" }).click();
+  await expect(dialog).not.toBeVisible();
+  await expect(page.getByText("I would like a coffee.")).toBeVisible();
+
+  // Sentence decks are their OWN shelf on Decks — not rows mixed into
+  // the word books.
+  await page.goto("/vocab/review");
+  const sentenceDeck = page
+    .locator(".deck-shelf")
+    .getByRole("link", { name: /All sentences/ });
+  await expect(sentenceDeck).toBeVisible();
+  await sentenceDeck.click();
+  await page.waitForURL(/\/vocab\/review\?sentences=all/);
+
+  // The drill is the same stack, asking a different question: the blank
+  // is hidden until you reveal, and grading moves a SEPARATE schedule.
+  await expect(page.locator(".review-progress")).toHaveText(/Card 1 of \d+/);
+  const blank = page.locator(".review-card .review-cloze-blank").first();
+  await expect(blank).toBeVisible();
+  await page.getByRole("button", { name: "Show answer" }).click();
+  await expect(page.locator(".review-answer")).toBeVisible();
+  await page.getByRole("button", { name: "Good" }).click();
+  await expect(page.locator(".review-progress")).toHaveText(
+    /Card 2 of \d+|cards? reviewed/,
+  );
+
+  // Word cards were untouched — the two schedules are independent.
+  await page.goto("/sentences");
+  await expect(page.locator(".sentence-shelf")).toBeVisible();
 });

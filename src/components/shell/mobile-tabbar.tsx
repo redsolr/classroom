@@ -6,6 +6,7 @@ import {
   BookOpenCheck,
   Layers,
   MessageCircle,
+  MessageSquareQuote,
   Sparkles,
   type LucideIcon,
 } from "lucide-react";
@@ -32,6 +33,7 @@ const TABS: Tab[] = [
   { href: "/chat", label: "Chat", icon: MessageCircle, owns: ["/project"] },
   { href: "/vocab", label: "Books", icon: Layers },
   { href: "/vocab/review", label: "Decks", icon: BookOpenCheck },
+  { href: "/sentences", label: "Sentences", icon: MessageSquareQuote },
   { href: "/packs", label: "Official", icon: Sparkles },
 ];
 
@@ -73,7 +75,7 @@ export function MobileTabbar() {
             href={tab.href}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "mobile-tab flex h-14 flex-1 flex-col items-center justify-center gap-0.5 text-[0.6875rem] font-medium transition-colors",
+              "mobile-tab flex h-14 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-0.5 text-[0.625rem] font-medium transition-colors",
               active ? "text-accent-text" : "text-fg-tertiary",
             )}
           >

@@ -1,4 +1,4 @@
-import { Heart } from "lucide-react";
+import { Heart, Quote } from "lucide-react";
 import { coverHue } from "@/components/study/book-cover";
 import { cn } from "@/lib/utils";
 
@@ -80,6 +80,29 @@ export function BookTile({
       <span className="relative text-[2rem] leading-none font-semibold drop-shadow-sm">
         {glyph}
       </span>
+    </div>
+  );
+}
+
+/**
+ * The sentence deck's tile. A fixed amber gradient and a quote mark —
+ * fixed, like the liked tile, because "sentences" is one thing in the
+ * app, not one of the learner's collections. It has to be unmistakable
+ * next to a wall of generated book covers.
+ */
+export function SentenceCover({ className }: { className?: string }) {
+  return (
+    <div
+      className={cn(
+        "sentence-cover relative flex aspect-square items-center justify-center overflow-hidden rounded-md text-white shadow-card",
+        className,
+      )}
+      style={{
+        background:
+          "linear-gradient(135deg, #b45309 0%, #f59e0b 55%, #fcd34d 100%)",
+      }}
+    >
+      <Quote aria-hidden className="size-[36%] fill-current" />
     </div>
   );
 }

@@ -5,10 +5,12 @@ import {
   studyBooks,
   studyMemories,
   studyNotes,
+  studySentences,
   studyVocab,
   studyVocabListItems,
   studyVocabLists,
 } from "@/db";
+import { markCloze } from "@/lib/cloze";
 import { STUDY_LANGUAGES } from "@/lib/study-languages";
 import { STUDY_VOCAB_CATEGORIES } from "@/lib/study-vocab-categories";
 
@@ -159,6 +161,42 @@ export const STUDY_TOOL_DEFS = [
   },
   {
     type: "function" as const,
+    name: "add_sentence",
+    description:
+      "Save ONE cloze sentence card: a natural sentence with the tested word blanked out. Use when the learner asks to practice a word in context, or when a sentence from this conversation is worth drilling. The sentence must make the word load-bearing — a reader who doesn't know it should not be able to guess the blank from the rest of the sentence.",
+    strict: false,
+    parameters: {
+      type: "object",
+      properties: {
+        sentence: {
+          type: "string",
+          description:
+            "The full sentence in its own language — roughly 6-15 words, natural",
+        },
+        word: {
+          type: "string",
+          description:
+            "The word to blank out, EXACTLY as it appears in the sentence (same inflection, same script)",
+        },
+        translation: {
+          type: "string",
+          description: "The whole sentence in the learner's own language",
+        },
+        language: {
+          type: "string",
+          enum: [...STUDY_LANGUAGES],
+          description: "Language of the sentence",
+        },
+        note: {
+          type: "string",
+          description: "Optional short grammar or usage aside",
+        },
+      },
+      required: ["sentence", "word", "translation", "language"],
+    },
+  },
+  {
+    type: "function" as const,
     name: "add_book",
     description:
       "Add a book or article to the learner's reading library. Use when they mention something they read (or are reading) that isn't in the library yet and their takeaways are worth keeping.",
@@ -304,6 +342,13 @@ const addBookArgs = z.object({
   title: z.string().trim().min(1).max(200),
   author: z.string().trim().max(120).optional(),
   summary: z.string().trim().max(2000).optional(),
+});
+const addSentenceArgs = z.object({
+  sentence: z.string().trim().min(1).max(400),
+  word: z.string().trim().min(1).max(200),
+  translation: z.string().trim().min(1).max(400),
+  language: z.enum(STUDY_LANGUAGES),
+  note: z.string().trim().max(300).optional(),
 });
 const saveNoteArgs = z.object({
   note: z.string().trim().min(1).max(4000),
@@ -495,6 +540,28 @@ export function createStudyToolExecutor(scope: {
             .values({ listId: list.id, vocabId: word.id, position: Number(max) + 1 })
             .onConflictDoNothing();
           return ok({ added: true, list: list.name, term: word.term });
+        }
+        case "add_sentence": {
+          const args = addSentenceArgs.parse(rawArgs);
+          // We place the blank, the model doesn't: a model that mangles
+          // the {{…}} syntax would otherwise store a card with the blank
+          // in the wrong place, which teaches the wrong thing. If the
+          // word isn't in its own sentence, the call fails and the model
+          // gets told why.
+          const text = markCloze(args.sentence, args.word);
+          if (!text) {
+            return fail(
+              `“${args.word}” does not appear in that sentence — the blank has to be a span of the sentence itself. Rewrite the sentence, or pass the word exactly as it's inflected there.`,
+            );
+          }
+          await db.insert(studySentences).values({
+            learnerId,
+            language: args.language,
+            text,
+            translation: args.translation,
+            note: args.note || null,
+          });
+          return ok({ saved: true, sentence: args.sentence, blank: args.word });
         }
         case "add_book": {
           const args = addBookArgs.parse(rawArgs);

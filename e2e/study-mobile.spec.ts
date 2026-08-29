@@ -120,7 +120,9 @@ test("the bottom quick-access bar navigates without opening the drawer", async (
   // behind the composer).
   await tabbar.getByRole("link", { name: "Decks" }).click();
   await page.waitForURL("**/vocab/review");
-  await expect(page.getByRole("heading", { name: "Decks" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Decks", exact: true }),
+  ).toBeVisible();
   // The active tab says where you are.
   await expect(tabbar.getByRole("link", { name: "Decks" })).toHaveAttribute(
     "aria-current",

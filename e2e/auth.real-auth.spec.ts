@@ -51,6 +51,7 @@ const PROTECTED_ROUTES = [
   "/notes",
   "/vocab",
   "/vocab/review",
+  "/sentences",
   "/account",
 ];
 

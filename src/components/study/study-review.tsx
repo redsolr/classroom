@@ -4,11 +4,24 @@ import * as React from "react";
 import Link from "next/link";
 import { Check, Minus, PartyPopper, RotateCcw, X, Zap } from "lucide-react";
 import { loadStudyPracticeDeck, reviewStudyVocab } from "@/lib/actions/study";
+import {
+  loadStudySentencePracticeDeck,
+  reviewStudySentence,
+} from "@/lib/actions/sentences";
 import { coverHue } from "@/components/study/book-cover";
+import { parseCloze } from "@/lib/cloze";
 import type { ReviewGrade } from "@/lib/srs";
 import { cn } from "@/lib/utils";
 
-type ReviewCard = {
+/**
+ * The two card types, as a UNION rather than one row with half its
+ * columns null. They share everything below — the stack, the swipe, the
+ * optimistic save, the scheduler — and nothing else: a word card asks
+ * what a word means, a sentence card asks whether you can still supply
+ * it when a sentence needs it.
+ */
+export type WordCard = {
+  kind: "word";
   id: string;
   language: string;
   term: string;
@@ -16,6 +29,18 @@ type ReviewCard = {
   meaning: string | null;
   example: string | null;
 };
+
+export type SentenceCard = {
+  kind: "sentence";
+  id: string;
+  language: string;
+  /** Cloze text — exactly one `{{…}}` span, the thing being tested. */
+  text: string;
+  translation: string | null;
+  note: string | null;
+};
+
+export type ReviewCard = WordCard | SentenceCard;
 
 /**
  * Button row order mirrors the swipe axes left→right: ← / ↓ / ↑ / →.
@@ -118,30 +143,67 @@ function CardFace({
   revealed: boolean;
   onReveal?: () => void;
 }) {
+  const cloze = card.kind === "sentence" ? parseCloze(card.text) : null;
+
   return (
     // The card containers carry the full-bleed cover gradient; this
-    // face only lays out ON it. Two FIXED zones as ever: the term never
-    // moves, and the answer fades in on a white sheet OVER the lower
-    // cover — revealing changes zero geometry. Colors are hardcoded
-    // light-on-tint / dark-on-white because the cover (like the
-    // library's) keeps its own colors in both themes.
+    // face only lays out ON it. Two FIXED zones as ever: the question
+    // never moves, and the answer fades in on a white sheet OVER the
+    // lower cover — revealing changes zero geometry. Colors are
+    // hardcoded light-on-tint / dark-on-white because the cover (like
+    // the library's) keeps its own colors in both themes.
     <>
       <div className="review-card-front relative flex h-[45%] shrink-0 flex-col items-center justify-end gap-1 px-6 pb-6 text-white">
         <span className="review-language-chip absolute top-4 left-4 rounded-full bg-white/15 px-2.5 py-0.5 text-[0.75rem] font-medium">
           {card.language}
         </span>
-        <p className="text-[2rem] font-semibold tracking-tight">{card.term}</p>
-        {card.reading && (
-          <p className="text-[1rem] text-white/75">{card.reading}</p>
+        {card.kind === "word" ? (
+          <>
+            <p className="text-[2rem] font-semibold tracking-tight">
+              {card.term}
+            </p>
+            {card.reading && (
+              <p className="text-[1rem] text-white/75">{card.reading}</p>
+            )}
+          </>
+        ) : (
+          // The sentence IS the question. Smaller type than a word card
+          // (there's more of it), and the blank stays the same width
+          // whether it's hidden or filled, so revealing doesn't reflow
+          // the sentence around it.
+          <p className="review-cloze text-[1.375rem] leading-snug font-medium text-balance">
+            {cloze ? (
+              <>
+                {cloze.before}
+                <span
+                  className={cn(
+                    "review-cloze-blank mx-0.5 inline-block rounded px-1.5",
+                    revealed
+                      ? "bg-white/90 text-neutral-900"
+                      : "bg-white/20 text-transparent",
+                  )}
+                >
+                  {cloze.answer}
+                </span>
+                {cloze.after}
+              </>
+            ) : (
+              card.text
+            )}
+          </p>
         )}
       </div>
       <div className="review-answer-zone min-h-0 flex-1 px-5 pt-1">
         {revealed && (
           <div className="review-answer animate-panel-in rounded-xl bg-white/95 px-4 py-4 text-neutral-900 shadow-sm">
-            <p className="text-[1.125rem]">{card.meaning ?? "—"}</p>
-            {card.example && (
+            <p className="text-[1.125rem]">
+              {card.kind === "word"
+                ? (card.meaning ?? "—")
+                : (card.translation ?? "—")}
+            </p>
+            {(card.kind === "word" ? card.example : card.note) && (
               <p className="mt-2 line-clamp-3 text-[0.9375rem] text-neutral-600 italic">
-                {card.example}
+                {card.kind === "word" ? card.example : card.note}
               </p>
             )}
           </div>
@@ -192,6 +254,7 @@ export function StudyReview({
   listId = null,
   packSlug = null,
   initialMode = "due",
+  deckKind = "word",
 }: {
   deck: ReviewCard[];
   /** Size of the SCOPE — the book, or the whole vocabulary. A practice
@@ -206,6 +269,10 @@ export function StudyReview({
    * there's no schedule to move. */
   packSlug?: string | null;
   initialMode?: "due" | "practice";
+  /** Which card type this session deals. Session-level, not read off
+   * the first card: an EMPTY sentence deck still has to offer sentence
+   * practice, not word practice. */
+  deckKind?: "word" | "sentence";
 }) {
   const [deck, setDeck] = React.useState(initialDeck);
   /** "due" grades for real (SM-2); "practice" is an Anki-style cram
@@ -251,9 +318,12 @@ export function StudyReview({
     // Practice rounds never persist (cram must not reschedule).
     if (mode === "due") {
       const cardId = card.id;
+      const cardKind = card.kind;
       startTransition(async () => {
         try {
-          await reviewStudyVocab(cardId, grade);
+          await (cardKind === "sentence"
+            ? reviewStudySentence(cardId, grade)
+            : reviewStudyVocab(cardId, grade));
         } catch (error) {
           console.error("study review: failed to save grade", error);
           setSaveError(true);
@@ -327,7 +397,16 @@ export function StudyReview({
     }
     startPractice(async () => {
       try {
-        const cards = await loadStudyPracticeDeck(listId);
+        const cards: ReviewCard[] =
+          deckKind === "sentence"
+            ? (await loadStudySentencePracticeDeck(listId)).map((row) => ({
+                ...row,
+                kind: "sentence" as const,
+              }))
+            : (await loadStudyPracticeDeck(listId)).map((row) => ({
+                ...row,
+                kind: "word" as const,
+              }));
         if (cards.length === 0) return;
         setMode("practice");
         setDeck(cards);
@@ -353,7 +432,9 @@ export function StudyReview({
         <p className="mt-1 text-[0.9375rem] text-fg-secondary">
           {totalWords > 0
             ? "Deal the deck again any time — practice rounds don't change your schedule."
-            : "Add new words as you chat and they'll show up here."}
+            : deckKind === "sentence"
+              ? "Make sentence cards from words you already have and they'll show up here."
+              : "Add new words as you chat and they'll show up here."}
         </p>
         {totalWords > 0 && (
           <button
@@ -370,9 +451,18 @@ export function StudyReview({
           <Link href="/chat" className="text-accent-text hover:underline">
             Back to chat
           </Link>
-          <Link href="/vocab" className="text-accent-text hover:underline">
-            My vocabulary
-          </Link>
+          {deckKind === "sentence" ? (
+            <Link
+              href="/sentences"
+              className="text-accent-text hover:underline"
+            >
+              My sentences
+            </Link>
+          ) : (
+            <Link href="/vocab" className="text-accent-text hover:underline">
+              My vocabulary
+            </Link>
+          )}
         </div>
       </div>
     );

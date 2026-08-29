@@ -800,6 +800,66 @@ export const studyVocabListItems = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// Sentence cards — a SECOND card type, not a second app.
+//
+// A word card asks "what does this mean". A sentence card asks whether you
+// can still supply the word when it's load-bearing inside real language —
+// which is the thing knowing a word actually means. Anki calls this a cloze
+// deletion; almost nobody writes them by hand, which is exactly why the
+// tutor generates them from words the learner already owns.
+//
+// Its own table, not a `kind` column on study_vocab: the two share a
+// scheduler (src/lib/srs.ts) and nothing else. A sentence has no reading, no
+// word class, no book membership rows, and its own text shape.
+// ---------------------------------------------------------------------------
+
+export const studySentences = pgTable(
+  "study_sentences",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    learnerId: uuid("learner_id")
+      .notNull()
+      .references(() => learners.id, { onDelete: "cascade" }),
+    language: text("language").notNull(),
+    /** The sentence, with EXACTLY ONE `{{…}}` span marking what's tested
+     * (Anki's own convention — human-editable, and a model can emit it
+     * reliably, which character offsets are not). */
+    text: text("text").notNull(),
+    /** What the whole sentence means — the context check's answer key. */
+    translation: text("translation"),
+    /** Optional grammar/usage aside shown with the answer. */
+    note: text("note"),
+    /** The word this was built around, when it came from one. SET NULL,
+     * not cascade: deleting a word must not silently destroy sentences
+     * the learner has been reviewing for weeks. */
+    vocabId: uuid("vocab_id").references(() => studyVocab.id, {
+      onDelete: "set null",
+    }),
+    /** The book it was generated from, so a book can have its own
+     * sentence deck. SET NULL for the same reason. */
+    listId: uuid("list_id").references(() => studyVocabLists.id, {
+      onDelete: "set null",
+    }),
+    status: vocabularyStatusEnum("status").notNull().default("new"),
+    srsReps: integer("srs_reps").notNull().default(0),
+    srsEaseFactor: real("srs_ease_factor").notNull().default(2.5),
+    srsIntervalDays: real("srs_interval_days").notNull().default(0),
+    srsDueAt: timestamp("srs_due_at", { withTimezone: true }),
+    lastReviewedAt: timestamp("last_reviewed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("study_sentences_learner_due_idx").on(t.learnerId, t.srsDueAt),
+    index("study_sentences_learner_list_idx").on(t.learnerId, t.listId),
+  ],
+);
+
+// ---------------------------------------------------------------------------
 // Curated packs — product-shipped, read-only vocab collections ("Persona 5
 // kanji", "Anime essentials"). No learner FK: global content, seeded by
 // scripts/seed-packs.ts from src/content/study-packs.ts. Learners copy
@@ -898,6 +958,7 @@ export type StudyMessage = typeof studyMessages.$inferSelect;
 export type StudyVocabItem = typeof studyVocab.$inferSelect;
 export type StudyVocabList = typeof studyVocabLists.$inferSelect;
 export type StudyVocabListItem = typeof studyVocabListItems.$inferSelect;
+export type StudySentence = typeof studySentences.$inferSelect;
 export type VocabularyBook = typeof vocabularyBooks.$inferSelect;
 export type StudyPack = typeof studyPacks.$inferSelect;
 export type StudyPackItem = typeof studyPackItems.$inferSelect;
