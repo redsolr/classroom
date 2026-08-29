@@ -8,7 +8,7 @@
     "predev:mock": "node scripts/ensure-dev-port.mjs",
     "dev:mock": "cross-env MOCK_AUTH=true NODE_OPTIONS=--max-http-header-size=65536 next dev --turbopack -p 3020",
     "build": "next build",
-    "vercel-build": "node scripts/migrate-deploy.mjs && next build",
+    "vercel-build": "node scripts/migrate-deploy.mjs && npx tsx scripts/seed-packs.ts && next build",
     "start": "next start -p 3020",
     "lint": "eslint src --cache --cache-location node_modules/.cache/eslint/ --cache-strategy content",
     "lint:fix": "eslint src --fix --cache --cache-location node_modules/.cache/eslint/ --cache-strategy content",

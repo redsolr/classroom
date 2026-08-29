@@ -6,6 +6,13 @@
  *
  *   npm run db:seed:packs                              → local DB
  *   $env:DATABASE_URL="postgres://…"; npx tsx scripts/seed-packs.ts
+ *
+ * ALSO RUNS ON EVERY DEPLOY (`vercel-build`, right after migrations).
+ * Official books are shipped CONTENT, checked in like schema, so they
+ * travel with the deploy instead of waiting on someone to remember a
+ * manual seed per environment — the same reason migrations run there.
+ * Safe to repeat: it upserts by slug and touches only the global pack
+ * tables, never a learner's own rows.
  */
 import { eq } from "drizzle-orm";
 import { db, studyPackItems, studyPacks } from "../src/db";

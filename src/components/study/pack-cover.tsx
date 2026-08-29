@@ -89,6 +89,13 @@ function packArt(slug: string, name: string): PackArt {
   };
 }
 
+/** A book's two gradient hues — the one thing every surface wearing its
+ * colours must agree on. Lightness is chosen per surface below. */
+function packHues(slug: string, name: string): { hue: number; dark: number } {
+  const { hue, hue2 } = packArt(slug, name);
+  return { hue, dark: hue2 ?? (hue + 38) % 360 };
+}
+
 export function PackCover({
   slug,
   name,
@@ -100,8 +107,8 @@ export function PackCover({
   language: string;
   className?: string;
 }) {
-  const { glyph, vertical, hue, hue2 } = packArt(slug, name);
-  const dark = hue2 ?? (hue + 38) % 360;
+  const { glyph, vertical } = packArt(slug, name);
+  const { hue, dark } = packHues(slug, name);
 
   return (
     <div

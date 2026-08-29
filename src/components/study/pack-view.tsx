@@ -249,12 +249,16 @@ export function PackView({
           Save as my book
         </Button>
         {/* The other door onto the same catalog: drill it now, decide
-            later whether it's worth keeping. */}
+            later whether it's worth keeping.
+            ONE colour on every book, not the book's own cover gradient —
+            a tint that changed per page made the toolbar feel unstable,
+            and an action this reusable should look like itself
+            everywhere. */}
         <Link
           href={`/vocab/review?pack=${pack.slug}`}
-          className="inline-flex h-9 items-center gap-2 rounded-md bg-surface px-3.5 text-[0.9375rem] font-medium shadow-card transition-colors hover:bg-surface-hover"
+          className="inline-flex h-9 items-center gap-2 rounded-md bg-practice px-3.5 text-[0.9375rem] font-medium text-white shadow-sm transition-colors hover:bg-practice-hover"
         >
-          <Zap className="size-3.5 text-fg-tertiary" />
+          <Zap className="size-3.5" />
           Practice as a deck
         </Link>
         <span className="text-[0.875rem] text-fg-tertiary">
