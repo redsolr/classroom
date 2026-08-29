@@ -94,6 +94,7 @@
 
 - Real-auth login-flow specs need a healthy network (WorkOS connect timeouts on 2026-08-12); founder phone run + 2–3-week eval pending; rotate pasted keys (OpenAI, WorkOS sk_test, VERCEL_TOKEN) + OpenAI budget cap; Stripe test-checkout loop unexercised
 - Teacher queue (build on demand): at-risk signals, recurring weekly slots, teacher-AI prep briefing, evidence-phrased progress reports
+- **Live collaboration — nothing built** (no WebSocket, no Durable Object, no polling). Two candidate shapes, and the choice between them is still open: copy CRM's self-hosted Cloudflare DO worker (`crm/realtime/` — presence + cursors + invalidate fan-out, hibernation so idle rooms cost nothing) versus the rift polling-ledger shape the deferred row currently names. Write-up, porting checklist and the trade-off table: [`docs/realtime-collab.md`](docs/realtime-collab.md). **Do NOT wire classroom to the platform's `/collaboration`** — it needs an always-on NestJS process, and it would break one-app-one-repo by creating the second consumer that doctrine says is the only reason to split a backend out.
 
 ## Cut / rejected on purpose (don't re-propose)
 
