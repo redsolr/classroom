@@ -107,3 +107,58 @@ test("PWA manifest and icons serve", async ({ page }) => {
     expect(res.status(), icon).toBe(200);
   }
 });
+
+test("the bottom quick-access bar navigates without opening the drawer", async ({
+  page,
+}) => {
+  await page.goto("/chat");
+  const tabbar = page.locator(".mobile-tabbar");
+  await expect(tabbar).toBeVisible();
+
+  // Clickability, not visibility: a fixed bar is exactly the chrome that
+  // renders fine and still can't be tapped (covered, off-screen, or
+  // behind the composer).
+  await tabbar.getByRole("link", { name: "Decks" }).click();
+  await page.waitForURL("**/vocab/review");
+  await expect(page.getByRole("heading", { name: "Decks" })).toBeVisible();
+  // The active tab says where you are.
+  await expect(tabbar.getByRole("link", { name: "Decks" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  // Longest-match wins: /vocab/review must NOT also light up Books.
+  await expect(
+    tabbar.getByRole("link", { name: "Books" }),
+  ).not.toHaveAttribute("aria-current", "page");
+
+  await tabbar.getByRole("link", { name: "Books" }).click();
+  await page.waitForURL("**/vocab");
+  await tabbar.getByRole("link", { name: "Official" }).click();
+  await page.waitForURL("**/packs");
+  await expect(
+    page.getByRole("heading", { name: "Official books" }),
+  ).toBeVisible();
+
+  // The drawer was never involved.
+  await expect(page.getByRole("button", { name: "Close menu" })).toBeHidden();
+});
+
+test("the bar never covers the chat composer or the Ask button", async ({
+  page,
+}) => {
+  // Measured rects, not eyeballed classes: a fixed bar is exactly the
+  // chrome that looks right and still lands on top of something.
+  await page.goto("/chat");
+  const chatBar = await page.locator(".mobile-tabbar").boundingBox();
+  const composer = await page.getByLabel("Message").boundingBox();
+  if (!chatBar || !composer) throw new Error("chat chrome not measurable");
+  expect(composer.y + composer.height).toBeLessThanOrEqual(chatBar.y + 1);
+
+  // The Ask launcher deliberately doesn't render on /chat (that page IS
+  // a chat), so it gets measured where it does exist.
+  await page.goto("/vocab");
+  const bar = await page.locator(".mobile-tabbar").boundingBox();
+  const ask = await page.getByRole("button", { name: "Ask AI" }).boundingBox();
+  if (!bar || !ask) throw new Error("study chrome not measurable");
+  expect(ask.y + ask.height).toBeLessThanOrEqual(bar.y + 1);
+});

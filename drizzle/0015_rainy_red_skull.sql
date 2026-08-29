@@ -1,0 +1,2 @@
+ALTER TABLE "study_vocab_lists" ADD COLUMN "is_default" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "study_vocab_lists_one_default_idx" ON "study_vocab_lists" USING btree ("learner_id") WHERE "study_vocab_lists"."is_default";

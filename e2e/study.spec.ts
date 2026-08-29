@@ -577,7 +577,7 @@ test("manual vocab add + SM-2 review session over the due deck", async ({
   ).toBeVisible();
 
   // Both saved words are due (never reviewed) — review the whole deck.
-  await page.goto("/vocab/review");
+  await page.goto("/vocab/review?book=all");
   await expect(page.getByText("Card 1 of 2")).toBeVisible();
   for (let i = 0; i < 2; i++) {
     await page.getByRole("button", { name: "Show answer" }).click();
@@ -871,13 +871,26 @@ test("curated packs: browse, add one word, import all as a personal list", async
   await page.getByRole("link", { name: /Café survival French/ }).click();
   await page.waitForURL("**/packs/cafe-french");
 
-  // One word first — the row flips to its "saved" state.
+  // One word first — the heart flips to its liked state, and back:
+  // liking is a TOGGLE, and a word with no progress and no book unlikes
+  // without a confirm.
   await page
-    .getByRole("button", { name: "Add commander to my vocabulary" })
+    .getByRole("button", { name: "Save commander to my vocabulary" })
     .click();
+  const commanderHeart = page.getByRole("button", {
+    name: "Remove commander from my vocabulary",
+  });
+  await expect(commanderHeart).toBeVisible();
+  await commanderHeart.click();
   await expect(
-    page.getByRole("button", { name: "commander is saved" }),
+    page.getByRole("button", { name: "Save commander to my vocabulary" }),
   ).toBeVisible();
+  // Like it again — the rest of the test needs it saved.
+  await page
+    .getByRole("button", { name: "Save commander to my vocabulary" })
+    .click();
+  await expect(commanderHeart).toBeVisible();
+
   await page.goto("/vocab?book=all");
   const main = page.getByRole("main");
   const table = main.locator("table");
@@ -1076,7 +1089,7 @@ test("review: swiping the revealed card right grades it Good, Tinder-style", asy
   await dialog.getByRole("button", { name: "Add word" }).click();
   await expect(dialog).not.toBeVisible();
 
-  await page.goto("/vocab/review");
+  await page.goto("/vocab/review?book=all");
   const progress = page.locator(".review-progress");
   await expect(progress).toHaveText(/Card 1 of \d+/);
   const total = Number((await progress.textContent())!.match(/of (\d+)/)![1]);
@@ -1115,7 +1128,7 @@ test("review: swiping the revealed card right grades it Good, Tinder-style", asy
 test("practice again: finishing the deck offers an SRS-neutral cram round", async ({
   page,
 }) => {
-  await page.goto("/vocab/review");
+  await page.goto("/vocab/review?book=all");
   const progress = page.locator(".review-progress");
 
   // Finish whatever the due deck holds (grade buttons don't require
@@ -1195,4 +1208,87 @@ test("account page: free plan, usage meter, billing-not-configured state", async
   // Models card names the roster.
   await expect(page.getByText("gpt-5.6-terra")).toBeVisible();
   await expect(page.getByText("gpt-5.6-sol")).toBeVisible();
+});
+
+test("decks: the shelf lists every deck, and opening one drills it", async ({
+  page,
+}) => {
+  // The drill surface LANDS on a shelf now — arriving straight on a card
+  // meant the app chose the deck and never showed you the others.
+  await page.goto("/vocab/review");
+  await expect(page.getByRole("heading", { name: "Decks" })).toBeVisible();
+
+  const shelf = page.locator(".deck-shelf");
+  // "All words" leads: it's the liked layer, every word regardless of book.
+  const allWords = shelf.getByRole("link", { name: /All words/ });
+  await expect(allWords).toBeVisible();
+  // Every book is its own deck — a book is a study unit, not a folder.
+  await expect(shelf.locator(".deck-row").nth(1)).toBeVisible();
+
+  // Pressing one opens the drill scoped to it — the card is a click
+  // away, not the landing.
+  await allWords.click();
+  await page.waitForURL(/\/vocab\/review\?book=all/);
+  await expect(
+    page.getByRole("heading", { name: /Deck — All words/ }),
+  ).toBeVisible();
+  // …and back out to the shelf.
+  await page.getByRole("link", { name: "All decks" }).click();
+  await page.waitForURL(/\/vocab\/review$/);
+  await expect(shelf).toBeVisible();
+});
+
+test("packs: the ⋯ menu files a word into books, toggling membership", async ({
+  page,
+}) => {
+  // Self-contained: this test builds the book it files into, so it can't
+  // inherit (or lose) another test's state.
+  await page.goto("/packs/gaming-japanese");
+  await page.getByRole("button", { name: "More actions for 勇者" }).click();
+  await page.getByRole("menuitem", { name: "New book…" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Book name").fill("Filing Test");
+  await dialog.getByRole("button", { name: "Create" }).click();
+  await expect(dialog).not.toBeVisible();
+  await expect(page.getByText("In Filing Test")).toBeVisible();
+
+  // Selecting the same book again TOGGLES it back out — one control
+  // both files and unfiles, and the ✓ says which state you're in.
+  await page.getByRole("button", { name: "More actions for 勇者" }).click();
+  await page.getByRole("menuitem", { name: "Filing Test" }).click();
+  await page.keyboard.press("Escape");
+  await expect(page.getByText("In Filing Test")).toBeHidden();
+  // The word itself survives being pulled out of a book.
+  await expect(
+    page.getByRole("button", { name: "Remove 勇者 from my vocabulary" }),
+  ).toBeVisible();
+});
+
+test("books: a default book is where a one-tap heart files words", async ({
+  page,
+}) => {
+  await page.goto("/vocab");
+  const shelf = page.locator(".books-shelf");
+  await shelf.getByRole("button", { name: "Filing Test options" }).click();
+  await page.getByRole("menuitem", { name: "Make default book" }).click();
+  await expect(shelf.getByText("Default")).toBeVisible();
+
+  // The heart now says where the word lands — and lands it there, in one
+  // tap, without opening the ⋯ menu at all.
+  await page.goto("/packs/gaming-japanese");
+  const heart = page.getByRole("button", {
+    name: "Save 魔王 to my vocabulary",
+  });
+  await expect(heart).toHaveAttribute(
+    "title",
+    "Save to my vocabulary and Filing Test",
+  );
+  await heart.click();
+  await expect(page.getByText("In Filing Test").first()).toBeVisible();
+
+  // Clearing it is the same control, inverted.
+  await page.goto("/vocab");
+  await shelf.getByRole("button", { name: "Filing Test options" }).click();
+  await page.getByRole("menuitem", { name: "Clear default book" }).click();
+  await expect(shelf.getByText("Default")).toBeHidden();
 });

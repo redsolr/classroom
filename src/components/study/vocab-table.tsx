@@ -58,6 +58,8 @@ export type VocabListSummary = {
   id: string;
   name: string;
   pinned: boolean;
+  /** The book one-tap saves file into, on top of joining the vocabulary. */
+  isDefault: boolean;
   itemIds: string[];
 };
 

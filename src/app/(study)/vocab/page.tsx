@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { asc, desc, eq, sql } from "drizzle-orm";
-import { BookOpenCheck, Layers } from "lucide-react";
+import { BookOpenCheck, Layers, Play } from "lucide-react";
 import {
   db,
   studyPackItems,
@@ -13,8 +13,14 @@ import {
 import { requireLearner } from "@/lib/auth";
 import { isCardDue } from "@/lib/srs";
 import { QuickAddVocabDialog } from "@/components/study/quick-add-vocab-dialog";
+import {
+  CollectionHero,
+  PlayAction,
+} from "@/components/study/collection-hero";
+import { Greeting } from "@/components/study/greeting";
 import { OfficialShelf } from "@/components/study/official-shelf";
 import { SectionTabs } from "@/components/study/section-tabs";
+import { BookTile, LikedCover } from "@/components/study/study-covers";
 import {
   VocabShelf,
   AddWordDialogButton,
@@ -48,6 +54,7 @@ export default async function StudyVocabPage({
         id: studyVocabLists.id,
         name: studyVocabLists.name,
         pinned: studyVocabLists.pinned,
+        isDefault: studyVocabLists.isDefault,
       })
       .from(studyVocabLists)
       .where(eq(studyVocabLists.learnerId, learner.id))
@@ -110,39 +117,50 @@ export default async function StudyVocabPage({
       isCardDue(item.srsDueAt, now),
     ).length;
 
+    const reviewHref = `/vocab/review?book=${activeBook?.id ?? "all"}`;
+
     return (
       <PageShell>
         <BackLink href="/vocab">My books</BackLink>
-        <PageHeader
+        {/* The playlist-page shape: art, an oversized title, and one
+            loud action. A book is a place you arrive at, not a filter
+            you applied. */}
+        <CollectionHero
+          hueSeed={activeBook ? activeBook.name : 262}
+          cover={
+            activeBook ? (
+              <BookTile name={activeBook.name} />
+            ) : (
+              <LikedCover />
+            )
+          }
+          eyebrow={activeBook ? "Book" : "Every word you've saved"}
           title={activeBook?.name ?? "All words"}
-          subtitle={`${visible.length} word${visible.length === 1 ? "" : "s"}`}
+          meta={
+            <>
+              {visible.length} word{visible.length === 1 ? "" : "s"}
+              {bookDueCount > 0 && ` · ${bookDueCount} due`}
+              {activeBook?.isDefault && " · default book"}
+            </>
+          }
           actions={
-            <div className="flex items-center gap-2">
-              {bookDueCount > 0 && (
-                <Link
-                  href={
-                    activeBook
-                      ? `/vocab/review?book=${activeBook.id}`
-                      : "/vocab/review"
-                  }
-                  className="inline-flex h-9 items-center gap-2 rounded-md bg-surface px-3.5 text-[0.9375rem] font-medium shadow-card transition-colors hover:bg-surface-hover"
-                >
-                  <BookOpenCheck className="size-4 text-fg-tertiary" />
-                  Review {bookDueCount} due
-                </Link>
-              )}
+            <>
+              <PlayAction href={reviewHref}>
+                <Play className="size-5 fill-current" />
+                {bookDueCount > 0 ? `Review ${bookDueCount}` : "Practice"}
+              </PlayAction>
               {activeBook ? (
                 <QuickAddVocabDialog
                   bookId={activeBook.id}
                   bookName={activeBook.name}
                   defaultLanguage={bookLanguage}
                 >
-                  <Button variant="primary">New word</Button>
+                  <Button>New word</Button>
                 </QuickAddVocabDialog>
               ) : (
                 <AddWordDialogButton />
               )}
-            </div>
+            </>
           }
         />
         <div className="max-w-4xl">
@@ -159,20 +177,30 @@ export default async function StudyVocabPage({
   }
 
   // ── Landing: the learner's bookshelf ──
+  // The greeting rides the SUBTITLE, not the title: the sidebar tab says
+  // "Books", so the heading has to as well (one word, one meaning). The
+  // "what should I do now" surface is Decks — this page is the library,
+  // and duplicating its rows as a shortcut grid above itself would just
+  // be the same links twice.
   return (
     <PageShell>
       <PageHeader
         icon={Layers}
         title="Books"
         subtitle={
-          items.length === 0
-            ? "Collections of words — yours to build, or start from an official one."
-            : `${items.length} word${items.length === 1 ? "" : "s"} across ${lists.length} book${lists.length === 1 ? "" : "s"}`
+          <>
+            <Greeting />
+            {items.length === 0
+              ? " — collections of words, yours to build or taken from an official one."
+              : dueCount > 0
+                ? ` — ${dueCount} card${dueCount === 1 ? "" : "s"} are ready for you.`
+                : ` — ${items.length} word${items.length === 1 ? "" : "s"} across ${lists.length} book${lists.length === 1 ? "" : "s"}, nothing due right now.`}
+          </>
         }
         actions={
           dueCount > 0 && (
             <Link
-              href="/vocab/review"
+              href="/vocab/review?book=all"
               className="inline-flex h-9 items-center gap-2 rounded-md bg-accent px-3.5 text-[0.9375rem] font-medium text-white shadow-sm transition-colors hover:bg-accent-hover"
             >
               <BookOpenCheck className="size-4" />

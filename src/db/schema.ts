@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   boolean,
   index,
@@ -757,6 +758,10 @@ export const studyVocabLists = pgTable(
     name: text("name").notNull(),
     /** Pinned books surface in the sidebar for one-tap open/quick-add. */
     pinned: boolean("pinned").notNull().default(false),
+    /** The book a one-tap save files into, on top of the word joining the
+     * vocabulary (the "liked" layer). At most one per learner — the
+     * partial unique index below is the enforcement, not app code. */
+    isDefault: boolean("is_default").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -764,7 +769,12 @@ export const studyVocabLists = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (t) => [index("study_vocab_lists_learner_id_idx").on(t.learnerId)],
+  (t) => [
+    index("study_vocab_lists_learner_id_idx").on(t.learnerId),
+    uniqueIndex("study_vocab_lists_one_default_idx")
+      .on(t.learnerId)
+      .where(sql`${t.isDefault}`),
+  ],
 );
 
 export const studyVocabListItems = pgTable(

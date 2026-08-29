@@ -106,7 +106,9 @@ export function AskDock({
         onClick={openDock}
         aria-label="Ask AI"
         title="Ask AI (Ctrl+J)"
-        className="fixed right-4 bottom-4 z-40 flex size-11 items-center justify-center rounded-full bg-accent text-white shadow-overlay transition-colors hover:bg-accent-hover lg:right-6 lg:bottom-6"
+        // Lifted clear of the phone quick-access bar (the var is 0 at
+        // lg, so the desktop offset is unchanged).
+        className="fixed right-4 bottom-[calc(1rem+var(--study-tabbar-h))] z-40 flex size-11 items-center justify-center rounded-full bg-accent text-white shadow-overlay transition-colors hover:bg-accent-hover lg:right-6 lg:bottom-6"
       >
         <Sparkles className="size-5" />
       </button>

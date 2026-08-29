@@ -46,6 +46,18 @@
   --viz-warning: var(--warning);
   --viz-accent: var(--accent);
   --viz-success: var(--success);
+  /* Height of the phone quick-access bar, PUBLISHED so the chat pane and
+   * the floating Ask button can size around it instead of each
+   * hard-coding a number that then drifts. Zero at lg, where the bar
+   * isn't rendered — one var means one class works on both sides of the
+   * breakpoint. */
+  --study-tabbar-h: calc(3.5rem + env(safe-area-inset-bottom, 0px));
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --study-tabbar-h: 0px;
+  }
 }
 
 /* Theme is attribute-driven (see src/lib/theme.ts): light is the DEFAULT —

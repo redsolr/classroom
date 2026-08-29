@@ -11,11 +11,7 @@ import {
 } from "@/db";
 import { requireLearner } from "@/lib/auth";
 import { PackView } from "@/components/study/pack-view";
-import {
-  BackLink,
-  PageHeader,
-  PageShell,
-} from "@/components/ui/page-header";
+import { BackLink, PageShell } from "@/components/ui/page-header";
 
 export const metadata: Metadata = { title: "Official book" };
 
@@ -42,7 +38,14 @@ export default async function StudyPackPage({
     // from one both need the learner's own vocab row, and the ✓ state is
     // keyed on the same lowercased term the add action dedups on.
     db
-      .select({ id: studyVocab.id, term: studyVocab.term })
+      .select({
+        id: studyVocab.id,
+        term: studyVocab.term,
+        // Un-hearting a word that carries review history costs
+        // something; the row has to know that before it can decide
+        // whether to ask first.
+        srsReps: studyVocab.srsReps,
+      })
       .from(studyVocab)
       .where(
         and(
@@ -51,7 +54,11 @@ export default async function StudyPackPage({
         ),
       ),
     db
-      .select({ id: studyVocabLists.id, name: studyVocabLists.name })
+      .select({
+        id: studyVocabLists.id,
+        name: studyVocabLists.name,
+        isDefault: studyVocabLists.isDefault,
+      })
       .from(studyVocabLists)
       .where(eq(studyVocabLists.learnerId, learner.id))
       .orderBy(asc(studyVocabLists.createdAt)),
@@ -75,6 +82,7 @@ export default async function StudyPackPage({
       row.term.toLowerCase(),
       {
         vocabId: row.id,
+        reviewed: row.srsReps > 0,
         bookIds: membershipRows
           .filter((m) => m.vocabId === row.id)
           .map((m) => m.listId),
@@ -85,23 +93,15 @@ export default async function StudyPackPage({
   return (
     <PageShell>
       <BackLink href="/packs">All official books</BackLink>
-      <PageHeader
-        title={pack.name}
-        subtitle={`${pack.language} · ${items.length} words`}
-      >
-        {pack.description && (
-          <p className="mt-2 text-[0.9375rem] leading-relaxed text-fg-secondary">
-            {pack.description}
-          </p>
-        )}
-      </PageHeader>
-
+      {/* The title lives in PackView's hero — the copy actions belong
+          with the art, and two headers on one page is one too many. */}
       <div className="max-w-3xl">
         <PackView
           pack={pack}
           items={items}
           initialSaved={savedByTerm}
           books={bookRows}
+          defaultBookName={bookRows.find((b) => b.isDefault)?.name ?? null}
         />
       </div>
     </PageShell>

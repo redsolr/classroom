@@ -86,16 +86,22 @@ export function StudyVocabSkeleton() {
   );
 }
 
-/** /vocab/review — heading + the flashcard. */
+/** /vocab/review — heading + the deck shelf. The route's landing is the
+ * shelf now; the drill is one click deeper and shares this segment, so
+ * the rows are the shape worth matching. */
 export function StudyReviewSkeleton() {
   return (
     <div
       aria-hidden
-      className="mx-auto w-full max-w-xl animate-pulse px-4 py-8 sm:px-6"
+      className="mx-auto w-full max-w-3xl animate-pulse px-4 py-8 sm:px-6"
     >
-      <Bone className="mb-5 h-8 w-32" />
-      <Bone className="mb-3 h-4 w-28" />
-      <Bone className="h-56 rounded-lg" />
+      <Bone className="mb-2 h-8 w-32" />
+      <Bone className="mb-6 h-4 w-56" />
+      <div className="space-y-2">
+        <Bone className="h-20 rounded-lg" />
+        <Bone className="h-20 rounded-lg" />
+        <Bone className="h-20 rounded-lg" />
+      </div>
     </div>
   );
 }

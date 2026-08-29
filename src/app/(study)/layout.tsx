@@ -2,6 +2,7 @@ import { requireLearner, resolveAccount } from "@/lib/auth";
 import { STUDY_MODEL, STUDY_MODEL_ROSTER } from "@/lib/ai/study-tutor";
 import { getSidebarStudy } from "@/lib/study-sidebar";
 import { AskDock } from "@/components/study/ask-dock";
+import { MobileTabbar } from "@/components/shell/mobile-tabbar";
 import { Sidebar } from "@/components/shell/sidebar";
 import { StudentSidebar } from "@/components/shell/student-sidebar";
 
@@ -42,9 +43,15 @@ export default async function StudyLayout({
           study={study}
         />
       )}
-      <main className="min-w-0 flex-1">{children}</main>
+      {/* Padded so the fixed phone tab bar never covers the last row of
+          a page; the var is 0 at lg, where there is no bar. */}
+      <main className="min-w-0 flex-1 pb-[var(--study-tabbar-h)]">
+        {children}
+      </main>
       {/* The CRM-style Ask drawer — available on every study page. */}
       <AskDock models={STUDY_MODEL_ROSTER} defaultModel={STUDY_MODEL} />
+      {/* Phone-only quick access: chat, books, decks, official. */}
+      <MobileTabbar />
     </div>
   );
 }

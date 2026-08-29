@@ -3,15 +3,11 @@
 import * as React from "react";
 import Link from "next/link";
 import {
-  BookPlus,
-  Check,
   Download,
-  ListPlus,
+  Heart,
   MoreHorizontal,
-  Plus,
+  Play,
   Trash2,
-  X,
-  Zap,
 } from "lucide-react";
 import type { StudyPack, StudyPackItem } from "@/db";
 import {
@@ -30,17 +26,29 @@ import {
   DropdownSeparator,
   DropdownTrigger,
 } from "@/components/ui/dropdown";
+import { AddToBookMenu } from "@/components/study/add-to-book-menu";
+import {
+  CollectionHero,
+  PlayAction,
+} from "@/components/study/collection-hero";
+import { PackCover } from "@/components/study/pack-cover";
 
 /** What the learner already owns for a pack term: their own vocab row,
- * and which books it's filed in. */
-export type SavedEntry = { vocabId: string; bookIds: string[] };
+ * which books it's filed in, and whether it carries review history —
+ * the last one decides whether un-hearting needs a confirmation. */
+export type SavedEntry = {
+  vocabId: string;
+  bookIds: string[];
+  reviewed: boolean;
+};
 export type PackBook = { id: string; name: string };
 
 /**
- * An OFFICIAL BOOK's word list, with the full set of copy affordances:
+ * An OFFICIAL BOOK's word list, with the copy affordances a music
+ * library taught everyone to expect:
  *
- *   "+"               — add the word to your vocabulary
- *   "⋯"               — file it into a book of yours, or pull it out
+ *   ♥                 — the word is in your vocabulary. Tap to toggle.
+ *   "⋯ → Add to book" — file it into any of your books (✓ = it's there)
  *   "Save as my book" — copy every missing word AND save this as a book
  *   "Practice"        — drill it as a deck, saving nothing
  *
@@ -48,23 +56,26 @@ export type PackBook = { id: string; name: string };
  * the same rows whether you copy it or drill it, so it never has to
  * exist twice.
  *
- * Already-saved words render as ✓, so an official book doubles as a
- * coverage view of your own vocabulary. That ✓ is keyed on term +
- * language across ALL your words, not on "added from this book" — which
- * is why removing from a book and removing from your vocabulary stay
- * deliberately separate: a word showing ✓ may have been added elsewhere
- * and carry review history worth protecting.
+ * The heart means "in your vocabulary" — the liked layer — keyed on term
+ * + language across ALL your words, not on "added from this book". That
+ * is why un-hearting a word that carries review history or book
+ * membership asks first: the ♥ you're clearing may be something you
+ * built elsewhere. A word with neither just goes, no dialog — a like you
+ * can't undo cheaply isn't a like.
  */
 export function PackView({
   pack,
   items,
   initialSaved,
   books: initialBooks,
+  defaultBookName,
 }: {
   pack: StudyPack;
   items: StudyPackItem[];
   initialSaved: Record<string, SavedEntry>;
   books: PackBook[];
+  /** The learner's default book — a one-tap heart files here too. */
+  defaultBookName: string | null;
 }) {
   const [saved, setSaved] =
     React.useState<Record<string, SavedEntry>>(initialSaved);
@@ -86,11 +97,7 @@ export function PackView({
 
   /** Every row mutation funnels through here so busy state and error
    * reporting can't drift between the six call sites. */
-  const run = (
-    item: StudyPackItem,
-    op: () => Promise<void>,
-    what: string,
-  ) => {
+  const run = (item: StudyPackItem, op: () => Promise<void>, what: string) => {
     setError(null);
     setBusyId(item.id);
     startAdd(async () => {
@@ -109,16 +116,25 @@ export function PackView({
     run(
       item,
       async () => {
+        // No target = the action files it into the default book too,
+        // if the learner has set one.
         const result = await addStudyPackItem(item.id);
-        setSaved((prev) => ({
-          ...prev,
-          [key(item)]: {
-            vocabId: result.vocabId,
-            bookIds: prev[key(item)]?.bookIds ?? [],
-          },
-        }));
+        setSaved((prev) => {
+          const bookIds = prev[key(item)]?.bookIds ?? [];
+          return {
+            ...prev,
+            [key(item)]: {
+              vocabId: result.vocabId,
+              reviewed: prev[key(item)]?.reviewed ?? false,
+              bookIds:
+                result.listId && !bookIds.includes(result.listId)
+                  ? [...bookIds, result.listId]
+                  : bookIds,
+            },
+          };
+        });
       },
-      "add",
+      "save",
     );
 
   const addToBook = (item: StudyPackItem, listId: string) =>
@@ -133,9 +149,8 @@ export function PackView({
             ...prev,
             [key(item)]: {
               vocabId: result.vocabId,
-              bookIds: bookIds.includes(listId)
-                ? bookIds
-                : [...bookIds, listId],
+              reviewed: existing?.reviewed ?? false,
+              bookIds: bookIds.includes(listId) ? bookIds : [...bookIds, listId],
             },
           };
         });
@@ -155,6 +170,7 @@ export function PackView({
             ...prev,
             [key(item)]: {
               vocabId: result.vocabId,
+              reviewed: prev[key(item)]?.reviewed ?? false,
               bookIds: [...(prev[key(item)]?.bookIds ?? []), created.id],
             },
           }));
@@ -203,6 +219,29 @@ export function PackView({
     );
   };
 
+  /**
+   * Un-hearting. Cheap when there's nothing to lose, guarded when there
+   * is: a word that carries review progress or sits in books may have
+   * arrived from somewhere else entirely.
+   */
+  const unsave = (item: StudyPackItem) => {
+    const entry = saved[key(item)];
+    if (!entry) return;
+    const stakes = [
+      entry.reviewed && "its review progress",
+      entry.bookIds.length > 0 &&
+        `${entry.bookIds.length} book${entry.bookIds.length === 1 ? "" : "s"}`,
+    ].filter(Boolean);
+    if (
+      stakes.length > 0 &&
+      !window.confirm(
+        `Remove “${item.term}” from your vocabulary? You also lose ${stakes.join(" and ")}.`,
+      )
+    )
+      return;
+    removeFromVocabulary(item);
+  };
+
   const importAll = () => {
     setError(null);
     startImport(async () => {
@@ -219,12 +258,11 @@ export function PackView({
         );
         setSaved((prev) => {
           const next = { ...prev };
-          for (const [term, vocabId] of Object.entries(
-            result.vocabIdsByTerm,
-          )) {
+          for (const [term, vocabId] of Object.entries(result.vocabIdsByTerm)) {
             const bookIds = next[term]?.bookIds ?? [];
             next[term] = {
               vocabId,
+              reviewed: next[term]?.reviewed ?? false,
               bookIds: bookIds.includes(result.listId)
                 ? bookIds
                 : [...bookIds, result.listId],
@@ -243,28 +281,37 @@ export function PackView({
 
   return (
     <div>
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <Button variant="primary" loading={importing} onClick={importAll}>
-          <Download className="size-3.5" />
-          Save as my book
-        </Button>
-        {/* The other door onto the same catalog: drill it now, decide
-            later whether it's worth keeping.
-            ONE colour on every book, not the book's own cover gradient —
-            a tint that changed per page made the toolbar feel unstable,
-            and an action this reusable should look like itself
-            everywhere. */}
-        <Link
-          href={`/vocab/review?pack=${pack.slug}`}
-          className="inline-flex h-9 items-center gap-2 rounded-md bg-practice px-3.5 text-[0.9375rem] font-medium text-white shadow-sm transition-colors hover:bg-practice-hover"
-        >
-          <Zap className="size-3.5" />
-          Practice as a deck
-        </Link>
-        <span className="text-[0.875rem] text-fg-tertiary">
-          {savedCount} of {items.length} already saved
-        </span>
-      </div>
+      <CollectionHero
+        hueSeed={pack.name}
+        cover={
+          <PackCover
+            slug={pack.slug}
+            name={pack.name}
+            language={pack.language}
+          />
+        }
+        eyebrow="Official book"
+        title={pack.name}
+        meta={
+          <>
+            {pack.language} · {items.length} words · {savedCount} saved
+          </>
+        }
+        description={pack.description}
+        actions={
+          <>
+            {/* Drill it now, decide later whether it's worth keeping. */}
+            <PlayAction href={`/vocab/review?pack=${pack.slug}`}>
+              <Play className="size-5 fill-current" />
+              Practice
+            </PlayAction>
+            <Button loading={importing} onClick={importAll}>
+              <Download className="size-3.5" />
+              Save as my book
+            </Button>
+          </>
+        }
+      />
 
       {imported && (
         <p className="mb-4 rounded-md bg-accent-soft px-3 py-2.5 text-[0.875rem] text-accent-text">
@@ -285,16 +332,16 @@ export function PackView({
         </p>
       )}
 
-      <ul className="divide-y divide-border rounded-xl bg-surface shadow-card">
+      <ul className="pack-words divide-y divide-border overflow-hidden rounded-xl bg-surface shadow-card">
         {items.map((item) => {
           const entry = saved[key(item)];
           const isSaved = !!entry;
           const inBooks = books.filter((b) => entry?.bookIds.includes(b.id));
-          const notInBooks = books.filter(
-            (b) => !entry?.bookIds.includes(b.id),
-          );
           return (
-            <li key={item.id} className="flex items-center gap-3 px-4 py-2.5">
+            <li
+              key={item.id}
+              className="pack-word flex items-center gap-3 px-4 py-2.5"
+            >
               <div className="min-w-0 flex-1">
                 <p className="text-[0.9375rem]">
                   <span className="font-semibold">{item.term}</span>
@@ -329,25 +376,28 @@ export function PackView({
 
               <button
                 type="button"
-                onClick={() => !isSaved && addToVocabulary(item)}
-                disabled={isSaved || busyId === item.id}
+                onClick={() => (isSaved ? unsave(item) : addToVocabulary(item))}
+                disabled={busyId === item.id}
                 aria-label={
                   isSaved
-                    ? `${item.term} is saved`
-                    : `Add ${item.term} to my vocabulary`
+                    ? `Remove ${item.term} from my vocabulary`
+                    : `Save ${item.term} to my vocabulary`
                 }
-                title={isSaved ? "Saved" : "Add to my vocabulary"}
+                aria-pressed={isSaved}
+                title={
+                  isSaved
+                    ? "In your vocabulary"
+                    : defaultBookName
+                      ? `Save to my vocabulary and ${defaultBookName}`
+                      : "Save to my vocabulary"
+                }
                 className={
                   isSaved
-                    ? "flex size-7 shrink-0 items-center justify-center rounded-md text-accent-text"
-                    : "flex size-7 shrink-0 items-center justify-center rounded-md text-fg-tertiary transition-colors hover:bg-surface-hover hover:text-fg"
+                    ? "pack-word-like flex size-8 shrink-0 items-center justify-center rounded-md text-accent-text transition-transform hover:scale-110"
+                    : "pack-word-like flex size-8 shrink-0 items-center justify-center rounded-md text-fg-tertiary transition-all hover:scale-110 hover:text-fg"
                 }
               >
-                {isSaved ? (
-                  <Check className="size-4" />
-                ) : (
-                  <Plus className="size-4" />
-                )}
+                <Heart className={isSaved ? "size-4 fill-current" : "size-4"} />
               </button>
 
               <Dropdown>
@@ -362,47 +412,21 @@ export function PackView({
                   </button>
                 </DropdownTrigger>
                 <DropdownContent>
-                  {notInBooks.map((book) => (
-                    <DropdownItem
-                      key={book.id}
-                      onSelect={() => addToBook(item, book.id)}
-                    >
-                      <ListPlus className="size-4 text-fg-tertiary" />
-                      Add to {book.name}
-                    </DropdownItem>
-                  ))}
-                  <DropdownItem onSelect={() => setNewBookFor(item)}>
-                    <BookPlus className="size-4 text-fg-tertiary" />
-                    New book…
-                  </DropdownItem>
-                  {inBooks.length > 0 && <DropdownSeparator />}
-                  {inBooks.map((book) => (
-                    <DropdownItem
-                      key={book.id}
-                      onSelect={() => removeFromBook(item, book.id)}
-                    >
-                      <X className="size-4 text-fg-tertiary" />
-                      Remove from {book.name}
-                    </DropdownItem>
-                  ))}
+                  <AddToBookMenu
+                    books={books}
+                    inBookIds={entry?.bookIds ?? []}
+                    disabled={busyId === item.id}
+                    onToggle={(bookId, isIn) =>
+                      isIn ? removeFromBook(item, bookId) : addToBook(item, bookId)
+                    }
+                    onCreate={() => setNewBookFor(item)}
+                  />
                   {isSaved && (
                     <>
                       <DropdownSeparator />
                       <DropdownItem
                         className="text-danger"
-                        onSelect={() => {
-                          // The ✓ means "this term is in your
-                          // vocabulary", not "you added it here" — so
-                          // say what's actually at stake before nuking
-                          // a row that may carry review history.
-                          if (
-                            !window.confirm(
-                              `Remove “${item.term}” from your vocabulary? This also drops its review progress and takes it out of every book.`,
-                            )
-                          )
-                            return;
-                          removeFromVocabulary(item);
-                        }}
+                        onSelect={() => unsave(item)}
                       >
                         <Trash2 className="size-4" />
                         Remove from my vocabulary
@@ -428,9 +452,7 @@ export function PackView({
             onSubmit={(event) => {
               event.preventDefault();
               const form = event.currentTarget;
-              const name = String(
-                new FormData(form).get("name") ?? "",
-              ).trim();
+              const name = String(new FormData(form).get("name") ?? "").trim();
               const item = newBookFor;
               if (!name || !item) return;
               setNewBookFor(null);

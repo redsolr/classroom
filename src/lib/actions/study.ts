@@ -893,6 +893,46 @@ export async function toggleStudyVocabListPin(listId: string) {
   revalidatePath("/vocab");
 }
 
+/**
+ * The DEFAULT book — where a one-tap save files the word, on top of it
+ * joining the vocabulary. Spotify's shape: the heart is the library, the
+ * default book is the playlist you're currently building, so collecting
+ * from an official book is one tap instead of two.
+ *
+ * Clearing first then setting is what keeps the partial unique index
+ * (`study_vocab_lists_one_default_idx`) satisfiable — the DB, not this
+ * function, is what guarantees a learner never ends up with two.
+ */
+export async function setDefaultStudyVocabList(
+  listId: string,
+  isDefault: boolean,
+) {
+  const learner = await requireLearner();
+  const list = await requireOwnList(learner.id, listId);
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(studyVocabLists)
+      .set({ isDefault: false, updatedAt: new Date() })
+      .where(
+        and(
+          eq(studyVocabLists.learnerId, learner.id),
+          eq(studyVocabLists.isDefault, true),
+        ),
+      );
+    if (isDefault) {
+      await tx
+        .update(studyVocabLists)
+        .set({ isDefault: true, updatedAt: new Date() })
+        .where(eq(studyVocabLists.id, list.id));
+    }
+  });
+
+  revalidateStudyTree();
+  revalidatePath("/vocab");
+  revalidatePath("/packs");
+}
+
 const bookWordSchema = z.object({
   language: languageSchema,
   term: z.string().trim().min(1).max(200),
@@ -1123,6 +1163,19 @@ export async function addStudyPackItem(
 
   let listId: string | null = null;
   let listName: string | null = null;
+  // No explicit target = the one-tap save. It always joins the
+  // vocabulary; it ALSO files into the learner's default book when they
+  // have set one, which is the whole point of having a default.
+  if (target === undefined) {
+    const fallback = await db.query.studyVocabLists.findFirst({
+      where: and(
+        eq(studyVocabLists.learnerId, learner.id),
+        eq(studyVocabLists.isDefault, true),
+      ),
+      columns: { id: true, name: true },
+    });
+    if (fallback) target = { listId: fallback.id };
+  }
   if (target?.newListName !== undefined) {
     const name = z.string().trim().min(1).max(120).parse(target.newListName);
     const [list] = await db

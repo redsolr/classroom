@@ -82,7 +82,10 @@ export default async function StudyChatPage({
   return (
     // Chrome (header, scroll region, composer) spans the full pane —
     // the readable column is capped INSIDE StudyChat, ChatGPT-style.
-    <div className="flex h-[calc(100dvh-3rem)] w-full flex-col lg:h-dvh">
+    // The pane is the viewport minus the phone navbar (3rem) and the
+    // quick-access bar; both terms go to zero at lg, so one expression
+    // covers phone and desktop.
+    <div className="flex h-[calc(100dvh-3rem-var(--study-tabbar-h))] w-full flex-col lg:h-dvh">
       {active ? (
         <>
           {/* Desktop-only chrome — on phones the navbar stays the single

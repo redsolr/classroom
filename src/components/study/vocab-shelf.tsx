@@ -4,14 +4,14 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  BookMarked,
-  Layers,
   MoreHorizontal,
   Pencil,
   Pin,
   PinOff,
   Plus,
   Sparkles,
+  Star,
+  StarOff,
   Trash2,
 } from "lucide-react";
 import {
@@ -19,6 +19,7 @@ import {
   createStudyVocabList,
   deleteStudyVocabList,
   renameStudyVocabList,
+  setDefaultStudyVocabList,
   toggleStudyVocabListPin,
 } from "@/lib/actions/study";
 import { Button } from "@/components/ui/button";
@@ -33,6 +34,7 @@ import {
 import { Input } from "@/components/ui/field";
 import { InlineRenameInput } from "@/components/ui/inline-rename-input";
 import { WordFormDialog } from "@/components/study/word-form-dialog";
+import { BookTile, LikedCover } from "@/components/study/study-covers";
 import type { VocabListSummary } from "@/components/study/vocab-table";
 
 /**
@@ -120,8 +122,8 @@ function BookRow({ list }: { list: VocabListSummary }) {
   };
 
   return (
-    <li className="group flex items-center gap-3 px-4 py-3 transition-colors hover:bg-surface-hover">
-      <BookMarked className="size-4 shrink-0 text-accent" />
+    <li className="book-row group flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-surface-hover sm:px-4">
+      <BookTile name={list.name} className="w-11 shrink-0" />
       {renaming ? (
         <InlineRenameInput
           initialValue={list.name}
@@ -143,6 +145,11 @@ function BookRow({ list }: { list: VocabListSummary }) {
           </span>
           <span className="text-[0.8125rem] text-fg-tertiary">
             {list.itemIds.length} word{list.itemIds.length === 1 ? "" : "s"}
+            {list.isDefault && (
+              <span className="ml-2 rounded-full bg-accent-soft px-1.5 py-0.5 text-[0.6875rem] font-semibold text-accent-text">
+                Default
+              </span>
+            )}
           </span>
         </Link>
       )}
@@ -157,7 +164,30 @@ function BookRow({ list }: { list: VocabListSummary }) {
             <MoreHorizontal className="size-4" />
           </button>
         </DropdownTrigger>
-        <DropdownContent align="start" className="w-52">
+        <DropdownContent align="start" className="w-56">
+          {/* The default book is where a one-tap save lands — the
+              "playlist I'm currently building". One per learner, so
+              choosing a new one silently clears the old. */}
+          <DropdownItem
+            disabled={pending}
+            onSelect={() => {
+              startTransition(async () => {
+                try {
+                  await setDefaultStudyVocabList(list.id, !list.isDefault);
+                  router.refresh();
+                } catch (err) {
+                  console.error("vocab: failed to set default book", err);
+                }
+              });
+            }}
+          >
+            {list.isDefault ? (
+              <StarOff className="size-4 text-fg-tertiary" />
+            ) : (
+              <Star className="size-4 text-fg-tertiary" />
+            )}
+            {list.isDefault ? "Clear default book" : "Make default book"}
+          </DropdownItem>
           <DropdownItem
             disabled={pending}
             onSelect={() => {
@@ -236,13 +266,15 @@ export function VocabShelf({
           with the SAME title (saving an official book names your copy
           after it), so "the learner's OWN books" has to be addressable
           on its own. */}
-      <ul className="books-shelf divide-y divide-border rounded-xl bg-surface shadow-card">
+      <ul className="books-shelf divide-y divide-border overflow-hidden rounded-xl bg-surface shadow-card">
+        {/* Your vocabulary IS the liked layer — a word is in it or it
+            isn't — so it wears the liked tile, not a book cover. */}
         <li className="transition-colors hover:bg-surface-hover">
           <Link
             href="/vocab?book=all"
-            className="flex items-center gap-3 px-4 py-3"
+            className="flex items-center gap-3 px-3 py-2.5 sm:px-4"
           >
-            <Layers className="size-4 shrink-0 text-fg-tertiary" />
+            <LikedCover className="w-11 shrink-0" />
             <span className="min-w-0 flex-1">
               <span className="block text-[0.9375rem] font-medium">
                 All words
