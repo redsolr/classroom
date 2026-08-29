@@ -554,7 +554,7 @@ export const learners = pgTable(
 // pieces count), holding a short summary + their atomic NOTES (below).
 // Not the vocab "books" (study_vocab_lists): this is the general-learning
 // shelf — what I read, what I took from it, discussable in a chat.
-// Covers are generated from the title (src/lib/library-cover.ts) — no
+// Covers are generated from the title (src/lib/reading-cover.ts) — no
 // stored artwork.
 // ---------------------------------------------------------------------------
 

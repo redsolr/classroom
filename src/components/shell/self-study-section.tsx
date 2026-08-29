@@ -7,6 +7,7 @@ import {
   BookMarked,
   BookOpenCheck,
   Folder,
+  House,
   Layers,
   LibraryBig,
   MessageCircle,
@@ -86,8 +87,8 @@ import { cn } from "@/lib/utils";
  * it was a third synonym for Vocabulary / All words.
  */
 const PRIMARY_ITEMS = [
-  { href: "/vocab", label: "Books", icon: Layers, exact: true },
-  { href: "/vocab/review", label: "Decks", icon: BookOpenCheck, exact: false },
+  { href: "/books", label: "Books", icon: Layers, exact: true },
+  { href: "/decks", label: "Decks", icon: BookOpenCheck, exact: false },
   // The SECOND card type gets its own row, not a filter inside Decks:
   // "what does this word mean" and "can I still supply it when a
   // sentence needs it" are different sessions, and the learner chooses
@@ -101,11 +102,11 @@ const PRIMARY_ITEMS = [
   // ONE row, not an expanded list of every title: the covers do the
   // selling on the Books page itself, and nine text rows here would just
   // compete with the learner's own books for attention.
-  { href: "/packs", label: "Official", icon: Sparkles, exact: false },
+  { href: "/official", label: "Official", icon: Sparkles, exact: false },
 ];
 
 const MORE_ITEMS = [
-  { href: "/library", label: "Reading list", icon: LibraryBig, exact: false },
+  { href: "/reading", label: "Reading list", icon: LibraryBig, exact: false },
   { href: "/notes", label: "Notes", icon: NotebookPen, exact: false },
 ];
 
@@ -340,6 +341,18 @@ function StudyChatTree({ study }: { study: SidebarStudy }) {
   return (
     <div className="study-nav space-y-4">
       <div className="study-nav-tabs flex flex-col gap-0.5">
+        {/* Home sits ABOVE New chat: it answers "what should I do now",
+            which comes before "what do I want to say". */}
+        <Link
+          href="/home"
+          className={cn(
+            navRowClass(pathname === "/home"),
+            "study-nav-home",
+          )}
+        >
+          <House className="size-4 shrink-0" />
+          Home
+        </Link>
         <div className={navRowClass(pathname === "/chat" && !activeId)}>
           <Link
             href="/chat"
@@ -382,7 +395,7 @@ function StudyChatTree({ study }: { study: SidebarStudy }) {
                 className="book-row group flex items-center rounded-md pr-1 pl-2.5 transition-colors hover:bg-surface-hover"
               >
                 <Link
-                  href={`/vocab?book=${book.id}`}
+                  href={`/books?book=${book.id}`}
                   className="flex min-w-0 flex-1 items-center gap-2 py-1.5 pr-1 text-[0.9375rem] text-fg"
                 >
                   <BookMarked className="size-3.5 shrink-0 text-fg-tertiary" />

@@ -112,16 +112,16 @@ export default async function StudyVocabPage({
       : items;
     const bookLanguage = visible[0]?.language;
     // Books are study units, not just groupings — a book with due cards
-    // offers its own session (`/vocab/review?book=`), scoped to it.
+    // offers its own session (`/decks?book=`), scoped to it.
     const bookDueCount = visible.filter((item) =>
       isCardDue(item.srsDueAt, now),
     ).length;
 
-    const reviewHref = `/vocab/review?book=${activeBook?.id ?? "all"}`;
+    const reviewHref = `/decks?book=${activeBook?.id ?? "all"}`;
 
     return (
       <PageShell>
-        <BackLink href="/vocab">My books</BackLink>
+        <BackLink href="/books">My books</BackLink>
         {/* The playlist-page shape: art, an oversized title, and one
             loud action. A book is a place you arrive at, not a filter
             you applied. */}
@@ -134,7 +134,7 @@ export default async function StudyVocabPage({
               <LikedCover />
             )
           }
-          eyebrow={activeBook ? "Book" : "Every word you've saved"}
+          eyebrow={activeBook ? "Book" : "Your vocabulary"}
           title={activeBook?.name ?? "All words"}
           meta={
             <>
@@ -146,7 +146,7 @@ export default async function StudyVocabPage({
           actions={
             <>
               <PlayAction href={reviewHref}>
-                <Play className="size-5 fill-current" />
+                <Play className="size-4 fill-current" />
                 {bookDueCount > 0 ? `Review ${bookDueCount}` : "Practice"}
               </PlayAction>
               {activeBook ? (
@@ -200,7 +200,7 @@ export default async function StudyVocabPage({
         actions={
           dueCount > 0 && (
             <Link
-              href="/vocab/review?book=all"
+              href="/decks?book=all"
               className="inline-flex h-9 items-center gap-2 rounded-md bg-accent px-3.5 text-[0.9375rem] font-medium text-white shadow-sm transition-colors hover:bg-accent-hover"
             >
               <BookOpenCheck className="size-4" />
@@ -212,9 +212,9 @@ export default async function StudyVocabPage({
 
       <SectionTabs
         tabs={[
-          { href: "/vocab", label: "My books", active: true },
+          { href: "/books", label: "My books", active: true },
           {
-            href: "/packs",
+            href: "/official",
             label: `Official ${officialRows.length}`,
             active: false,
           },

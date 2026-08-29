@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { resetMockLearner, sendMessage } from "./helpers";
 
 /**
- * The reading library (/library) + Notes (/notes): a shelf
+ * The reading library (/reading) + Notes (/notes): a shelf
  * of generated covers, atomic notes per book, a discussion chat whose
  * context carries the book's summary + notes, and the note tools driven
  * from ANY chat through the offline mock's command grammar — the same
@@ -15,7 +15,7 @@ const BOOK_TITLE = "Good Strategy Bad Strategy";
 test.beforeAll(resetMockLearner);
 
 test("shelf: add a book and land on its page", async ({ page }) => {
-  await page.goto("/library");
+  await page.goto("/reading");
   await expect(page.getByText("Your reading list is empty")).toBeVisible();
 
   await page.getByRole("button", { name: "Add book", exact: true }).click();
@@ -28,7 +28,7 @@ test("shelf: add a book and land on its page", async ({ page }) => {
   await dialog.getByRole("button", { name: "Add book" }).click();
 
   // Create navigates straight to the book page — notes are the point.
-  await page.waitForURL(/\/library\/[0-9a-f-]{36}/);
+  await page.waitForURL(/\/reading\/[0-9a-f-]{36}/);
   await expect(page.getByRole("heading", { name: BOOK_TITLE })).toBeVisible();
   // Header-scoped: the summary also sits in the settings textarea below.
   await expect(
@@ -37,9 +37,9 @@ test("shelf: add a book and land on its page", async ({ page }) => {
 });
 
 test("book page: add a note, edit it in place", async ({ page }) => {
-  await page.goto("/library");
+  await page.goto("/reading");
   await page.getByRole("link", { name: new RegExp(BOOK_TITLE) }).click();
-  await page.waitForURL(/\/library\/[0-9a-f-]{36}/);
+  await page.waitForURL(/\/reading\/[0-9a-f-]{36}/);
 
   await page.getByLabel("New note").fill("Bad strategy is a list of goals");
   await page.getByRole("button", { name: "Add note" }).click();
@@ -61,9 +61,9 @@ test("book page: add a note, edit it in place", async ({ page }) => {
 test("discussion chat: the book's summary + notes reach the prompt, and save note files to the book", async ({
   page,
 }) => {
-  await page.goto("/library");
+  await page.goto("/reading");
   await page.getByRole("link", { name: new RegExp(BOOK_TITLE) }).click();
-  await page.waitForURL(/\/library\/[0-9a-f-]{36}/);
+  await page.waitForURL(/\/reading\/[0-9a-f-]{36}/);
   await page.getByRole("button", { name: "Discuss this book" }).click();
   await page.waitForURL(/\/chat\?t=[0-9a-f-]{36}/);
 
@@ -80,7 +80,7 @@ test("discussion chat: the book's summary + notes reach the prompt, and save not
   await sendMessage(page, "save note: Focus beats spreading resources thin");
   await expect(page.getByText(/Noted — saved to “Good Strategy/)).toBeVisible();
 
-  await page.goto("/library");
+  await page.goto("/reading");
   await page.getByRole("link", { name: new RegExp(BOOK_TITLE) }).click();
   await expect(
     page.getByText("Focus beats spreading resources thin"),
@@ -127,17 +127,17 @@ test("the library index rides into EVERY chat, and add book works from conversat
   );
   await expect(page.getByText("Added “Deep Work” to your library.")).toBeVisible();
 
-  await page.goto("/library");
+  await page.goto("/reading");
   await expect(page.getByRole("link", { name: /Deep Work/ })).toBeVisible();
 });
 
 test("deleting a book keeps its notes as loose notes", async ({ page }) => {
-  await page.goto("/library");
+  await page.goto("/reading");
   await page.getByRole("link", { name: new RegExp(BOOK_TITLE) }).click();
-  await page.waitForURL(/\/library\/[0-9a-f-]{36}/);
+  await page.waitForURL(/\/reading\/[0-9a-f-]{36}/);
 
   await page.getByRole("button", { name: "Delete book" }).click();
-  await page.waitForURL(/\/library$/);
+  await page.waitForURL(/\/reading$/);
   await expect(
     page.getByRole("link", { name: new RegExp(BOOK_TITLE) }),
   ).not.toBeVisible();

@@ -543,7 +543,7 @@ export async function addStudyVocab(formData: FormData) {
     category: parsed.category ?? null,
   });
 
-  revalidatePath("/vocab");
+  revalidatePath("/books");
 }
 
 /**
@@ -584,7 +584,7 @@ export async function updateStudyVocab(
     .returning({ id: studyVocab.id });
   if (updated.length === 0) throw new Error("Vocabulary item not found");
 
-  revalidatePath("/vocab");
+  revalidatePath("/books");
 }
 
 export async function deleteStudyVocab(vocabId: string) {
@@ -595,7 +595,7 @@ export async function deleteStudyVocab(vocabId: string) {
     .delete(studyVocab)
     .where(and(eq(studyVocab.id, id), eq(studyVocab.learnerId, learner.id)));
 
-  revalidatePath("/vocab");
+  revalidatePath("/books");
 }
 
 // ---------------------------------------------------------------------------
@@ -809,7 +809,7 @@ export async function addStudyVocabBulk(
         meaning: item.meaning || null,
       })),
     );
-    revalidatePath("/vocab");
+    revalidatePath("/books");
   }
 
   return { added: fresh.length };
@@ -865,7 +865,7 @@ export async function createStudyVocabList(name: string, vocabIds: string[]) {
   }
 
   revalidateStudyTree();
-  revalidatePath("/vocab");
+  revalidatePath("/books");
   return { id: list.id, count: kept.length };
 }
 
@@ -880,7 +880,7 @@ export async function toggleStudyVocabListPin(listId: string) {
     .where(eq(studyVocabLists.id, list.id));
 
   revalidateStudyTree();
-  revalidatePath("/vocab");
+  revalidatePath("/books");
 }
 
 /**
@@ -919,8 +919,8 @@ export async function setDefaultStudyVocabList(
   });
 
   revalidateStudyTree();
-  revalidatePath("/vocab");
-  revalidatePath("/packs");
+  revalidatePath("/books");
+  revalidatePath("/official");
 }
 
 const bookWordSchema = z.object({
@@ -978,7 +978,7 @@ export async function addStudyVocabToBook(listId: string, formData: FormData) {
     .onConflictDoNothing();
 
   revalidateStudyTree();
-  revalidatePath("/vocab");
+  revalidatePath("/books");
 }
 
 export async function renameStudyVocabList(listId: string, name: string) {
@@ -992,7 +992,7 @@ export async function renameStudyVocabList(listId: string, name: string) {
     .where(eq(studyVocabLists.id, list.id));
 
   revalidateStudyTree();
-  revalidatePath("/vocab");
+  revalidatePath("/books");
 }
 
 export async function deleteStudyVocabList(listId: string) {
@@ -1002,7 +1002,7 @@ export async function deleteStudyVocabList(listId: string) {
   await db.delete(studyVocabLists).where(eq(studyVocabLists.id, list.id));
 
   revalidateStudyTree();
-  revalidatePath("/vocab");
+  revalidatePath("/books");
 }
 
 export async function addToStudyVocabList(listId: string, vocabId: string) {
@@ -1025,7 +1025,7 @@ export async function addToStudyVocabList(listId: string, vocabId: string) {
     })
     .onConflictDoNothing(); // already on the list = no-op
 
-  revalidatePath("/vocab");
+  revalidatePath("/books");
 }
 
 export async function removeFromStudyVocabList(
@@ -1045,7 +1045,7 @@ export async function removeFromStudyVocabList(
       ),
     );
 
-  revalidatePath("/vocab");
+  revalidatePath("/books");
 }
 
 /** Drag-reorder: move the word to an arbitrary index; positions are
@@ -1082,7 +1082,7 @@ export async function reorderStudyVocabListItem(
     }
   });
 
-  revalidatePath("/vocab");
+  revalidatePath("/books");
 }
 
 // ---------------------------------------------------------------------------
@@ -1193,7 +1193,7 @@ export async function addStudyPackItem(
     listName = list.name;
   }
 
-  revalidatePath("/vocab");
+  revalidatePath("/books");
   return { added, vocabId, listId, listName };
 }
 
@@ -1279,7 +1279,7 @@ export async function importStudyPack(packId: string): Promise<{
     })),
   );
 
-  revalidatePath("/vocab");
+  revalidatePath("/books");
   // The pack page keeps its saved-state in React state, so hand back the
   // ids it needs to reflect the import without a reload (a reload would
   // also throw away the confirmation banner it just earned).
@@ -1309,11 +1309,11 @@ export async function reviewStudyVocab(vocabId: string, grade: ReviewGrade) {
     "Vocabulary item not found",
   );
 
-  // Deliberately NOT revalidating /vocab/review: the review page
+  // Deliberately NOT revalidating /decks: the review page
   // hands the client a session snapshot of the due deck, and refreshing
   // it mid-session yanks cards out from under the learner (and re-queues
   // "again" cards early). A fresh visit re-queries anyway.
-  revalidatePath("/vocab");
+  revalidatePath("/books");
 }
 
 // ---------------------------------------------------------------------------

@@ -428,7 +428,7 @@ export function StudyReview({
               My sentences
             </Link>
           ) : (
-            <Link href="/vocab" className="text-accent-text hover:underline">
+            <Link href="/books" className="text-accent-text hover:underline">
               My vocabulary
             </Link>
           )}

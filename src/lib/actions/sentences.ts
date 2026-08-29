@@ -71,7 +71,7 @@ export async function addStudySentence(formData: FormData) {
   });
 
   revalidatePath("/sentences");
-  revalidatePath("/vocab/review");
+  revalidatePath("/decks");
 }
 
 export async function updateStudySentence(
@@ -269,6 +269,6 @@ export async function generateStudySentences(
   }
 
   revalidatePath("/sentences");
-  revalidatePath("/vocab/review");
+  revalidatePath("/decks");
   return { created, skipped: seedRows.length - created };
 }

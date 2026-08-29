@@ -22,7 +22,7 @@ export function AddBookDialog({ children }: { children: React.ReactNode }) {
       errorMessage="Couldn't add the book — please try again."
       onSubmit={async (data) => {
         const { id } = await createStudyBook(data);
-        router.push(`/library/${id}`);
+        router.push(`/reading/${id}`);
       }}
     >
       <BookFields />

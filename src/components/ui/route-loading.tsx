@@ -67,7 +67,7 @@ export function StudyChatSkeleton() {
   );
 }
 
-/** /vocab — heading, add-word card, word rows. */
+/** /books — heading, add-word card, word rows. */
 export function StudyVocabSkeleton() {
   return (
     <div
@@ -86,7 +86,7 @@ export function StudyVocabSkeleton() {
   );
 }
 
-/** /vocab/review — heading + the deck shelf. The route's landing is the
+/** /decks — heading + the deck shelf. The route's landing is the
  * shelf now; the drill is one click deeper and shares this segment, so
  * the rows are the shape worth matching. */
 export function StudyReviewSkeleton() {

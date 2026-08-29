@@ -54,7 +54,7 @@ type ResolvedVocabLine = VocabLine & { language: string };
 /**
  * One assistant reply can carry vocabulary suggestions on their own
  * lines (`VOCAB: term — meaning — Language`, the convention set in the
- * tutor prompt — parser shared in lib/vocab-lines.ts). They render as
+ * tutor prompt — parser shared in lib/books-lines.ts). They render as
  * add-to-list chips in ANY chat; a line with no resolvable filing
  * language stays visible as plain text rather than becoming a chip
  * that can't save.

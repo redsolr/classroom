@@ -46,11 +46,12 @@ const PROTECTED_ROUTES = [
   "/lessons",
   "/settings",
   "/student",
+  "/home",
   "/chat",
-  "/library",
+  "/reading",
   "/notes",
-  "/vocab",
-  "/vocab/review",
+  "/books",
+  "/decks",
   "/sentences",
   "/account",
 ];
@@ -122,7 +123,7 @@ test("anonymous POST to the study chat API is a 401, never a served reply", asyn
 
 test("anonymous GET of the vocab CSV export is a 401, never data", async () => {
   const anon = await pwRequest.newContext({ baseURL: BASE_URL });
-  const res = await anon.get("/vocab/export.csv", { maxRedirects: 0 });
+  const res = await anon.get("/books/export.csv", { maxRedirects: 0 });
   expect(res.status(), "vocab export must reject anonymous callers").toBe(401);
   await anon.dispose();
 });

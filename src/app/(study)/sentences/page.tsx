@@ -50,7 +50,7 @@ export default async function StudySentencesPage() {
         actions={
           dueCount > 0 && (
             <Link
-              href="/vocab/review?sentences=all"
+              href="/decks?sentences=all"
               className="inline-flex h-9 items-center gap-2 rounded-md bg-practice px-3.5 text-[0.9375rem] font-medium text-white shadow-sm transition-colors hover:bg-practice-hover"
             >
               <Play className="size-4 fill-current" />

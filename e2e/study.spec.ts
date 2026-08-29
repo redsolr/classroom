@@ -76,7 +76,7 @@ test("project with custom instructions: instructions reach the reply, chips carr
   await expect(chip).toBeDisabled();
 
   // The saved word is a row in the All-words table.
-  await page.goto("/vocab?book=all");
+  await page.goto("/books?book=all");
   await expect(
     page.getByRole("main").locator("tbody tr").filter({ hasText: "bonjour" }),
   ).toBeVisible();
@@ -193,7 +193,7 @@ test("the tutor CRUDs vocabulary from chat: add, list, delete land in the table"
   await expect(page.getByText(/added “fromage”/)).toBeVisible();
 
   // The word is real table data now, not chat prose.
-  await page.goto("/vocab?book=all");
+  await page.goto("/books?book=all");
   const table = page.getByRole("main").locator("table");
   await expect(
     table.locator("tbody tr").filter({ hasText: "fromage" }),
@@ -206,7 +206,7 @@ test("the tutor CRUDs vocabulary from chat: add, list, delete land in the table"
   await send("delete vocab: fromage");
   await expect(page.getByText(/Removed “fromage”/)).toBeVisible();
 
-  await page.goto("/vocab?book=all");
+  await page.goto("/books?book=all");
   await expect(
     table.locator("tbody tr").filter({ hasText: "fromage" }),
   ).toHaveCount(0);
@@ -544,7 +544,7 @@ test("sidebar chat row: rename inline, then delete from the ⋯ menu", async ({
 test("Ask dock: opens on any study page, chats, and closes on Escape", async ({
   page,
 }) => {
-  await page.goto("/vocab");
+  await page.goto("/books");
   await page.getByRole("button", { name: "Ask AI" }).click();
 
   // The dock hosts a real chat (thread created lazily) — send through it.
@@ -562,7 +562,7 @@ test("manual vocab add + SM-2 review session over the due deck", async ({
   page,
 }) => {
   // Adding goes through the New word dialog — the landing stays a shelf.
-  await page.goto("/vocab");
+  await page.goto("/books");
   await page.getByRole("button", { name: "New word" }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("Language").selectOption("Japanese");
@@ -571,13 +571,13 @@ test("manual vocab add + SM-2 review session over the due deck", async ({
   await dialog.getByLabel("Meaning").fill("cat");
   await dialog.getByRole("button", { name: "Add word" }).click();
   await expect(dialog).not.toBeVisible();
-  await page.goto("/vocab?book=all");
+  await page.goto("/books?book=all");
   await expect(
     page.getByRole("main").getByRole("cell", { name: "猫", exact: true }),
   ).toBeVisible();
 
   // Both saved words are due (never reviewed) — review the whole deck.
-  await page.goto("/vocab/review?book=all");
+  await page.goto("/decks?book=all");
   await expect(page.getByText("Card 1 of 2")).toBeVisible();
   for (let i = 0; i < 2; i++) {
     await page.getByRole("button", { name: "Show answer" }).click();
@@ -586,7 +586,7 @@ test("manual vocab add + SM-2 review session over the due deck", async ({
   await expect(page.getByText("2 cards reviewed")).toBeVisible();
 
   // Graded cards moved out of "due" — the landing's Review CTA is gone.
-  await page.goto("/vocab");
+  await page.goto("/books");
   await expect(
     page.getByRole("link", { name: /Review \d+ due/ }),
   ).not.toBeVisible();
@@ -595,7 +595,7 @@ test("manual vocab add + SM-2 review session over the due deck", async ({
 test("table: default columns, customization, quiz mode, sort, filter", async ({
   page,
 }) => {
-  await page.goto("/vocab?book=all");
+  await page.goto("/books?book=all");
   const main = page.getByRole("main");
   const table = main.locator("table");
 
@@ -646,7 +646,7 @@ test("table: default columns, customization, quiz mode, sort, filter", async ({
 test("editing via the row menu updates a word and survives reload", async ({
   page,
 }) => {
-  await page.goto("/vocab?book=all");
+  await page.goto("/books?book=all");
   const table = page.getByRole("main").locator("table");
   const row = table.locator("tbody tr").filter({ hasText: "猫" });
   await row.hover();
@@ -669,10 +669,10 @@ test("editing via the row menu updates a word and survives reload", async ({
 });
 
 test("CSV export serves the personal list Anki-ready", async ({ page }) => {
-  await page.goto("/vocab?book=all");
+  await page.goto("/books?book=all");
   await expect(page.getByRole("link", { name: "Export CSV" })).toBeVisible();
 
-  const res = await page.request.get("/vocab/export.csv");
+  const res = await page.request.get("/books/export.csv");
   expect(res.status()).toBe(200);
   expect(res.headers()["content-type"]).toContain("text/csv");
   expect(res.headers()["content-disposition"]).toContain("vocabulary.csv");
@@ -699,7 +699,7 @@ test("edit dialog: Escape cancels, Enter saves; delete confirms from the row men
   page,
 }) => {
   // A throwaway word, so this test leaves the list exactly as it found it.
-  await page.goto("/vocab");
+  await page.goto("/books");
   await page.getByRole("button", { name: "New word" }).click();
   const addDialog = page.getByRole("dialog");
   await addDialog.getByLabel("Language").selectOption("Spanish");
@@ -708,7 +708,7 @@ test("edit dialog: Escape cancels, Enter saves; delete confirms from the row men
   await addDialog.getByRole("button", { name: "Add word" }).click();
   await expect(addDialog).not.toBeVisible();
 
-  await page.goto("/vocab?book=all");
+  await page.goto("/books?book=all");
   const table = page.getByRole("main").locator("table");
   const row = () => table.locator("tbody tr").filter({ hasText: "perro" });
   const openEdit = async () => {
@@ -741,7 +741,7 @@ test("edit dialog: Escape cancels, Enter saves; delete confirms from the row men
 test("categories filter the table; save-as-book, reorder, remove", async ({
   page,
 }) => {
-  await page.goto("/vocab");
+  await page.goto("/books");
 
   // Three categorized words — two verbs, one noun — via the dialog.
   const add = async (term: string, meaning: string, category: string) => {
@@ -759,7 +759,7 @@ test("categories filter the table; save-as-book, reorder, remove", async ({
   await add("gare", "station", "Noun");
 
   // The type filter narrows the table to verbs.
-  await page.goto("/vocab?book=all");
+  await page.goto("/books?book=all");
   const main = page.getByRole("main");
   const table = main.locator("table");
   await main.getByLabel("Filter type").selectOption("Verb");
@@ -776,7 +776,7 @@ test("categories filter the table; save-as-book, reorder, remove", async ({
   await expect(dialog).not.toBeVisible();
 
   // The book is on the shelf; open it — manual order, no gare.
-  await page.goto("/vocab");
+  await page.goto("/books");
   await main.getByRole("link", { name: /Mes verbes/ }).click();
   await page.waitForURL(/book=/);
   const rows = table.locator("tbody tr");
@@ -804,13 +804,13 @@ test("categories filter the table; save-as-book, reorder, remove", async ({
   await expect(
     table.getByRole("cell", { name: "faire", exact: true }),
   ).not.toBeVisible();
-  await page.goto("/vocab?book=all");
+  await page.goto("/books?book=all");
   await expect(
     table.getByRole("cell", { name: "faire", exact: true }),
   ).toBeVisible();
 
   // Order + membership are server state — they survive a fresh visit.
-  await page.goto("/vocab");
+  await page.goto("/books");
   await main.getByRole("link", { name: /Mes verbes/ }).click();
   await page.waitForURL(/book=/);
   await expect(rows.first()).toContainText("aller");
@@ -821,7 +821,7 @@ test("pinned book: sidebar row opens it, + quick-adds a word into it", async ({
   page,
 }) => {
   // Pin "Mes verbes" from the shelf's row menu.
-  await page.goto("/vocab");
+  await page.goto("/books");
   const main = page.getByRole("main");
   await main.getByRole("button", { name: "Mes verbes options" }).click();
   await page.getByRole("menuitem", { name: "Pin to sidebar" }).click();
@@ -851,7 +851,7 @@ test("pinned book: sidebar row opens it, + quick-adds a word into it", async ({
   ).toBeVisible();
 
   // Unpin from the shelf — the sidebar row leaves.
-  await page.goto("/vocab");
+  await page.goto("/books");
   await main.getByRole("button", { name: "Mes verbes options" }).click();
   await page.getByRole("menuitem", { name: "Unpin from sidebar" }).click();
   await expect(
@@ -862,14 +862,14 @@ test("pinned book: sidebar row opens it, + quick-adds a word into it", async ({
 test("curated packs: browse, add one word, import all as a personal list", async ({
   page,
 }) => {
-  await page.goto("/packs");
+  await page.goto("/official");
   await expect(
     page.getByRole("heading", { name: "Official books" }),
   ).toBeVisible();
   await expect(page.getByText("Persona 5 essentials")).toBeVisible();
 
   await page.getByRole("link", { name: /Café survival French/ }).click();
-  await page.waitForURL("**/packs/cafe-french");
+  await page.waitForURL("**/official/cafe-french");
 
   // One word first — the heart flips to its liked state, and back:
   // liking is a TOGGLE, and a word with no progress and no book unlikes
@@ -891,7 +891,7 @@ test("curated packs: browse, add one word, import all as a personal list", async
     .click();
   await expect(commanderHeart).toBeVisible();
 
-  await page.goto("/vocab?book=all");
+  await page.goto("/books?book=all");
   const main = page.getByRole("main");
   const table = main.locator("table");
   await expect(
@@ -900,13 +900,13 @@ test("curated packs: browse, add one word, import all as a personal list", async
 
   // Whole pack: every missing word joins + it lands on the SHELF as the
   // learner's own book.
-  await page.goto("/packs/cafe-french");
+  await page.goto("/official/cafe-french");
   await page
     .getByRole("button", { name: "Save as my book" })
     .click();
   await expect(page.getByText(/saved the pack as your/)).toBeVisible();
 
-  await page.goto("/vocab");
+  await page.goto("/books");
   // Scoped to the learner's OWN books: the official cover shelf on the
   // same page carries a book of the same name.
   await page
@@ -954,8 +954,8 @@ test("chat→vocab bulk extraction: review dialog, bulk save, dedup", async ({
   await dialog.getByRole("link", { name: /Open my vocabulary/ }).click();
 
   // Filed under French — from the WORD's language, no chat mode around.
-  await page.waitForURL("**/vocab");
-  await page.goto("/vocab?book=all");
+  await page.waitForURL("**/books");
+  await page.goto("/books?book=all");
   await page.getByLabel("Filter language").selectOption("French");
   await expect(
     page.getByRole("main").locator("tbody tr").filter({ hasText: "merci" }),
@@ -1080,7 +1080,7 @@ test("review: swiping the revealed card right grades it Good, Tinder-style", asy
   page,
 }) => {
   // Guarantee at least one due card no matter what earlier tests graded.
-  await page.goto("/vocab");
+  await page.goto("/books");
   await page.getByRole("button", { name: "New word" }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("Language").selectOption("Japanese");
@@ -1089,7 +1089,7 @@ test("review: swiping the revealed card right grades it Good, Tinder-style", asy
   await dialog.getByRole("button", { name: "Add word" }).click();
   await expect(dialog).not.toBeVisible();
 
-  await page.goto("/vocab/review?book=all");
+  await page.goto("/decks?book=all");
   const progress = page.locator(".review-progress");
   await expect(progress).toHaveText(/Card 1 of \d+/);
   const total = Number((await progress.textContent())!.match(/of (\d+)/)![1]);
@@ -1128,7 +1128,7 @@ test("review: swiping the revealed card right grades it Good, Tinder-style", asy
 test("practice again: finishing the deck offers an SRS-neutral cram round", async ({
   page,
 }) => {
-  await page.goto("/vocab/review?book=all");
+  await page.goto("/decks?book=all");
   const progress = page.locator(".review-progress");
 
   // Finish whatever the due deck holds (grade buttons don't require
@@ -1154,7 +1154,7 @@ test("practice again: finishing the deck offers an SRS-neutral cram round", asyn
   await page.getByRole("button", { name: "Good" }).click();
 
   // Cram never reschedules: nothing became due again.
-  await page.goto("/vocab");
+  await page.goto("/books");
   await expect(
     page.getByRole("link", { name: /Review \d+ due/ }),
   ).not.toBeVisible();
@@ -1215,7 +1215,7 @@ test("decks: the shelf lists every deck, and opening one drills it", async ({
 }) => {
   // The drill surface LANDS on a shelf now — arriving straight on a card
   // meant the app chose the deck and never showed you the others.
-  await page.goto("/vocab/review");
+  await page.goto("/decks");
   await expect(
     page.getByRole("heading", { name: "Decks", exact: true }),
   ).toBeVisible();
@@ -1230,13 +1230,13 @@ test("decks: the shelf lists every deck, and opening one drills it", async ({
   // Pressing one opens the drill scoped to it — the card is a click
   // away, not the landing.
   await allWords.click();
-  await page.waitForURL(/\/vocab\/review\?book=all/);
+  await page.waitForURL(/\/decks\?book=all/);
   await expect(
     page.getByRole("heading", { name: /Deck — All words/ }),
   ).toBeVisible();
   // …and back out to the shelf.
   await page.getByRole("link", { name: "All decks" }).click();
-  await page.waitForURL(/\/vocab\/review$/);
+  await page.waitForURL(/\/decks$/);
   await expect(shelf).toBeVisible();
 });
 
@@ -1245,7 +1245,7 @@ test("packs: the ⋯ menu files a word into books, toggling membership", async (
 }) => {
   // Self-contained: this test builds the book it files into, so it can't
   // inherit (or lose) another test's state.
-  await page.goto("/packs/gaming-japanese");
+  await page.goto("/official/gaming-japanese");
   await page.getByRole("button", { name: "More actions for 勇者" }).click();
   await page.getByRole("menuitem", { name: "New book…" }).click();
   const dialog = page.getByRole("dialog");
@@ -1269,7 +1269,7 @@ test("packs: the ⋯ menu files a word into books, toggling membership", async (
 test("books: a default book is where a one-tap heart files words", async ({
   page,
 }) => {
-  await page.goto("/vocab");
+  await page.goto("/books");
   const shelf = page.locator(".books-shelf");
   await shelf.getByRole("button", { name: "Filing Test options" }).click();
   await page.getByRole("menuitem", { name: "Make default book" }).click();
@@ -1277,7 +1277,7 @@ test("books: a default book is where a one-tap heart files words", async ({
 
   // The heart now says where the word lands — and lands it there, in one
   // tap, without opening the ⋯ menu at all.
-  await page.goto("/packs/gaming-japanese");
+  await page.goto("/official/gaming-japanese");
   const heart = page.getByRole("button", {
     name: "Save 魔王 to my vocabulary",
   });
@@ -1289,7 +1289,7 @@ test("books: a default book is where a one-tap heart files words", async ({
   await expect(page.getByText("In Filing Test").first()).toBeVisible();
 
   // Clearing it is the same control, inverted.
-  await page.goto("/vocab");
+  await page.goto("/books");
   await shelf.getByRole("button", { name: "Filing Test options" }).click();
   await page.getByRole("menuitem", { name: "Clear default book" }).click();
   await expect(shelf.getByText("Default")).toBeHidden();
@@ -1300,7 +1300,7 @@ test("sentence cards: generate from words, drill the blank, land on the shelf", 
 }) => {
   // A word to build from — self-contained, so the test doesn't depend
   // on what earlier tests left behind.
-  await page.goto("/vocab");
+  await page.goto("/books");
   await page.getByRole("button", { name: "New word" }).click();
   const wordDialog = page.getByRole("dialog");
   await wordDialog.getByLabel("Language").selectOption("Japanese");
@@ -1345,13 +1345,13 @@ test("sentence cards: generate from words, drill the blank, land on the shelf", 
 
   // Sentence decks are their OWN shelf on Decks — not rows mixed into
   // the word books.
-  await page.goto("/vocab/review");
+  await page.goto("/decks");
   const sentenceDeck = page
     .locator(".deck-shelf")
     .getByRole("link", { name: /All sentences/ });
   await expect(sentenceDeck).toBeVisible();
   await sentenceDeck.click();
-  await page.waitForURL(/\/vocab\/review\?sentences=all/);
+  await page.waitForURL(/\/decks\?sentences=all/);
 
   // The drill is the same stack, asking a different question: the blank
   // is hidden until you reveal, and grading moves a SEPARATE schedule.
@@ -1368,4 +1368,77 @@ test("sentence cards: generate from words, drill the blank, land on the shelf", 
   // Word cards were untouched — the two schedules are independent.
   await page.goto("/sentences");
   await expect(page.locator(".sentence-shelf")).toBeVisible();
+});
+
+test("home: waiting-first quick picks, shelves, and a way back into a chat", async ({
+  page,
+}) => {
+  // Home reflects what the learner HAS, so this test brings its own —
+  // depending on what earlier tests left behind is what turned one
+  // upstream timeout into four red tests last run.
+  await page.goto("/books");
+  await page.getByRole("button", { name: "New word" }).click();
+  const wordDialog = page.getByRole("dialog");
+  await wordDialog.getByLabel("Language").selectOption("Japanese");
+  await wordDialog.getByLabel("Word or phrase").fill("家");
+  await wordDialog.getByLabel("Meaning").fill("house");
+  await wordDialog.getByRole("button", { name: "Add word" }).click();
+  await expect(wordDialog).not.toBeVisible();
+
+  await page.getByRole("button", { name: "New book" }).click();
+  const bookDialog = page.getByRole("dialog");
+  await bookDialog.getByLabel("Book name").fill("Home Test");
+  await bookDialog.getByRole("button", { name: "Create" }).click();
+  await page.waitForURL(/book=/);
+
+  await page.goto("/home");
+  // The greeting IS the title here — on Home that's honest, where on
+  // Books it would fight the sidebar's own word for the page.
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+
+  // Quick picks lead with what's WAITING: a never-reviewed word is due,
+  // so All words carries a due count and a play affordance.
+  const picks = page.locator(".quick-picks");
+  await expect(picks.getByRole("link", { name: /All words/ })).toBeVisible();
+  await expect(picks.getByRole("link", { name: /due/ }).first()).toBeVisible();
+
+  // Shelves: the learner's own books, then the official catalog.
+  await expect(
+    page.locator(".home-books").getByRole("link", { name: /Home Test/ }),
+  ).toBeVisible();
+  await expect(page.locator(".official-shelf")).toBeVisible();
+
+  // A quick pick is a real way in, not decoration.
+  await picks.getByRole("link", { name: /All words/ }).click();
+  await page.waitForURL(/\/(decks|books)\?book=all/);
+});
+
+test("urls: the old names still resolve, query strings intact", async ({
+  page,
+}) => {
+  // Renaming a route silently breaks every bookmark and every installed
+  // PWA unless the old path keeps working — so the redirects are a
+  // tested promise, not a config line nobody checks.
+  for (const [oldPath, expected] of [
+    ["/vocab", "/books"],
+    ["/vocab/review", "/decks"],
+    ["/packs", "/official"],
+    ["/library", "/reading"],
+    ["/study/notes", "/notes"],
+  ] as const) {
+    await page.goto(oldPath);
+    expect(new URL(page.url()).pathname, oldPath).toBe(expected);
+  }
+
+  // The query string has to survive: a bookmarked per-book deck is the
+  // exact link most worth not breaking.
+  await page.goto("/vocab/review?book=all");
+  await page.waitForURL(/\/decks\?book=all/);
+  await expect(
+    page.getByRole("heading", { name: /Deck — All words/ }),
+  ).toBeVisible();
+
+  await page.goto("/packs/cafe-french");
+  await page.waitForURL("**/official/cafe-french");
+  await expect(page.getByText(/Café survival French/).first()).toBeVisible();
 });

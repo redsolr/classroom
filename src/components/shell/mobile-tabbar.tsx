@@ -6,8 +6,8 @@ import {
   BookOpenCheck,
   Layers,
   MessageCircle,
+  House,
   MessageSquareQuote,
-  Sparkles,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -21,20 +21,21 @@ type Tab = {
 };
 
 /**
- * The four places a learner actually goes. Chat is first because it is
- * the app's home (the PWA opens on it); the other three are the study
- * loop: what you have, what's due, what you could take.
+ * The five places a learner actually goes. Home leads — it's the "what
+ * should I do now" surface — then chat, then the study loop: what you
+ * have, what's due, and the context check.
  *
- * Reading list, Notes and the account stay in the drawer. A tab bar that
- * holds everything holds nothing — five is the ceiling, and the fifth
- * slot is worth more as breathing room than as one more destination.
+ * Official came OUT when Home went in. Five is the ceiling, and official
+ * content is already a cover shelf on Home, on Books and on Decks, which
+ * makes it the most redundant thing the bar was carrying. Reading list,
+ * Notes and the account stay in the drawer.
  */
 const TABS: Tab[] = [
+  { href: "/home", label: "Home", icon: House },
   { href: "/chat", label: "Chat", icon: MessageCircle, owns: ["/project"] },
-  { href: "/vocab", label: "Books", icon: Layers },
-  { href: "/vocab/review", label: "Decks", icon: BookOpenCheck },
+  { href: "/books", label: "Books", icon: Layers },
+  { href: "/decks", label: "Decks", icon: BookOpenCheck },
   { href: "/sentences", label: "Sentences", icon: MessageSquareQuote },
-  { href: "/packs", label: "Official", icon: Sparkles },
 ];
 
 /**
@@ -53,7 +54,7 @@ const TABS: Tab[] = [
 export function MobileTabbar() {
   const pathname = usePathname();
 
-  // Longest match wins, so /vocab/review doesn't also light up /vocab.
+  // Longest match wins, so /decks doesn't also light up /books.
   const activeHref = TABS.map((tab) => tab.href)
     .concat(TABS.flatMap((tab) => tab.owns ?? []))
     .filter(

@@ -69,7 +69,7 @@ export default async function LibraryPage() {
           {books.map((book) => (
             <Link
               key={book.id}
-              href={`/library/${book.id}`}
+              href={`/reading/${book.id}`}
               className="library-book group block"
             >
               <BookCover

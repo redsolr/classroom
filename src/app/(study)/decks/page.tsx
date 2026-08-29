@@ -30,10 +30,10 @@ export const metadata: Metadata = { title: "Decks" };
 /**
  * DECKS — a shelf first, a card second.
  *
- *   /vocab/review              the deck shelf: pick what to drill
- *   /vocab/review?book=all     drill everything due
- *   /vocab/review?book=<id>    drill one book
- *   /vocab/review?pack=<slug>  drill an official book, saving nothing
+ *   /decks              the deck shelf: pick what to drill
+ *   /decks?book=all     drill everything due
+ *   /decks?book=<id>    drill one book
+ *   /decks?pack=<slug>  drill an official book, saving nothing
  *
  * Landing straight on a card used to mean the app picked the deck for
  * you and never showed you the others; `?book=all` is that old behavior,
@@ -96,7 +96,7 @@ export default async function StudyReviewPage({
 
     return (
       <PageShell>
-        <BackLink href="/vocab/review">All decks</BackLink>
+        <BackLink href="/decks">All decks</BackLink>
         <PageHeader
           icon={MessageSquareQuote}
           title={list ? `Sentences — ${list.name}` : "Sentences"}
@@ -148,7 +148,7 @@ export default async function StudyReviewPage({
 
     return (
       <PageShell>
-        <BackLink href={`/packs/${officialBook.slug}`}>
+        <BackLink href={`/official/${officialBook.slug}`}>
           {officialBook.name}
         </BackLink>
         <PageHeader
@@ -224,7 +224,7 @@ export default async function StudyReviewPage({
       {
         id: "all",
         name: "All words",
-        href: "/vocab/review?book=all",
+        href: "/decks?book=all",
         totalWords: words.length,
         dueCount: totalDue,
         art: "liked",
@@ -236,7 +236,7 @@ export default async function StudyReviewPage({
         return {
           id: list.id,
           name: list.name,
-          href: `/vocab/review?book=${list.id}`,
+          href: `/decks?book=${list.id}`,
           totalWords: memberIds.length,
           dueCount: memberIds.filter((id) => dueById.get(id)).length,
           art: "book" as const,
@@ -257,7 +257,7 @@ export default async function StudyReviewPage({
             {
               id: "sentences-all",
               name: "All sentences",
-              href: "/vocab/review?sentences=all",
+              href: "/decks?sentences=all",
               totalWords: sentenceRows.length,
               dueCount: sentenceDue,
               art: "sentences",
@@ -268,7 +268,7 @@ export default async function StudyReviewPage({
                 return {
                   id: `sentences-${list.id}`,
                   name: list.name,
-                  href: `/vocab/review?sentences=${list.id}`,
+                  href: `/decks?sentences=${list.id}`,
                   totalWords: scoped.length,
                   dueCount: scoped.filter((s) => isCardDue(s.srsDueAt, now))
                     .length,
@@ -292,8 +292,8 @@ export default async function StudyReviewPage({
 
         <SectionTabs
           tabs={[
-            { href: "/vocab/review", label: "My decks", active: true },
-            { href: "/packs", label: "Official", active: false },
+            { href: "/decks", label: "My decks", active: true },
+            { href: "/official", label: "Official", active: false },
           ]}
         />
 
@@ -420,7 +420,7 @@ export default async function StudyReviewPage({
 
   return (
     <PageShell>
-      <BackLink href="/vocab/review">All decks</BackLink>
+      <BackLink href="/decks">All decks</BackLink>
       <PageHeader
         icon={BookOpenCheck}
         title={list ? `Deck — ${list.name}` : "Deck — All words"}
@@ -432,7 +432,7 @@ export default async function StudyReviewPage({
         actions={
           list ? (
             <Link
-              href={`/vocab?book=${list.id}`}
+              href={`/books?book=${list.id}`}
               className="inline-flex h-9 items-center rounded-md bg-surface px-3.5 text-[0.9375rem] font-medium shadow-card transition-colors hover:bg-surface-hover"
             >
               Open book

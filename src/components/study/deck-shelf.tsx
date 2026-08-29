@@ -32,7 +32,7 @@ function deckMeta(deck: DeckSummary): string {
 }
 
 /**
- * The DECK SHELF — what /vocab/review opens on.
+ * The DECK SHELF — what /decks opens on.
  *
  * It used to deal a card the moment you arrived, which meant the drill
  * chose the deck for you: there was no way to see that three books were
@@ -98,7 +98,7 @@ export function DeckShelfEmpty() {
         book — and they show up here, scheduled.
       </p>
       <Link
-        href="/packs"
+        href="/official"
         className="mt-4 inline-flex h-9 items-center gap-1.5 rounded-md bg-accent px-3.5 text-[0.9375rem] font-medium text-white transition-colors hover:bg-accent-hover"
       >
         <Sparkles className="size-3.5" />

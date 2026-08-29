@@ -17,9 +17,9 @@ import { requireLearner } from "@/lib/auth";
 /** Notes render on the book page, the Notes tab, and the shelf's note
  * counts — a note mutation must refresh all three. */
 function revalidateLibrary(bookId?: string | null) {
-  revalidatePath("/library");
+  revalidatePath("/reading");
   revalidatePath("/notes");
-  if (bookId) revalidatePath(`/library/${bookId}`);
+  if (bookId) revalidatePath(`/reading/${bookId}`);
 }
 
 const bookSchema = z.object({
@@ -98,7 +98,7 @@ export async function deleteStudyBook(bookId: string) {
     .where(and(eq(studyBooks.id, id), eq(studyBooks.learnerId, learner.id)));
 
   revalidateLibrary();
-  redirect("/library");
+  redirect("/reading");
 }
 
 const noteContentSchema = z.string().trim().min(1).max(4000);
