@@ -123,11 +123,14 @@ export function PackView({
                   </p>
                 )}
               </div>
-              {item.category && (
-                <span className="shrink-0 text-[0.78rem] text-fg-tertiary">
-                  {item.category}
-                </span>
-              )}
+              {/* Fixed width + left-aligned so this reads as a COLUMN.
+                  Flex alone only lines the RIGHT edges up, which leaves
+                  "Noun" / "Adjective" ragged down the left. Rendered even
+                  when empty so an uncategorized row can't collapse the
+                  column for the rows around it. */}
+              <span className="w-24 shrink-0 text-left text-[0.78rem] text-fg-tertiary">
+                {item.category ?? ""}
+              </span>
               <button
                 type="button"
                 onClick={() => addOne(item)}
