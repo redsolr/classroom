@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -10,6 +11,7 @@ import {
   MessageSquareQuote,
   type LucideIcon,
 } from "lucide-react";
+import { useKeyboardOpen } from "@/lib/use-keyboard-open";
 import { cn } from "@/lib/utils";
 
 type Tab = {
@@ -53,6 +55,27 @@ const TABS: Tab[] = [
  */
 export function MobileTabbar() {
   const pathname = usePathname();
+  const keyboardOpen = useKeyboardOpen();
+
+  /**
+   * While the keyboard is up the bar is neither rendered nor SPACED for:
+   * the published height goes to 0 so the chat pane, the Ask button and
+   * every page's bottom padding close the gap in the same frame the bar
+   * leaves, instead of holding 3.5rem of nothing above a keyboard.
+   *
+   * Stamped as an attribute on <html> rather than an inline custom
+   * property, so the override lives in globals.css beside the var's own
+   * definition and cannot silently outrank the `lg` media query that
+   * zeroes it for desktop.
+   */
+  React.useEffect(() => {
+    const root = document.documentElement;
+    if (keyboardOpen) root.setAttribute("data-keyboard", "open");
+    else root.removeAttribute("data-keyboard");
+    return () => root.removeAttribute("data-keyboard");
+  }, [keyboardOpen]);
+
+  if (keyboardOpen) return null;
 
   // Longest match wins, so /decks doesn't also light up /books.
   const activeHref = TABS.map((tab) => tab.href)

@@ -70,6 +70,17 @@
   }
 }
 
+/* Keyboard up = no bottom bar, and no space held for one. The attribute
+ * is stamped by MobileTabbar; lib/use-keyboard-open.ts carries why the
+ * bar has to go at all — `fixed bottom-0` is measured against the LAYOUT
+ * viewport, which a keyboard does not shrink, so the bar rode up into
+ * the middle of the screen. Zeroing the published height here rather
+ * than from JS keeps the var's whole story in one file, and keeps it
+ * from outranking the `lg` rule above. */
+:root[data-keyboard="open"] {
+  --study-tabbar-h: 0px;
+}
+
 /* Theme is attribute-driven (see src/lib/theme.ts): light is the DEFAULT —
  * classroom's users are teachers, not developers. Dark applies only when
  * the pre-hydration script / ThemeInit stamps data-theme="dark" (chosen

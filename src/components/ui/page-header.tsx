@@ -1,6 +1,5 @@
 import * as React from "react";
-import Link from "next/link";
-import { ArrowLeft, type LucideIcon } from "lucide-react";
+import { type LucideIcon } from "lucide-react";
 
 /**
  * THE page container — one geometry for every top-level page so the
@@ -84,24 +83,13 @@ export function PageHeader({
   );
 }
 
-/** The "← back to the parent surface" link above detail-page headers. */
-export function BackLink({
-  href,
-  children,
-}: {
-  href: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <Link
-      href={href}
-      className="back-link mb-4 inline-flex items-center gap-1.5 text-[0.875rem] text-fg-secondary transition-colors hover:text-fg"
-    >
-      <ArrowLeft className="size-3.5" />
-      {children}
-    </Link>
-  );
-}
+/**
+ * The "← back to the parent surface" control. It lives in its own client
+ * module because on a phone it also claims the navbar's lead slot (see
+ * `lib/mobile-nav.ts`), and it is re-exported here so every page keeps
+ * importing its chrome from one place.
+ */
+export { BackLink } from "@/components/ui/back-link";
 
 export function Card({
   children,

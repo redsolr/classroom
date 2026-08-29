@@ -99,7 +99,14 @@ export default async function StudyHomePage() {
         )
         .where(eq(studyVocabLists.learnerId, learner.id)),
       db
-        .select({ id: studySentences.id, srsDueAt: studySentences.srsDueAt })
+        .select({
+          id: studySentences.id,
+          srsDueAt: studySentences.srsDueAt,
+          // Which book the card was generated from — Home groups sentence
+          // cards into their own decks the way /decks does, so a sentence
+          // book is reachable without going through a second page.
+          listId: studySentences.listId,
+        })
         .from(studySentences)
         .where(eq(studySentences.learnerId, learner.id)),
       db
@@ -168,22 +175,10 @@ export default async function StudyHomePage() {
           },
         ]
       : []),
-    ...(sentenceRows.length > 0
-      ? [
-          {
-            key: "sentences",
-            name: "Sentences",
-            detail:
-              sentencesDue > 0
-                ? `${sentencesDue} due`
-                : `${sentenceRows.length} card${sentenceRows.length === 1 ? "" : "s"}`,
-            href:
-              sentencesDue > 0 ? "/decks?sentences=all" : "/sentences",
-            art: "sentences" as const,
-            playable: sentencesDue > 0,
-          },
-        ]
-      : []),
+    // Sentences used to sit here as ONE tile. It has its own shelf now
+    // (see `sentenceDecks` below) — a single entry could say that cards
+    // exist but never which book they came from, so drilling one book's
+    // sentences meant leaving Home for Decks.
     ...books
       .slice()
       .sort((a, b) => b.dueCount - a.dueCount)
@@ -222,13 +217,93 @@ export default async function StudyHomePage() {
       ? `Because you're learning ${studiedLanguages[0]}`
       : "Because of what you're learning";
 
+  /**
+   * SENTENCE BOOKS — their own row, not a single "Sentences" tile.
+   *
+   * Home surfaced sentences as one entry in the picks, which is the same
+   * mistake Decks made before it became a shelf: it says "you have
+   * sentence cards" and hides which BOOKS they belong to, so the only
+   * way to drill the sentences from one book was to go to Decks and
+   * scroll past the word decks. A sentence deck is a deck; it gets a
+   * shelf.
+   *
+   * "All sentences" leads for the same reason "All words" leads on the
+   * word row — it's every card regardless of which book made it.
+   */
+  const sentenceDueIds = dueIds(sentenceRows, now);
+  const sentencesByBook = new Map<string, typeof sentenceRows>();
+  for (const row of sentenceRows) {
+    if (!row.listId) continue;
+    const bucket = sentencesByBook.get(row.listId);
+    if (bucket) bucket.push(row);
+    else sentencesByBook.set(row.listId, [row]);
+  }
+
+  const sentenceDecks: QuickPick[] = [
+    ...(sentenceRows.length > 0
+      ? [
+          {
+            key: "sentences-all",
+            name: "All sentences",
+            detail:
+              sentencesDue > 0
+                ? `${sentencesDue} due`
+                : `${sentenceRows.length} card${sentenceRows.length === 1 ? "" : "s"}`,
+            href:
+              sentencesDue > 0 ? "/decks?sentences=all" : "/sentences",
+            art: "sentences" as const,
+            playable: sentencesDue > 0,
+          },
+        ]
+      : []),
+    ...books
+      .filter((book) => sentencesByBook.has(book.id))
+      .map((book) => {
+        const cards = sentencesByBook.get(book.id) ?? [];
+        const due = cards.filter((c) => sentenceDueIds.has(c.id)).length;
+        return {
+          key: `sentences-${book.id}`,
+          name: book.name,
+          detail:
+            due > 0
+              ? `${due} due`
+              : `${cards.length} card${cards.length === 1 ? "" : "s"}`,
+          href: due > 0 ? `/decks?sentences=${book.id}` : "/sentences",
+          art: "sentences" as const,
+          playable: due > 0,
+        };
+      })
+      .sort((a, b) => Number(b.playable) - Number(a.playable)),
+  ].slice(0, MAX_PICKS);
+
+  /**
+   * RECOMMENDED SENTENCES — books whose words have no cloze card yet.
+   *
+   * The same rule the official-book recommendations follow: real signal,
+   * no model, and it can say why. A book you own with words in it and
+   * zero sentence cards is the single most useful thing this product can
+   * point at, because generating them is one press and the learner would
+   * otherwise never think to ask. A book that already has cards is not
+   * recommended — repeat presses EXTEND coverage, and that belongs on
+   * the Sentences page where the button lives, not in a row that would
+   * then never empty.
+   */
+  const sentenceCandidates = books
+    .filter((book) => book.wordCount > 0 && !sentencesByBook.has(book.id))
+    .sort((a, b) => b.wordCount - a.wordCount)
+    .slice(0, MAX_PICKS);
+
   const firstRun = words.length === 0 && sentenceRows.length === 0;
 
   // The covers the spotlight fans out: the decks that actually have
   // something due, in the order the picks already ranked them. Real
   // artwork for real decks — a stack of decorative shapes would be a
   // picture of a feature rather than the feature.
-  const duePreview = picks.filter((pick) => pick.playable).slice(0, MAX_FAN);
+  // Both card types can be waiting, and the fan is about what's DUE, not
+  // about which shelf a deck happens to live on.
+  const duePreview = [...picks, ...sentenceDecks]
+    .filter((pick) => pick.playable)
+    .slice(0, MAX_FAN);
 
   return (
     <PageShell width="wide">
@@ -405,7 +480,53 @@ export default async function StudyHomePage() {
           </Shelf>
         )}
 
-        {/* ROW 2 — what they might want next, and it can say WHY. No
+        {/* ROW 2 — SENTENCE DECKS. Its own shelf, right under the word
+            decks, because the two card types are the two halves of the
+            same loop: what a word means, and whether you can still
+            supply it when a sentence needs it. */}
+        {sentenceDecks.length > 0 && (
+          <Shelf
+            title="Sentence decks"
+            seeAllHref="/sentences"
+            className="home-sentence-decks"
+          >
+            {sentenceDecks.map((deck) => (
+              <ShelfCard
+                key={deck.key}
+                href={deck.href}
+                name={deck.name}
+                detail={deck.detail}
+                badge={deck.playable ? deck.detail : undefined}
+                playable={deck.playable}
+                cover={<CollectionCover art={deck.art} name={deck.name} />}
+              />
+            ))}
+          </Shelf>
+        )}
+
+        {/* ROW 3 — RECOMMENDED SENTENCES. Books with words and no cards
+            yet: the one press that turns a pile of vocabulary into the
+            context check. Same rule as the official-book row below — a
+            recommendation has to be able to say why it is here. */}
+        {sentenceCandidates.length > 0 && (
+          <Shelf
+            title="Turn these into sentences"
+            seeAllHref="/sentences"
+            className="home-sentence-suggestions"
+          >
+            {sentenceCandidates.map((book) => (
+              <ShelfCard
+                key={`make-${book.id}`}
+                href="/sentences"
+                name={book.name}
+                detail={`${book.wordCount} word${book.wordCount === 1 ? "" : "s"} · no cards yet`}
+                cover={<CollectionCover art="book" name={book.name} />}
+              />
+            ))}
+          </Shelf>
+        )}
+
+        {/* ROW 4 — what they might want next, and it can say WHY. No
             model: official books in a language they already study, minus
             what they already own. An unexplained recommendation is just
             an advert. */}
@@ -433,7 +554,7 @@ export default async function StudyHomePage() {
           </Shelf>
         )}
 
-        {/* ROW 3 — recents. Chats get generated tiles so this reads as a
+        {/* ROW 5 — recents. Chats get generated tiles so this reads as a
             shelf rather than a text list wedged between two shelves. */}
         {recent.length > 0 && (
           <Shelf title="Pick a chat back up" className="home-chats">
@@ -452,7 +573,7 @@ export default async function StudyHomePage() {
           </Shelf>
         )}
 
-        {/* ROW 4 — the whole catalog, for when none of the above was it.
+        {/* ROW 6 — the whole catalog, for when none of the above was it.
             Inside the same stack as the rest: it used to sit outside and
             carry its own spacing, which is how it ended up the one row
             with a different width. */}

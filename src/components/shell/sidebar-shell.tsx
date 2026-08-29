@@ -3,8 +3,16 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { GraduationCap, Menu, SquarePen, X, type LucideIcon } from "lucide-react";
+import {
+  ArrowLeft,
+  GraduationCap,
+  Menu,
+  SquarePen,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 import { NAVBAR_ACTIONS_SLOT_ID } from "@/components/shell/navbar-actions";
+import { useMobileNav } from "@/lib/mobile-nav";
 import { cn } from "@/lib/utils";
 
 /**
@@ -125,33 +133,116 @@ export function SidebarShell({
   // duplicates for a11y/tests.
   const [closing, setClosing] = React.useState(false);
   const close = React.useCallback(() => setClosing(true), []);
+  const back = useMobileNav((s) => s.back);
+
+  /**
+   * LOCK THE PAGE WHILE THE DRAWER IS OPEN.
+   *
+   * The bug this fixes: open the drawer, scroll the content behind it,
+   * and the drawer stops scrolling. Without a lock, a touch that starts
+   * inside the drawer CHAINS into the page once the drawer's own list
+   * hits either end (scroll chaining is the default), and the page —
+   * which is what actually moved — keeps the gesture for the rest of the
+   * interaction. The drawer is then a panel you cannot scroll, sitting
+   * over a page you did not mean to move.
+   *
+   * Two halves, and both are needed. `overflow: hidden` on <body> stops
+   * the page being the thing that scrolls; `overscroll-contain` on the
+   * drawer's list (below) stops the chain reaching it in the first place,
+   * which is what keeps the rubber-band at the ends of the list from
+   * feeling like a dead panel on iOS.
+   *
+   * The scroll position is restored by hand: `overflow: hidden` on the
+   * body discards it, so without this the page jumps to the top every
+   * time the menu is opened and closed.
+   */
+  React.useEffect(() => {
+    if (!open) return;
+    const { body } = document;
+    const scrollY = window.scrollY;
+    const previous = {
+      overflow: body.style.overflow,
+      position: body.style.position,
+      top: body.style.top,
+      width: body.style.width,
+    };
+    // iOS Safari ignores `overflow: hidden` on the body, so the position
+    // fix is the part that actually holds there; the overflow is what
+    // holds everywhere else without the repaint the position swap costs.
+    body.style.overflow = "hidden";
+    body.style.position = "fixed";
+    body.style.top = `-${scrollY}px`;
+    body.style.width = "100%";
+    return () => {
+      body.style.overflow = previous.overflow;
+      body.style.position = previous.position;
+      body.style.top = previous.top;
+      body.style.width = previous.width;
+      window.scrollTo(0, scrollY);
+    };
+  }, [open]);
 
   return (
     <>
-      {/* Mobile top bar — ChatGPT-clean: hamburger on the left, a quick
-          new-chat and the page's own actions (portaled into the slot by
-          NavbarActions) on the right. No brand — the drawer carries it. */}
-      <header className="mobile-navbar sticky top-0 z-30 flex h-12 items-center gap-1 border-b border-border bg-surface px-3 lg:hidden">
-        <button
-          type="button"
-          aria-label="Open menu"
-          onClick={() => setOpen(true)}
-          className="mobile-navbar-menu flex size-8 items-center justify-center rounded-md text-fg-secondary transition-colors hover:bg-surface-hover"
-        >
-          <Menu className="size-5" />
-        </button>
+      {/* Mobile top bar — a quick new-chat and the page's own actions
+          (portaled into the slot by NavbarActions) on the right, and on
+          the left EITHER the hamburger or, on a detail page, the back
+          arrow that replaces it (mobile-nav.ts). No brand — the drawer
+          carries it.
+
+          IT HAS NO BACKGROUND OF ITS OWN. A `bg-surface` band with a rule
+          under it drew a hard line across the top of every phone screen
+          and made the chrome read as a separate strip bolted above the
+          app. The apps this product is shaped after let content run to
+          the top edge and simply keep the controls legible over it. So:
+          the page ground shows through, a scrim (below) fades whatever
+          scrolls behind it, and each control carries its own small
+          surface so it stays hittable and readable against artwork. */}
+      <header className="mobile-navbar sticky top-0 z-30 flex h-12 items-center gap-1 px-3 lg:hidden">
+        {/* Full-bleed wash of the page ground, strongest at the top edge
+            and gone by the bar's bottom — the same two-layer trick the
+            desktop topbar uses, and the reason a transparent bar stays
+            readable over a scrolling shelf of covers instead of turning
+            into a smear of half-cut artwork. */}
+        <div
+          aria-hidden
+          className="mobile-navbar-scrim pointer-events-none absolute inset-x-0 top-0 h-[calc(100%+0.75rem)]"
+          style={{
+            background:
+              "linear-gradient(to bottom, color-mix(in srgb, var(--bg) 94%, transparent) 0%, color-mix(in srgb, var(--bg) 70%, transparent) 60%, transparent 100%)",
+          }}
+        />
+        {back ? (
+          <Link
+            href={back.href}
+            aria-label={`Back to ${back.label}`}
+            className="mobile-navbar-back relative flex h-8 items-center gap-1 rounded-full bg-surface/70 pr-3 pl-2 text-[0.875rem] font-medium text-fg backdrop-blur-md transition-colors hover:bg-surface"
+          >
+            <ArrowLeft className="size-4" />
+            <span className="max-w-40 truncate">{back.label}</span>
+          </Link>
+        ) : (
+          <button
+            type="button"
+            aria-label="Open menu"
+            onClick={() => setOpen(true)}
+            className="mobile-navbar-menu relative flex size-8 items-center justify-center rounded-full bg-surface/70 text-fg backdrop-blur-md transition-colors hover:bg-surface"
+          >
+            <Menu className="size-5" />
+          </button>
+        )}
         <div className="flex-1" />
         <Link
           href="/chat"
           aria-label="New chat"
           title="New chat"
-          className="mobile-navbar-new-chat flex size-8 items-center justify-center rounded-md text-fg-secondary transition-colors hover:bg-surface-hover"
+          className="mobile-navbar-new-chat relative flex size-8 items-center justify-center rounded-full bg-surface/70 text-fg backdrop-blur-md transition-colors hover:bg-surface"
         >
           <SquarePen className="size-5" />
         </Link>
         <div
           id={NAVBAR_ACTIONS_SLOT_ID}
-          className="mobile-navbar-actions flex items-center"
+          className="mobile-navbar-actions relative flex items-center"
         />
       </header>
 
@@ -199,7 +290,10 @@ export function SidebarShell({
                 <X className="size-5" />
               </button>
             </div>
-            <div className="nav-drawer-content flex min-h-0 flex-1 flex-col overflow-y-auto px-3 py-4">
+            {/* overscroll-contain: the other half of the scroll lock —
+                it stops a swipe that runs past either end of this list
+                from handing the gesture to the page underneath. */}
+            <div className="nav-drawer-content flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-3 py-4">
               {children}
             </div>
           </aside>

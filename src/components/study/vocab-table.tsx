@@ -71,14 +71,29 @@ export type VocabListSummary = {
  * locally; quiz mode hides meanings until a row is tapped.
  */
 
+/**
+ * `align` is per-column because not every value is prose. Word class
+ * ("Noun", "Verb", "Expression") is a short LABEL from a closed set, and
+ * left-aligning it in a column sized for the widest of them left it
+ * stranded against the left edge with a wide gap before the row's
+ * options menu. Centred — and drawn as a chip rather than bare text — it
+ * sits between the word and the options the way it reads: a tag on the
+ * row, not a sentence about it. Status is already a badge, so it centres
+ * for the same reason.
+ */
 const OPTIONAL_COLUMNS = [
-  { key: "reading", label: "Reading" },
-  { key: "meaning", label: "Meaning" },
-  { key: "category", label: "Type" },
-  { key: "language", label: "Language" },
-  { key: "status", label: "Status" },
+  { key: "reading", label: "Reading", align: "left" },
+  { key: "meaning", label: "Meaning", align: "left" },
+  { key: "category", label: "Type", align: "center" },
+  { key: "language", label: "Language", align: "left" },
+  { key: "status", label: "Status", align: "center" },
 ] as const;
 type ColumnKey = (typeof OPTIONAL_COLUMNS)[number]["key"];
+type ColumnAlign = (typeof OPTIONAL_COLUMNS)[number]["align"];
+
+const COLUMN_ALIGN = new Map<ColumnKey, ColumnAlign>(
+  OPTIONAL_COLUMNS.map((c) => [c.key, c.align]),
+);
 
 const DEFAULT_COLUMNS: ColumnKey[] = ["reading", "meaning"];
 const COLUMNS_STORAGE_KEY = "classroom-vocab-columns";
@@ -236,13 +251,19 @@ export function VocabTable({
 
   const sortHeader = (key: SortKey, label: string) => {
     const active = !inBook && sort?.key === key;
+    // The header follows its column's alignment, or the label floats over
+    // a centred value like a caption for the column beside it.
+    const centred = key !== "term" && COLUMN_ALIGN.get(key) === "center";
     return (
       <th
         key={key}
         aria-sort={
           active ? (sort!.dir === "asc" ? "ascending" : "descending") : "none"
         }
-        className="px-3 py-2 font-medium whitespace-nowrap"
+        className={cn(
+          "px-3 py-2 font-medium whitespace-nowrap",
+          centred && "text-center",
+        )}
       >
         <button
           type="button"
@@ -546,8 +567,14 @@ export function VocabTable({
                     </td>
                   )}
                   {showColumn("category") && (
-                    <td className="px-3 py-2 text-fg-secondary whitespace-nowrap">
-                      {item.category ?? "—"}
+                    <td className="px-3 py-2 text-center whitespace-nowrap">
+                      {item.category ? (
+                        <span className="vocab-category-chip inline-flex items-center rounded-full bg-surface-hover px-2 py-0.5 text-[0.8125rem] text-fg-secondary">
+                          {item.category}
+                        </span>
+                      ) : (
+                        <span className="text-fg-tertiary">—</span>
+                      )}
                     </td>
                   )}
                   {showColumn("language") && (
@@ -556,7 +583,7 @@ export function VocabTable({
                     </td>
                   )}
                   {showColumn("status") && (
-                    <td className="px-3 py-2">
+                    <td className="px-3 py-2 text-center">
                       <Badge tone={vocabularyStatusTone[item.status]}>
                         {item.status}
                       </Badge>

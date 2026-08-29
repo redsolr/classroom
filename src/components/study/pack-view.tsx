@@ -32,6 +32,7 @@ import {
   PlayAction,
 } from "@/components/study/collection-hero";
 import { PackCover } from "@/components/study/pack-cover";
+import { toast } from "@/components/ui/toaster";
 
 /** What the learner already owns for a pack term: their own vocab row,
  * which books it's filed in, and whether it carries review history —
@@ -95,14 +96,30 @@ export function PackView({
 
   const key = (item: StudyPackItem) => item.term.toLowerCase();
 
-  /** Every row mutation funnels through here so busy state and error
-   * reporting can't drift between the six call sites. */
-  const run = (item: StudyPackItem, op: () => Promise<void>, what: string) => {
+  /**
+   * Every row mutation funnels through here so busy state, error
+   * reporting and CONFIRMATION can't drift between the six call sites.
+   *
+   * `done` is what the learner sees when it worked. A filled heart is
+   * feedback only if you were watching the heart, which on a phone is
+   * under your own thumb — so the toast says the word and where it went.
+   * Failures deliberately stay INLINE (`setError`): something you have
+   * to act on does not belong in a message that leaves on a timer.
+   */
+  const run = (
+    item: StudyPackItem,
+    op: () => Promise<void>,
+    what: string,
+    // A thunk as well as a string, because "saved, and filed into
+    // Kanji" is only knowable once the action has answered.
+    done?: string | (() => string),
+  ) => {
     setError(null);
     setBusyId(item.id);
     startAdd(async () => {
       try {
         await op();
+        if (done) toast.success(typeof done === "function" ? done() : done);
       } catch (err) {
         console.error(`pack view: failed to ${what}`, err);
         setError(`Couldn't ${what} “${item.term}” — try again.`);
@@ -112,13 +129,19 @@ export function PackView({
     });
   };
 
-  const addToVocabulary = (item: StudyPackItem) =>
-    run(
+  /** Book name for a toast; the id is never what a learner recognises. */
+  const bookName = (listId: string | null | undefined) =>
+    listId ? books.find((b) => b.id === listId)?.name : undefined;
+
+  const addToVocabulary = (item: StudyPackItem) => {
+    let filedInto: string | undefined;
+    return run(
       item,
       async () => {
         // No target = the action files it into the default book too,
         // if the learner has set one.
         const result = await addStudyPackItem(item.id);
+        filedInto = bookName(result.listId);
         setSaved((prev) => {
           const bookIds = prev[key(item)]?.bookIds ?? [];
           return {
@@ -135,7 +158,12 @@ export function PackView({
         });
       },
       "save",
+      () =>
+        filedInto
+          ? `Saved “${item.term}” to ${filedInto}`
+          : `Saved “${item.term}”`,
     );
+  };
 
   const addToBook = (item: StudyPackItem, listId: string) =>
     run(
@@ -156,6 +184,7 @@ export function PackView({
         });
       },
       "file",
+      () => `“${item.term}” → ${bookName(listId) ?? "book"}`,
     );
 
   const createBookWith = (item: StudyPackItem, name: string) =>
@@ -177,6 +206,7 @@ export function PackView({
         }
       },
       "create a book for",
+      `Created ${name} with “${item.term}”`,
     );
 
   const removeFromBook = (item: StudyPackItem, listId: string) => {
@@ -199,6 +229,7 @@ export function PackView({
         });
       },
       "remove from the book",
+      () => `Removed “${item.term}” from ${bookName(listId) ?? "the book"}`,
     );
   };
 
@@ -216,6 +247,7 @@ export function PackView({
         });
       },
       "remove",
+      `Removed “${item.term}” from your vocabulary`,
     );
   };
 
