@@ -70,6 +70,18 @@ The app is pinned to **port 3020** (web-app owns 3000, internal-console owns
 3001; Postgres is on 5439 because 5432/5433 are taken by the platform
 container and a native Windows PostgreSQL service).
 
+Both dev scripts raise Node's HTTP header cap
+(`NODE_OPTIONS=--max-http-header-size=65536`) — **don't remove it.** Cookies
+are port-blind, so every app on `localhost` (web-app :3000, crm :3100, this
+app :3020, rift :3030, platform :8080) sends its WorkOS session cookie on
+every request to every other one. Each sealed session is a multi-KB JWE, so
+four signed-in apps overflow Node's 16 KB default and the dev server answers
+`431 Request Header Fields Too Large` before any route runs — which looks
+exactly like the page being broken. The per-app `WORKOS_COOKIE_NAME` stops
+the apps overwriting each other's sessions; it does not stop them being
+*sent*. Clearing `localhost` cookies also works, but logs you out of the
+whole fleet and the pile-up just returns.
+
 Without `ANTHROPIC_API_KEY`, "Process with AI" uses a deterministic mock
 extractor (free, offline) that understands simple note conventions:
 
