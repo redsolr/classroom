@@ -1396,9 +1396,17 @@ test("home: waiting-first quick picks, shelves, and a way back into a chat", asy
   // Books it would fight the sidebar's own word for the page.
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
 
+  // The spotlight is the page's focal point — it exists only when
+  // something is actually due, which a never-reviewed word guarantees.
+  const spotlight = page.locator(".home-spotlight");
+  await expect(spotlight).toBeVisible();
+  await expect(
+    spotlight.getByRole("link", { name: /Start reviewing/ }),
+  ).toBeVisible();
+
   // Quick picks lead with what's WAITING: a never-reviewed word is due,
-  // so All words carries a due count and a play affordance.
-  const picks = page.locator(".quick-picks");
+  // so All words carries a due badge and a play affordance.
+  const picks = page.locator(".home-picks");
   await expect(picks.getByRole("link", { name: /All words/ })).toBeVisible();
   await expect(picks.getByRole("link", { name: /due/ }).first()).toBeVisible();
 

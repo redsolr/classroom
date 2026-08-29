@@ -18,12 +18,27 @@ import { isCardDue } from "@/lib/srs";
 import { threadTitle } from "@/lib/study-display";
 import { Greeting } from "@/components/study/greeting";
 import { OfficialShelf } from "@/components/study/official-shelf";
-import { QuickPicks, type QuickPick } from "@/components/study/quick-picks";
-import { Shelf } from "@/components/study/shelf";
-import { BookTile } from "@/components/study/study-covers";
+import { Shelf, ShelfCard } from "@/components/study/shelf";
+import {
+  BookTile,
+  LikedCover,
+  SentenceCover,
+} from "@/components/study/study-covers";
 import { PageHeader, PageShell } from "@/components/ui/page-header";
 
 export const metadata: Metadata = { title: "Home" };
+
+/** One resumable thing: a collection, its state, and where it goes. */
+type QuickPick = {
+  key: string;
+  name: string;
+  /** One line of state: "12 due", "48 words", … */
+  detail: string;
+  href: string;
+  art: "liked" | "book" | "sentences";
+  /** Draws the play overlay — only when there's something to drill. */
+  playable?: boolean;
+};
 
 /** Quick picks stay a handful. Past that it's the library, not a shortcut. */
 const MAX_PICKS = 6;
@@ -193,24 +208,15 @@ export default async function StudyHomePage() {
           firstRun
             ? "Start a chat, or take an official book — anything you save shows up here."
             : totalDue > 0
-              ? `${totalDue} card${totalDue === 1 ? "" : "s"} are ready for you.`
+              ? // The spotlight below says the count at 4rem; repeating
+                // it here would be the same sentence twice.
+                "Here's what's waiting."
               : "Nothing due right now — good time to learn something new."
         }
         actions={
           <div className="flex items-center gap-2">
-            {totalDue > 0 && (
-              <Link
-                href={
-                  wordsDue > 0
-                    ? "/decks?book=all"
-                    : "/decks?sentences=all"
-                }
-                className="inline-flex h-10 items-center gap-2 rounded-full bg-practice pr-5 pl-4 text-[0.9375rem] font-semibold text-white shadow-sm transition-colors hover:bg-practice-hover"
-              >
-                <Play className="size-4 fill-current" />
-                Review {totalDue}
-              </Link>
-            )}
+            {/* No Review button here — the spotlight below IS that
+                button, and two of them would compete. */}
             <Link
               href="/chat"
               className="inline-flex h-10 items-center gap-2 rounded-md bg-surface px-3.5 text-[0.9375rem] font-medium shadow-card transition-colors hover:bg-surface-hover"
@@ -222,40 +228,96 @@ export default async function StudyHomePage() {
         }
       />
 
-      <div className="max-w-3xl space-y-8">
+      {/* THE FOCAL POINT. A home page whose loudest element is a list of
+          links has no centre — this is the one thing worth doing right
+          now, said at a size you can read from across the room. It only
+          exists when something is actually due; an always-on banner
+          stops being information. */}
+      {totalDue > 0 && (
+        <section
+          className="home-spotlight mb-10 flex flex-wrap items-center gap-x-6 gap-y-4 overflow-hidden rounded-2xl p-6 shadow-card sm:p-8"
+          style={{
+            background:
+              "linear-gradient(120deg, var(--practice) 0%, hsl(340 72% 34%) 55%, hsl(266 60% 32%) 100%)",
+          }}
+        >
+          <div className="min-w-0 flex-1">
+            <p className="text-[0.8125rem] font-semibold tracking-wide text-white/75 uppercase">
+              Ready to review
+            </p>
+            <p className="mt-1 flex items-baseline gap-2 text-white">
+              <span className="text-[3rem] leading-none font-bold tracking-tight sm:text-[4rem]">
+                {totalDue}
+              </span>
+              <span className="text-[1.125rem] font-medium">
+                card{totalDue === 1 ? "" : "s"}
+              </span>
+            </p>
+            <p className="mt-1 text-[0.9375rem] text-white/80">
+              {wordsDue > 0 && sentencesDue > 0
+                ? `${wordsDue} word${wordsDue === 1 ? "" : "s"} and ${sentencesDue} sentence${sentencesDue === 1 ? "" : "s"} waiting.`
+                : wordsDue > 0
+                  ? "Swipe through them — spaced repetition handles the rest."
+                  : "Fill the blanks — the context check."}
+            </p>
+          </div>
+          <Link
+            href={wordsDue > 0 ? "/decks?book=all" : "/decks?sentences=all"}
+            className="home-spotlight-cta inline-flex h-12 shrink-0 items-center gap-2.5 rounded-full bg-white pr-7 pl-6 text-[1rem] font-semibold text-neutral-900 shadow-sm transition-transform hover:scale-[1.02]"
+          >
+            <Play className="size-5 fill-current" />
+            Start reviewing
+          </Link>
+        </section>
+      )}
+
+      <div className="max-w-3xl space-y-10">
         {picks.length > 0 && (
-          <section className="home-picks">
-            <h2 className="mb-3 text-[1rem] font-semibold">
-              {totalDue > 0 ? "Waiting for you" : "Pick up where you left off"}
-            </h2>
-            <QuickPicks items={picks} />
-          </section>
+          <Shelf
+            title={totalDue > 0 ? "Waiting for you" : "Jump back in"}
+            className="home-picks"
+          >
+            {picks.map((pick) => (
+              <ShelfCard
+                key={pick.key}
+                href={pick.href}
+                name={pick.name}
+                detail={pick.detail}
+                badge={pick.playable ? pick.detail : undefined}
+                playable={pick.playable}
+                cover={
+                  pick.art === "liked" ? (
+                    <LikedCover />
+                  ) : pick.art === "sentences" ? (
+                    <SentenceCover />
+                  ) : (
+                    <BookTile name={pick.name} />
+                  )
+                }
+              />
+            ))}
+          </Shelf>
         )}
 
         {books.length > 0 && (
           <Shelf title="Your books" seeAllHref="/books" className="home-books">
             {books.map((book) => (
-              <li key={book.id} className="w-[124px] shrink-0">
-                <Link href={`/books?book=${book.id}`} className="group block">
-                  <BookTile
-                    name={book.name}
-                    className="transition-transform group-hover:-translate-y-1"
-                  />
-                  <span className="mt-2 block truncate text-[0.875rem] font-medium">
-                    {book.name}
-                  </span>
-                  <span className="block text-[0.8125rem] text-fg-tertiary">
-                    {book.wordCount} word{book.wordCount === 1 ? "" : "s"}
-                  </span>
-                </Link>
-              </li>
+              <ShelfCard
+                key={book.id}
+                href={`/books?book=${book.id}`}
+                name={book.name}
+                detail={`${book.wordCount} word${book.wordCount === 1 ? "" : "s"}`}
+                cover={<BookTile name={book.name} />}
+              />
             ))}
           </Shelf>
         )}
 
         {recent.length > 0 && (
           <section className="home-chats">
-            <h2 className="mb-3 text-[1rem] font-semibold">Recent chats</h2>
+            <h2 className="mb-3 text-[1.375rem] font-bold tracking-tight">
+              Recent chats
+            </h2>
             <ul className="divide-y divide-border overflow-hidden rounded-xl bg-surface shadow-card">
               {recent.map((thread) => (
                 <li key={thread.id}>

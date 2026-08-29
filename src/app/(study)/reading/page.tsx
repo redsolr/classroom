@@ -75,7 +75,7 @@ export default async function LibraryPage() {
               <BookCover
                 title={book.title}
                 author={book.author}
-                className="transition-transform group-hover:-translate-y-1"
+                className="transition duration-200 group-hover:brightness-110"
               />
               <span className="mt-2 block truncate text-[0.875rem] font-medium">
                 {book.title}

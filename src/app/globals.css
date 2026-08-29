@@ -141,6 +141,25 @@ html {
   font-size: 16px;
 }
 
+/* Tailwind v4's preflight stopped setting `cursor: pointer` on buttons —
+ * it defers to the browser default, which is an arrow. The result is
+ * that EVERY button in this app (menus, dialogs, the account row, the
+ * grade circles) looks unclickable on hover, which is the one thing a
+ * cursor exists to tell you. Put it back once, here, rather than
+ * sprinkling `cursor-pointer` on hundreds of call sites and missing some.
+ *
+ * Disabled controls keep the default arrow — pointing at something you
+ * can't press is a worse lie than no signal at all. */
+button:not(:disabled),
+summary,
+[role="button"]:not([aria-disabled="true"]),
+[role="menuitem"]:not([aria-disabled="true"]),
+[role="tab"],
+label:has(> input[type="checkbox"]),
+label:has(> input[type="radio"]) {
+  cursor: pointer;
+}
+
 /* One-time entrance for a just-created booking chip on the calendar. */
 @keyframes chip-created-pop {
   from {

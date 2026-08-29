@@ -57,7 +57,7 @@ export default async function StudyPacksPage() {
                 slug={pack.slug}
                 name={pack.name}
                 language={pack.language}
-                className="transition-transform group-hover:-translate-y-1"
+                className="transition duration-200 group-hover:brightness-110"
               />
               <span className="mt-2 block truncate text-[0.875rem] font-medium">
                 {pack.name}
