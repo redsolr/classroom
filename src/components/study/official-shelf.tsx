@@ -27,7 +27,9 @@ export function OfficialShelf({ items }: { items: OfficialShelfItem[] }) {
       title="Official books"
       subtitle="Ready-made word books — take what you want, or drill one as a deck without saving it."
       seeAllHref="/official"
-      className="official-shelf mt-10 max-w-3xl"
+      // Spacing-neutral: callers place it (Home stacks it with the other
+      // rows; Books and Decks hang it below their own content).
+      className="official-shelf"
     >
       {items.map((item) => (
         <ShelfCard

@@ -82,10 +82,13 @@ export default async function StudyChatPage({
   return (
     // Chrome (header, scroll region, composer) spans the full pane —
     // the readable column is capped INSIDE StudyChat, ChatGPT-style.
-    // The pane is the viewport minus the phone navbar (3rem) and the
-    // quick-access bar; both terms go to zero at lg, so one expression
-    // covers phone and desktop.
-    <div className="flex h-[calc(100dvh-3rem-var(--study-tabbar-h))] w-full flex-col lg:h-dvh">
+    // The pane is the viewport minus whatever chrome owns an edge: the
+    // phone navbar (3rem) and quick-access bar below lg, the persistent
+    // search bar at lg. Each term is zero on the side of the breakpoint
+    // where its bar isn't rendered, so ONE expression covers both — and
+    // the pane can never be taller than the space it was given, which is
+    // what would put a second scrollbar on a full-height chat.
+    <div className="flex h-[calc(100dvh-3rem-var(--study-tabbar-h))] w-full flex-col lg:h-[calc(100dvh-var(--study-topbar-h))]">
       {active ? (
         <>
           {/* Desktop-only chrome — on phones the navbar stays the single

@@ -277,7 +277,7 @@ export default async function StudyReviewPage({
           ];
 
     return (
-      <PageShell>
+      <PageShell width="wide">
         <PageHeader
           icon={BookOpenCheck}
           title="Decks"
@@ -295,7 +295,7 @@ export default async function StudyReviewPage({
           ]}
         />
 
-        <div className="max-w-3xl">
+        <div>
           {words.length === 0 ? (
             <DeckShelfEmpty />
           ) : (
@@ -336,7 +336,9 @@ export default async function StudyReviewPage({
 
         {/* Official books are drillable without saving anything, so the
             drill surface shows them too — same catalog, second door. */}
-        <OfficialShelf items={officialRows} />
+        <div className="mt-10">
+          <OfficialShelf items={officialRows} />
+        </div>
       </PageShell>
     );
   }

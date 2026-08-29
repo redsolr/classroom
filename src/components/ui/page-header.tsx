@@ -13,13 +13,26 @@ import { ArrowLeft, type LucideIcon } from "lucide-react";
 export function PageShell({
   children,
   className = "",
+  width = "default",
 }: {
   children: React.ReactNode;
   className?: string;
+  /**
+   * `default` — the reading measure every page has always used.
+   * `wide` — for SHELF pages. A wall of artwork wants the window the
+   * way a streaming home page does; the prose measure left covers
+   * clipped beside half an empty screen. The ceiling exists only to
+   * stop a row sprawling on an ultrawide.
+   */
+  width?: "default" | "wide";
 }) {
   return (
     <div
-      className={`page-shell mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-10 lg:py-10 ${className}`}
+      // The lg gutter is deliberately large (64px, 88px from xl —
+      // Spotify's content grid measures 88.5px of left padding). The
+      // sidebar is a floating panel now, so the content needs real air
+      // beside it rather than the 40px that read as "touching".
+      className={`page-shell mx-auto w-full ${width === "wide" ? "max-w-[1800px]" : "max-w-6xl"} px-4 py-6 sm:px-6 lg:px-16 lg:py-10 xl:px-[5.5rem] ${className}`}
     >
       {children}
     </div>

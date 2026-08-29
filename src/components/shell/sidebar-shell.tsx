@@ -45,8 +45,19 @@ export function isNavEntryActive(
 export function navRowClass(active: boolean): string {
   return cn(
     "nav-row flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[0.9375rem] font-medium transition-colors",
+    // The active row was HARDER to read than the inactive ones, which is
+    // the hierarchy upside down. In dark, `--accent-text` (#a5a3ff, a
+    // muted lavender) sat on `--accent-soft` (#232345, barely off the
+    // #17171b panel) while every unselected row used `--text` (#ededf0,
+    // near-white). The selected item was the dimmest thing in the rail.
+    //
+    // So the tint carries "which one", and the TEXT carries "selected":
+    // full-strength `--text` plus semibold, over a fill mixed live from
+    // `--accent` instead of the muted token. Local to the sidebar on
+    // purpose — `--accent-soft` also backs info callouts and chat
+    // bubbles, where brighter would be wrong.
     active
-      ? "bg-accent-soft text-accent-text"
+      ? "bg-accent/25 font-semibold text-fg"
       : "text-fg hover:bg-surface-hover",
   );
 }
@@ -196,10 +207,28 @@ export function SidebarShell({
       )}
 
       {/* Desktop static column — the section list scrolls when it
-          outgrows the viewport (the "Plan & usage cut off" bug). */}
-      {/* w-72: the chat tree (titles + hover actions) needs more room
-          than the old w-64 nav-only column. */}
-      <aside className="app-sidebar sticky top-0 hidden h-screen w-72 shrink-0 flex-col border-r border-border bg-surface px-3 py-5 lg:flex">
+          outgrows the viewport (the "Plan & usage cut off" bug).
+       *
+       * A floating PANEL, not a wall: inset on every side, rounded, and
+       * separated from the content by the page ground showing through
+       * rather than by a 1px rule. A full-bleed column divided by a
+       * hairline is the dashboard convention; every media app this
+       * product is shaped after (Spotify, and YouTube Music's library)
+       * uses a panel with air around it, and the air is most of why
+       * theirs reads as an app and ours read as a settings screen. The
+       * tokens already supported it — `--surface` sits a step lighter
+       * than `--bg`, so the seam appears with no new colour.
+       *
+       * 360px. The width does PROPORTIONAL work, not just name-fitting:
+       * a 320px rail against an 1800px content column made everything on
+       * the right read as over-stretched, and the first instinct — cap
+       * the content — would have fought the shelves, which genuinely
+       * want the page. Spotify's own panel measures 420px, but that is a
+       * player with a 48px-artwork library in it; ours is a nav tree, and
+       * at 420 the rail was mostly empty. 360 is the settled point, with
+       * the type back at its original scale.
+       */}
+      <aside className="app-sidebar sticky top-2 m-2 hidden h-[calc(100dvh-1rem)] w-[360px] shrink-0 flex-col rounded-xl bg-surface px-3 py-5 shadow-card lg:flex">
         <div className="app-sidebar-brand mb-6 px-2">
           <Brand homeHref={homeHref} />
         </div>

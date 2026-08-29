@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { requireLearner, resolveAccount } from "@/lib/auth";
 import { STUDY_MODEL, STUDY_MODEL_ROSTER } from "@/lib/ai/study-tutor";
 import { getSidebarStudy } from "@/lib/study-sidebar";
@@ -5,6 +6,7 @@ import { AskDock } from "@/components/study/ask-dock";
 import { MobileTabbar } from "@/components/shell/mobile-tabbar";
 import { Sidebar } from "@/components/shell/sidebar";
 import { StudentSidebar } from "@/components/shell/student-sidebar";
+import { StudyTopbar } from "@/components/shell/study-topbar";
 
 /**
  * The study area lives inside the SAME sidebar shell as the rest of the
@@ -46,6 +48,18 @@ export default async function StudyLayout({
       {/* Padded so the fixed phone tab bar never covers the last row of
           a page; the var is 0 at lg, where there is no bar. */}
       <main className="min-w-0 flex-1 pb-[var(--study-tabbar-h)]">
+        {/* Desktop-only persistent search. Suspense because the field
+            reads the URL's `q` to mirror the search page under it, and
+            `useSearchParams` needs a boundary to keep the rest of the
+            layout server-rendered. The fallback holds the bar's height
+            so nothing below it jumps. */}
+        <Suspense
+          fallback={
+            <div className="hidden h-[var(--study-topbar-h)] lg:block" />
+          }
+        >
+          <StudyTopbar />
+        </Suspense>
         {children}
       </main>
       {/* The CRM-style Ask drawer — available on every study page. */}

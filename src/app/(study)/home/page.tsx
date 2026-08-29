@@ -46,6 +46,9 @@ type QuickPick = {
 const MAX_PICKS = 6;
 /** Recent chats worth surfacing — the rest live in the sidebar tree. */
 const MAX_CHATS = 4;
+/** Covers in the spotlight's fan. Four splay cleanly at ±10°; a fifth
+ * pushes the stack into the CTA and the outer cards past legibility. */
+const MAX_FAN = 4;
 
 /**
  * HOME — what you land on when you open the app with no particular plan.
@@ -221,9 +224,19 @@ export default async function StudyHomePage() {
 
   const firstRun = words.length === 0 && sentenceRows.length === 0;
 
+  // The covers the spotlight fans out: the decks that actually have
+  // something due, in the order the picks already ranked them. Real
+  // artwork for real decks — a stack of decorative shapes would be a
+  // picture of a feature rather than the feature.
+  const duePreview = picks.filter((pick) => pick.playable).slice(0, MAX_FAN);
+
   return (
-    <PageShell>
-      <SearchBar />
+    <PageShell width="wide">
+      {/* Phones only — desktop keeps the field pinned in the top bar, so
+          a second one here would be the same control twice. */}
+      <div className="lg:hidden">
+        <SearchBar />
+      </div>
       <PageHeader
         icon={House}
         title={<Greeting />}
@@ -251,42 +264,119 @@ export default async function StudyHomePage() {
         }
       />
 
-      {/* THE FOCAL POINT. A home page whose loudest element is a list of
-          links has no centre — this is the one thing worth doing right
-          now, said at a size you can read from across the room. It only
+      {/* THE FOCAL POINT — the one thing worth doing right now. It only
           exists when something is actually due; an always-on banner
-          stops being information. */}
+          stops being information.
+       *
+       * TWO shapes, because one did not survive both ends. Stacked on a
+       * phone, where a 4rem count is the point and the CTA is a
+       * full-width tap target under it. A short BAND from lg, where the
+       * stacked version became a 233px-tall slab with its text in one
+       * corner and its button in the other, a thousand pixels of empty
+       * gradient between them. A wide short band reads as a banner; a
+       * wide TALL one reads as a layout that broke.
+       *
+       * The phone bug was the same root cause: `flex-wrap` never wrapped
+       * because the CTA is `shrink-0` while the text column is `flex-1`,
+       * so the column collapsed to 87px instead and "cards" — inside a
+       * row that cannot wrap — overflowed under the button. Explicit
+       * `flex-col` up to lg is the fix for both ends at once.
+       *
+       * It runs the FULL page width, like the shelves. Capping it was
+       * tried and reverted: the band never was the problem — the page
+       * was out of proportion, a 320px sidebar against a 1800px content
+       * column, so everything on the right read as over-stretched. The
+       * fix belongs in the shell (a 420px sidebar), not in a cap on one
+       * element that would then disagree with every row beneath it. */}
       {totalDue > 0 && (
         <section
-          className="home-spotlight mb-10 flex flex-wrap items-center gap-x-6 gap-y-4 overflow-hidden rounded-2xl p-6 shadow-card sm:p-8"
+          className="home-spotlight mb-10 flex flex-col gap-5 overflow-hidden rounded-2xl p-6 shadow-card sm:p-8 lg:flex-row lg:items-center lg:gap-8 lg:p-8"
           style={{
             background:
               "linear-gradient(120deg, var(--practice) 0%, hsl(340 72% 34%) 55%, hsl(266 60% 32%) 100%)",
           }}
         >
-          <div className="min-w-0 flex-1">
-            <p className="text-[0.8125rem] font-semibold tracking-wide text-white/75 uppercase">
+          {/* Deliberately NOT flex-1. When the text absorbed the spare
+              width, the fan was shoved against the CTA at the far right
+              with a lake of empty gradient after the sentence. Sized to
+              its content instead, so count → sentence → fan read as one
+              left-hand cluster and the CTA takes the far side alone. */}
+          <div className="min-w-0 lg:flex lg:items-center lg:gap-5">
+            {/* The eyebrow is the label only while the count stands
+                alone; from lg it moves beside the number as a real
+                sentence, so the band never repeats itself. */}
+            <p className="text-[0.8125rem] font-semibold tracking-wide text-white/75 uppercase lg:hidden">
               Ready to review
             </p>
-            <p className="mt-1 flex items-baseline gap-2 text-white">
-              <span className="text-[3rem] leading-none font-bold tracking-tight sm:text-[4rem]">
+            <p className="mt-1 flex shrink-0 items-baseline gap-2 text-white lg:mt-0">
+              <span className="text-[3rem] leading-none font-bold tracking-tight sm:text-[4rem] lg:text-[3.5rem]">
                 {totalDue}
               </span>
-              <span className="text-[1.125rem] font-medium">
+              <span className="text-[1.125rem] font-medium lg:hidden">
                 card{totalDue === 1 ? "" : "s"}
               </span>
             </p>
-            <p className="mt-1 text-[0.9375rem] text-white/80">
-              {wordsDue > 0 && sentencesDue > 0
-                ? `${wordsDue} word${wordsDue === 1 ? "" : "s"} and ${sentencesDue} sentence${sentencesDue === 1 ? "" : "s"} waiting.`
-                : wordsDue > 0
-                  ? "Swipe through them — spaced repetition handles the rest."
-                  : "Fill the blanks — the context check."}
-            </p>
+            <div className="min-w-0">
+              <p className="hidden text-[1.0625rem] font-semibold text-white lg:block">
+                card{totalDue === 1 ? "" : "s"} ready to review
+              </p>
+              <p className="mt-1 text-[0.9375rem] text-white/80 lg:mt-0">
+                {wordsDue > 0 && sentencesDue > 0
+                  ? `${wordsDue} word${wordsDue === 1 ? "" : "s"} and ${sentencesDue} sentence${sentencesDue === 1 ? "" : "s"} waiting.`
+                  : wordsDue > 0
+                    ? "Swipe through them — spaced repetition handles the rest."
+                    : "Fill the blanks — the context check."}
+              </p>
+            </div>
           </div>
+          {/* THE DECKS THEMSELVES, fanned — and each one is a real link
+              straight into that deck. A count tells you how MUCH work is
+              waiting; the covers tell you what the work IS, in the same
+              artwork the learner recognises from the shelf below. Real
+              decks, never a decorative stack: something that looks this
+              much like a card is going to get clicked, and a picture
+              that doesn't respond is a broken promise.
+              Hover pulls the card straight, lifts it and brings it to
+              the front, so a fan of overlapping covers stays readable
+              while you point at one.
+              `lg:ml-auto` on the fan takes ALL the spare width, so the
+              stack rides to the right end next to the CTA; the CTA's own
+              `lg:ml-10` then holds an explicit 72px (gap-8 + 40px) of
+              air between them, enough that a hovered card can lift and
+              scale without reaching the button. Splitting the slack
+              between two auto margins was tried and left the fan
+              stranded mid-band.
+              Desktop only: on a phone the band is already a stack and
+              this would push the CTA below the fold. */}
+          {duePreview.length > 0 && (
+            <div className="home-spotlight-fan hidden shrink-0 items-center lg:ml-auto lg:flex">
+              {duePreview.map((pick, index) => (
+                <Link
+                  key={pick.key}
+                  href={pick.href}
+                  aria-label={`Review ${pick.name} — ${pick.detail}`}
+                  // Rotation and depth ride CSS VARIABLES rather than an
+                  // inline `transform`/`z-index`: inline styles outrank
+                  // utilities, so a hover class could never have undone
+                  // them. As variables, the hover utilities compose.
+                  style={
+                    {
+                      marginLeft: index === 0 ? 0 : "-2.25rem",
+                      "--fan-rotate": `${(index - (duePreview.length - 1) / 2) * 7}deg`,
+                      "--fan-z": index,
+                    } as React.CSSProperties
+                  }
+                  className="w-24 shrink-0 overflow-hidden rounded-lg shadow-[0_8px_20px_rgba(0,0,0,0.35)] ring-1 ring-white/20 transition duration-200 z-[var(--fan-z)] rotate-[var(--fan-rotate)] hover:z-20 hover:-translate-y-2 hover:rotate-0 hover:scale-105 hover:ring-white/50 focus-visible:z-20 focus-visible:-translate-y-2 focus-visible:rotate-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+                >
+                  <CollectionCover art={pick.art} name={pick.name} />
+                </Link>
+              ))}
+            </div>
+          )}
+
           <Link
             href={wordsDue > 0 ? "/decks?book=all" : "/decks?sentences=all"}
-            className="home-spotlight-cta inline-flex h-12 shrink-0 items-center gap-2.5 rounded-full bg-white pr-7 pl-6 text-[1rem] font-semibold text-neutral-900 shadow-sm transition-transform hover:scale-[1.02]"
+            className="home-spotlight-cta inline-flex h-12 shrink-0 items-center justify-center gap-2.5 rounded-full bg-white px-6 text-[1rem] font-semibold text-neutral-900 shadow-sm transition-transform hover:scale-[1.02] lg:ml-10 lg:pr-7 lg:pl-6"
           >
             <Play className="size-5 fill-current" />
             Start reviewing
@@ -294,7 +384,8 @@ export default async function StudyHomePage() {
         </section>
       )}
 
-      <div className="max-w-3xl space-y-10">
+      {/* No width cap: shelves take the page. See `Shelf`. */}
+      <div className="space-y-10">
         {picks.length > 0 && (
           <Shelf
             title={totalDue > 0 ? "Waiting for you" : "Your library"}
@@ -360,10 +451,13 @@ export default async function StudyHomePage() {
             })}
           </Shelf>
         )}
-      </div>
 
-      {/* ROW 4 — the whole catalog, for when none of the above was it. */}
-      <OfficialShelf items={officialRows} />
+        {/* ROW 4 — the whole catalog, for when none of the above was it.
+            Inside the same stack as the rest: it used to sit outside and
+            carry its own spacing, which is how it ended up the one row
+            with a different width. */}
+        <OfficialShelf items={officialRows} />
+      </div>
     </PageShell>
   );
 }

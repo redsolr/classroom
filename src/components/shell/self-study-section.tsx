@@ -194,7 +194,7 @@ function ThreadRow({
     <div
       className={cn(
         "chat-row group flex items-center rounded-md pr-1 pl-2.5 transition-colors",
-        active ? "bg-accent-soft" : "hover:bg-surface-hover",
+        active ? "bg-accent/25" : "hover:bg-surface-hover",
       )}
     >
       <Link
@@ -333,7 +333,7 @@ function StudyChatTree({ study }: { study: SidebarStudy }) {
       href={item.href}
       className={navRowClass(isNavEntryActive(pathname, item))}
     >
-      <item.icon className="size-4" />
+      <item.icon className="size-4 shrink-0" />
       {item.label}
     </Link>
   );
@@ -442,7 +442,7 @@ function StudyChatTree({ study }: { study: SidebarStudy }) {
                 key={project.id}
                 className={cn(
                   "project-row group flex items-center rounded-md pr-1 pl-2.5 transition-colors",
-                  onProjectPage ? "bg-accent-soft" : "hover:bg-surface-hover",
+                  onProjectPage ? "bg-accent/25" : "hover:bg-surface-hover",
                 )}
               >
                 {/* The label opens the project page — its chats live

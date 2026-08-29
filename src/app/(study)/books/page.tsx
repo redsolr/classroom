@@ -181,7 +181,7 @@ export default async function StudyVocabPage({
   // saying good evening is one page too many. This is the library — it
   // states what's in it.
   return (
-    <PageShell>
+    <PageShell width="wide">
       <PageHeader
         icon={Layers}
         title="Books"
@@ -214,11 +214,11 @@ export default async function StudyVocabPage({
         ]}
       />
 
-      <div className="max-w-3xl">
-        <VocabShelf lists={lists} totalWords={items.length} />
-      </div>
+      <VocabShelf lists={lists} totalWords={items.length} />
 
-      <OfficialShelf items={officialRows} />
+      <div className="mt-10">
+        <OfficialShelf items={officialRows} />
+      </div>
     </PageShell>
   );
 }

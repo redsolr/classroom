@@ -59,7 +59,11 @@ export default async function StudySearchPage({
           title="Search"
           subtitle="Words, books, sentences, official books, chats."
         />
-        <SearchBar autoFocus />
+        {/* Phones only: at lg the pinned bar holds the field and carries
+            the query, so a second one is the same control twice. */}
+        <div className="lg:hidden">
+          <SearchBar autoFocus />
+        </div>
       </PageShell>
     );
   }
@@ -184,7 +188,9 @@ export default async function StudySearchPage({
             : `${total} result${total === 1 ? "" : "s"} for “${query}”.`
         }
       />
-      <SearchBar defaultValue={query} />
+      <div className="lg:hidden">
+        <SearchBar defaultValue={query} />
+      </div>
 
       <div className="max-w-3xl space-y-8">
         {words.length > 0 && (

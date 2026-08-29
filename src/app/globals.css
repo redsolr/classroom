@@ -52,11 +52,21 @@
    * isn't rendered — one var means one class works on both sides of the
    * breakpoint. */
   --study-tabbar-h: calc(3.5rem + env(safe-area-inset-bottom, 0px));
+  /* Vertical space the DESKTOP search bar OCCUPIES — its 3.5rem height
+   * plus the 0.5rem inset above it, since the bar floats like the
+   * sidebar panel rather than sitting flush. Published for the same
+   * reason as the tab bar and mirrored against it: the search bar exists
+   * only at lg, the tab bar only below it, so one expression sizes a
+   * pane on both sides of the breakpoint instead of two hard-coded
+   * numbers that drift apart. Consumers subtract this to get the space
+   * left below the bar; the bar itself is `h-14`. */
+  --study-topbar-h: 0px;
 }
 
 @media (min-width: 1024px) {
   :root {
     --study-tabbar-h: 0px;
+    --study-topbar-h: 4rem;
   }
 }
 
@@ -533,3 +543,4 @@ body {
 .animate-overlay-out {
   animation: overlay-out 200ms ease-out both;
 }
+
