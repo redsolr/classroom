@@ -16,71 +16,74 @@ test.beforeAll(resetMockLearner);
 test("hamburger opens the drawer; a nav tap navigates and closes it", async ({
   page,
 }) => {
-  await page.goto("/study");
+  await page.goto("/chat");
   await page.getByRole("button", { name: "Open menu" }).click();
-  // getByText doesn't exclude the display:none desktop sidebar — first()
+  // Locators don't exclude the display:none desktop sidebar — first()
   // is the drawer copy (drawer renders before the desktop aside).
-  await expect(page.getByText("Self-study").first()).toBeVisible();
-
-  await page.getByRole("link", { name: "Vocabulary" }).click();
-  await page.waitForURL("**/study/vocab");
   await expect(
-    page.getByRole("heading", { name: "My vocabulary" }),
+    page.getByRole("link", { name: "New chat" }).first(),
+  ).toBeVisible();
+
+  await page.getByRole("link", { name: "Books", exact: true }).first().click();
+  await page.waitForURL("**/vocab");
+  await expect(
+    page.getByRole("heading", { name: "Books", exact: true }),
   ).toBeVisible();
   // Link tap closed the drawer.
   await expect(page.getByRole("button", { name: "Close menu" })).not.toBeVisible();
 });
 
-test("chat is fully usable at phone width: new chat, type, send, reply", async ({
+test("chat is fully usable at phone width: type, send, reply", async ({
   page,
 }) => {
-  await page.goto("/study");
-  await page.getByRole("button", { name: "New chat" }).click();
-  await page.waitForURL(/\/study\?t=[0-9a-f-]{36}/);
-
+  // The landing composer is the draft chat — no New-chat step on phones
+  // either; the thread is created on the first send.
+  await page.goto("/chat");
   await page.getByLabel("Message").fill("hola");
   await page.getByRole("button", { name: "Send" }).click();
   await expect(page.getByText(/Happy to help with anything/)).toBeVisible();
+  await page.waitForURL(/\/chat\?t=[0-9a-f-]{36}/);
+
+  // ChatGPT navbar: on phones the chat's ⋯ options live in the top bar
+  // (portaled there — the desktop chat header is display:none here)…
+  await page.getByRole("button", { name: "Chat options" }).click();
+  await expect(page.getByRole("menuitem", { name: "Pin chat" })).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  // …next to the quick new-chat, which returns to the draft composer.
+  await page.getByRole("link", { name: "New chat" }).click();
+  await page.waitForURL(/\/chat$/);
+  await expect(page.getByLabel("Message")).toBeVisible();
 });
 
-test("vocabulary is a usable card list at phone width: add, sort, edit in place", async ({
+test("vocabulary at phone width: books shelf, dialog add, compact table, edit", async ({
   page,
 }) => {
-  await page.goto("/study/vocab");
-  await page.getByLabel("Language").selectOption("French");
-  await page.getByLabel("Word or phrase").fill("chien");
-  await page.getByLabel("Meaning").fill("dog");
-  await page.getByRole("button", { name: "Add word" }).click();
+  // The landing is the bookshelf; adding goes through the dialog.
+  await page.goto("/vocab");
+  await page.getByRole("button", { name: "New word" }).click();
+  const addDialog = page.getByRole("dialog");
+  await addDialog.getByLabel("Language").selectOption("French");
+  await addDialog.getByLabel("Word or phrase").fill("chien");
+  await addDialog.getByLabel("Meaning").fill("dog");
+  await addDialog.getByRole("button", { name: "Add word" }).click();
+  await expect(addDialog).not.toBeVisible();
 
-  // Phones get cards, not the 8-column table (which is display:none here —
-  // role queries skip it, so a listitem match proves the phone branch).
-  const card = page
-    .getByRole("main")
-    .getByRole("listitem")
-    .filter({ hasText: "chien" });
-  await expect(card).toBeVisible();
+  // One compact TABLE on every viewport — usable at 390px, no card fork.
+  await page.getByRole("link", { name: /All words/ }).click();
+  await page.waitForURL(/book=all/);
+  const table = page.getByRole("main").locator("table");
+  const row = table.locator("tbody tr").filter({ hasText: "chien" });
+  await expect(row).toBeVisible();
 
-  // Column headers don't exist on this branch, so sorting has its own
-  // control — it must be reachable, not just present.
-  await page.getByRole("main").getByLabel("Sort by").selectOption("term");
-  await expect(card).toBeVisible();
-
-  // Edit-in-place works with a real tap, not just on desktop.
-  await card.getByTitle("Edit word").click();
-  const editor = page
-    .getByRole("main")
-    .getByRole("listitem")
-    .filter({ has: page.getByLabel("Edit term") });
-  await expect(editor.getByLabel("Edit term")).toHaveValue("chien");
-  await editor.getByLabel("Edit meaning").fill("dog (animal)");
-  await editor.getByTitle("Save word").click();
-
-  await expect(
-    page
-      .getByRole("main")
-      .getByRole("listitem")
-      .filter({ hasText: "chien" }),
-  ).toContainText("dog (animal)");
+  // Row actions are always visible on touch — edit with a real tap.
+  await row.getByRole("button", { name: "chien options" }).click();
+  await page.getByRole("menuitem", { name: "Edit word" }).click();
+  const editDialog = page.getByRole("dialog");
+  await expect(editDialog.getByLabel("Word or phrase")).toHaveValue("chien");
+  await editDialog.getByLabel("Meaning").fill("dog (animal)");
+  await editDialog.getByRole("button", { name: "Save word" }).click();
+  await expect(row).toContainText("dog (animal)");
 });
 
 test("PWA manifest and icons serve", async ({ page }) => {
@@ -93,7 +96,7 @@ test("PWA manifest and icons serve", async ({ page }) => {
   };
   expect(body.name).toBe("Classroom");
   expect(body.display).toBe("standalone");
-  expect(body.start_url).toBe("/study");
+  expect(body.start_url).toBe("/chat");
 
   for (const icon of [
     "/icons/icon-192.png",
@@ -103,4 +106,61 @@ test("PWA manifest and icons serve", async ({ page }) => {
     const res = await page.request.get(icon);
     expect(res.status(), icon).toBe(200);
   }
+});
+
+test("the bottom quick-access bar navigates without opening the drawer", async ({
+  page,
+}) => {
+  await page.goto("/chat");
+  const tabbar = page.locator(".mobile-tabbar");
+  await expect(tabbar).toBeVisible();
+
+  // Clickability, not visibility: a fixed bar is exactly the chrome that
+  // renders fine and still can't be tapped (covered, off-screen, or
+  // behind the composer).
+  await tabbar.getByRole("link", { name: "Decks" }).click();
+  await page.waitForURL("**/vocab/review");
+  await expect(
+    page.getByRole("heading", { name: "Decks", exact: true }),
+  ).toBeVisible();
+  // The active tab says where you are.
+  await expect(tabbar.getByRole("link", { name: "Decks" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  // Longest-match wins: /vocab/review must NOT also light up Books.
+  await expect(
+    tabbar.getByRole("link", { name: "Books" }),
+  ).not.toHaveAttribute("aria-current", "page");
+
+  await tabbar.getByRole("link", { name: "Books" }).click();
+  await page.waitForURL("**/vocab");
+  await tabbar.getByRole("link", { name: "Official" }).click();
+  await page.waitForURL("**/packs");
+  await expect(
+    page.getByRole("heading", { name: "Official books" }),
+  ).toBeVisible();
+
+  // The drawer was never involved.
+  await expect(page.getByRole("button", { name: "Close menu" })).toBeHidden();
+});
+
+test("the bar never covers the chat composer or the Ask button", async ({
+  page,
+}) => {
+  // Measured rects, not eyeballed classes: a fixed bar is exactly the
+  // chrome that looks right and still lands on top of something.
+  await page.goto("/chat");
+  const chatBar = await page.locator(".mobile-tabbar").boundingBox();
+  const composer = await page.getByLabel("Message").boundingBox();
+  if (!chatBar || !composer) throw new Error("chat chrome not measurable");
+  expect(composer.y + composer.height).toBeLessThanOrEqual(chatBar.y + 1);
+
+  // The Ask launcher deliberately doesn't render on /chat (that page IS
+  // a chat), so it gets measured where it does exist.
+  await page.goto("/vocab");
+  const bar = await page.locator(".mobile-tabbar").boundingBox();
+  const ask = await page.getByRole("button", { name: "Ask AI" }).boundingBox();
+  if (!bar || !ask) throw new Error("study chrome not measurable");
+  expect(ask.y + ask.height).toBeLessThanOrEqual(bar.y + 1);
 });

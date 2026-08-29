@@ -16,6 +16,7 @@ import {
   goals,
   homework,
   lessons,
+  vocabularyBooks,
   vocabularyItems,
   type Student,
 } from "@/db";
@@ -39,7 +40,7 @@ export async function PortalContent({
   teacherName: string | null;
   token: string;
 }) {
-  const [studentHomework, vocabulary, activeGoals, sharedLessons, dueRows] =
+  const [studentHomework, vocabulary, activeGoals, sharedLessons, dueRows, books] =
     await Promise.all([
       db
         .select()
@@ -85,7 +86,27 @@ export async function PortalContent({
             ),
           ),
         ),
+      db
+        .select()
+        .from(vocabularyBooks)
+        .where(eq(vocabularyBooks.studentId, student.id))
+        .orderBy(desc(vocabularyBooks.createdAt)),
     ]);
+
+  // The teacher's books shape the student's view: one group per book (in
+  // the teacher's order), loose words last under "More words".
+  const vocabularyGroups = [
+    ...books.map((book) => ({
+      key: book.id,
+      name: book.name,
+      words: vocabulary.filter((v) => v.bookId === book.id),
+    })),
+    {
+      key: "loose",
+      name: books.length > 0 ? "More words" : null,
+      words: vocabulary.filter((v) => v.bookId === null),
+    },
+  ].filter((group) => group.words.length > 0);
 
   const openHomework = studentHomework.filter((h) => h.status === "assigned");
   const pastHomework = studentHomework.filter((h) => h.status !== "assigned");
@@ -256,26 +277,39 @@ export async function PortalContent({
               Download CSV (Anki-ready)
             </a>
           </h2>
-          <ul className="space-y-2">
-            {vocabulary.map((v) => (
-              <li
-                key={v.id}
-                className="flex items-start gap-2.5 rounded-lg bg-surface px-4 py-3 shadow-card"
-              >
-                <span className="min-w-0 flex-1">
-                  <span className="block text-[0.9375rem] font-medium">
-                    {v.term}
-                  </span>
-                  {(v.meaning || v.translation) && (
-                    <span className="block text-[0.875rem] text-fg-secondary">
-                      {[v.meaning, v.translation].filter(Boolean).join(" · ")}
-                    </span>
-                  )}
-                </span>
-                <Badge tone={vocabularyStatusTone[v.status]}>{v.status}</Badge>
-              </li>
+          <div className="space-y-4">
+            {vocabularyGroups.map((group) => (
+              <div key={group.key}>
+                {group.name && (
+                  <p className="mb-1.5 text-[0.8125rem] font-semibold tracking-wide text-fg-tertiary">
+                    {group.name}
+                  </p>
+                )}
+                <ul className="space-y-2">
+                  {group.words.map((v) => (
+                    <li
+                      key={v.id}
+                      className="flex items-start gap-2.5 rounded-lg bg-surface px-4 py-3 shadow-card"
+                    >
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[0.9375rem] font-medium">
+                          {v.term}
+                        </span>
+                        {(v.meaning || v.translation) && (
+                          <span className="block text-[0.875rem] text-fg-secondary">
+                            {[v.meaning, v.translation].filter(Boolean).join(" · ")}
+                          </span>
+                        )}
+                      </span>
+                      <Badge tone={vocabularyStatusTone[v.status]}>
+                        {v.status}
+                      </Badge>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             ))}
-          </ul>
+          </div>
         </section>
       )}
 

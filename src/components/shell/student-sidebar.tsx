@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import {
   CalendarClock,
+  Gauge,
   GraduationCap,
   LogOut,
   UserRound,
@@ -11,6 +13,7 @@ import {
   Dropdown,
   DropdownContent,
   DropdownItem,
+  DropdownSeparator,
   DropdownTrigger,
 } from "@/components/ui/dropdown";
 import {
@@ -57,6 +60,13 @@ export function StudentSidebar({
             </span>
           </DropdownTrigger>
           <DropdownContent align="start" className="w-52">
+            <DropdownItem asChild>
+              <Link href="/account">
+                <Gauge className="size-4 text-fg-tertiary" />
+                Plan &amp; usage
+              </Link>
+            </DropdownItem>
+            <DropdownSeparator />
             <DropdownItem asChild>
               <a href="/logout">
                 <LogOut className="size-4 text-fg-tertiary" />

@@ -1,16 +1,18 @@
-import { STUDY_LANGUAGES } from "@/lib/study-languages";
-import { Field, Input, Select, Textarea } from "@/components/ui/field";
+import { Field, Input, Textarea } from "@/components/ui/field";
 
 /**
- * The project form body — one definition for the create page and the
- * project settings page, so the two can't drift.
+ * The project form body — one definition for the create dialog and the
+ * settings dialog, so the two can't drift. Projects are GENERIC
+ * containers (name + standing instructions, ChatGPT-Projects shape):
+ * what a project is for — a language, a book club, freelance work —
+ * lives in the instructions, never in a mode field. Vocabulary language
+ * is data on the WORD (VOCAB lines and tools carry it per item).
  */
 export function ProjectFields({
   defaults,
 }: {
   defaults?: {
     name: string;
-    language: string | null;
     instructions: string | null;
   };
 }) {
@@ -26,19 +28,6 @@ export function ProjectFields({
         />
       </Field>
       <Field
-        label="Language"
-        hint="Optional — set it and chats in this project get the language tutor with your vocabulary."
-      >
-        <Select name="language" defaultValue={defaults?.language ?? ""}>
-          <option value="">Not language-specific</option>
-          {STUDY_LANGUAGES.map((lang) => (
-            <option key={lang} value={lang}>
-              {lang}
-            </option>
-          ))}
-        </Select>
-      </Field>
-      <Field
         label="Custom instructions"
         hint="Optional — the AI follows these in every chat in this project."
       >
@@ -47,7 +36,7 @@ export function ProjectFields({
           rows={5}
           maxLength={4000}
           defaultValue={defaults?.instructions ?? ""}
-          placeholder="e.g. Always correct my grammar strictly. Keep replies short."
+          placeholder="e.g. You're my French tutor — correct my grammar strictly, keep replies short."
         />
       </Field>
     </>

@@ -7,7 +7,7 @@ export default function manifest(): MetadataRoute.Manifest {
     description:
       "Your language classroom — AI tutor chat, personal vocabulary, spaced review, and your teacher's lesson records.",
     // The founder's daily driver is the study space — installed app opens there.
-    start_url: "/study",
+    start_url: "/chat",
     display: "standalone",
     orientation: "portrait-primary",
     background_color: "#0e0e11",

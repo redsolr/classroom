@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { CalendarDays } from "lucide-react";
 import { requireTeacher } from "@/lib/auth";
 import { getWeekLessons, listStudents } from "@/lib/queries";
 import { nowIso, resolveWeekStart } from "@/lib/week";
@@ -27,6 +28,7 @@ export default async function CalendarPage({
   return (
     <div>
       <PageHeader
+        icon={CalendarDays}
         title="Calendar"
         subtitle="Click an empty slot to book a lesson right there."
         actions={

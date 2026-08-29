@@ -12,10 +12,14 @@ export function ConfirmButton({
   action,
   className,
   title = "Delete",
+  label,
 }: {
   action: () => Promise<void>;
   className?: string;
   title?: string;
+  /** Optional visible label (icon-only without it); arming swaps it
+   * for "Sure?" either way. */
+  label?: string;
 }) {
   const [armed, setArmed] = React.useState(false);
   const [pending, startTransition] = React.useTransition();
@@ -58,7 +62,7 @@ export function ConfirmButton({
       )}
     >
       <Trash2 className="size-3.5" />
-      {armed && "Sure?"}
+      {armed ? "Sure?" : label}
     </button>
   );
 }

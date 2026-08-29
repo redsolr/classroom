@@ -24,6 +24,7 @@ export default async function LessonsPage() {
   return (
     <div>
       <PageHeader
+        icon={BookOpenText}
         title="Lessons"
         subtitle={`${lessons.length} lesson${lessons.length === 1 ? "" : "s"} recorded`}
         actions={<NewLessonDialog students={studentOptions} />}

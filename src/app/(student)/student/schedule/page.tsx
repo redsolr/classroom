@@ -59,8 +59,9 @@ export default async function StudentSchedulePage({
   ]);
 
   return (
-    <div className="mx-auto max-w-4xl">
+    <div className="max-w-4xl">
       <PageHeader
+        icon={CalendarClock}
         title="My schedule"
         subtitle={
           upcoming.length === 0

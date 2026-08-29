@@ -4,24 +4,30 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
+  BookMarked,
   BookOpenCheck,
-  ChevronDown,
-  ChevronRight,
   Folder,
-  FolderPlus,
-  Gauge,
   Layers,
+  LibraryBig,
   MessageCircle,
+  MessageSquareQuote,
   MoreHorizontal,
+  NotebookPen,
+  Pencil,
   Pin,
   PinOff,
   Plus,
   Settings,
+  Sparkles,
+  SquarePen,
   Trash2,
 } from "lucide-react";
 import {
   createStudyThread,
   deleteStudyProject,
+  deleteStudyThread,
+  moveStudyThreadToProject,
+  renameStudyThread,
   toggleStudyThreadPin,
 } from "@/lib/actions/study";
 import {
@@ -31,41 +37,96 @@ import {
   DropdownSeparator,
   DropdownTrigger,
 } from "@/components/ui/dropdown";
+import { InlineRenameInput } from "@/components/ui/inline-rename-input";
+import {
+  MoveToProjectMenu,
+  type ProjectOption,
+} from "@/components/study/move-to-project-menu";
+import { NewProjectDialog } from "@/components/study/new-project-dialog";
+import { QuickAddVocabDialog } from "@/components/study/quick-add-vocab-dialog";
 import type { SidebarStudy, SidebarThread } from "@/lib/study-sidebar";
 import { threadTitle } from "@/lib/study-display";
 import {
+  isNavEntryActive,
   navRowClass,
   SectionLabel,
 } from "@/components/shell/sidebar-shell";
 import { cn } from "@/lib/utils";
 
 /**
- * The SELF-STUDY sidebar section — ChatGPT-shaped tree:
+ * The self-study sidebar — ChatGPT-shaped, bare tabs (no section
+ * heading, like ChatGPT's own top cluster):
  *
- *   Chat                       ▾
- *     Pinned                   (pinned chats, floated out of groups)
- *     <project folders>        (label → project page; + → chat inside)
- *       <chat history>
- *     New project
- *     Chats                    (loose chats, no project)
- *   Vocabulary / Review / Plan & usage
+ *   New chat                  (→ /chat, straight into the composer)
+ *   Vocabulary / Review / Curated lists
+ *   More…                     expander for the long tail (Library,
+ *                             Notes) so the tab list stays short
+ *   Pinned                    chat rows (any chat the learner pinned)
+ *   Projects              +   folder rows → the project page (its chats
+ *                             live THERE, like ChatGPT); hover: new chat
+ *                             in project + ⋯ (settings / delete)
+ *   Chats                     loose chats; every chat row gets a ⋯ menu
+ *                             (pin / rename inline / delete)
+ *
+ * Plan & usage moved to the footer account menu (it's settings, not
+ * navigation).
  */
 
-const STATIC_ITEMS = [
-  { href: "/study/vocab", label: "Vocabulary", icon: Layers, exact: true },
-  { href: "/study/vocab/review", label: "Review", icon: BookOpenCheck },
-  { href: "/study/account", label: "Plan & usage", icon: Gauge },
+/**
+ * One word, one meaning (2026-08-29 naming pass):
+ *
+ *   Books        — collections of words: yours, or ours (Official tab).
+ *   Decks        — the Anki-style drill over them.
+ *   Reading list — things you've read. No longer "Library", which made
+ *                  "book" mean two different things in one sidebar.
+ *
+ * "Curated lists" is gone as a DESTINATION: official content is the main
+ * draw, so it lives as a tab inside the section it belongs to instead of
+ * a separate nav item people have to go find. "Dictionary" is gone too —
+ * it was a third synonym for Vocabulary / All words.
+ */
+const PRIMARY_ITEMS = [
+  { href: "/vocab", label: "Books", icon: Layers, exact: true },
+  { href: "/vocab/review", label: "Decks", icon: BookOpenCheck, exact: false },
+  // The SECOND card type gets its own row, not a filter inside Decks:
+  // "what does this word mean" and "can I still supply it when a
+  // sentence needs it" are different sessions, and the learner chooses
+  // between them before anything else.
+  {
+    href: "/sentences",
+    label: "Sentences",
+    icon: MessageSquareQuote,
+    exact: false,
+  },
+  // ONE row, not an expanded list of every title: the covers do the
+  // selling on the Books page itself, and nine text rows here would just
+  // compete with the learner's own books for attention.
+  { href: "/packs", label: "Official", icon: Sparkles, exact: false },
 ];
+
+const MORE_ITEMS = [
+  { href: "/library", label: "Reading list", icon: LibraryBig, exact: false },
+  { href: "/notes", label: "Notes", icon: NotebookPen, exact: false },
+];
+
+/** Hover-reveal on desktop; always visible on touch (no hover). */
+const rowActionClass =
+  "flex size-6 shrink-0 items-center justify-center rounded text-fg-tertiary transition-opacity hover:text-fg opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 max-lg:opacity-100 data-[state=open]:opacity-100 data-[state=open]:text-fg";
 
 function ThreadRow({
   thread,
   active,
+  projects,
 }: {
   thread: SidebarThread;
   active: boolean;
+  projects: ProjectOption[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
+  const [renaming, setRenaming] = React.useState(false);
+
+  const title = threadTitle(thread);
 
   const togglePin = () => {
     startTransition(async () => {
@@ -78,52 +139,122 @@ function ThreadRow({
     });
   };
 
-  const PinIcon = thread.pinned ? PinOff : Pin;
+  const commitRename = (next: string) => {
+    startTransition(async () => {
+      try {
+        await renameStudyThread(thread.id, next);
+        router.refresh();
+      } catch (error) {
+        console.error("sidebar: failed to rename thread", error);
+      }
+    });
+  };
+
+  const deleteChat = () => {
+    if (!window.confirm("Delete this chat and its messages?")) return;
+    startTransition(async () => {
+      try {
+        await deleteStudyThread(thread.id);
+        router.refresh();
+      } catch (error) {
+        console.error("sidebar: failed to delete thread", error);
+      }
+    });
+  };
+
+  const moveToProject = (projectId: string | null) => {
+    startTransition(async () => {
+      try {
+        await moveStudyThreadToProject(thread.id, projectId);
+        router.refresh();
+      } catch (error) {
+        console.error("sidebar: failed to move thread", error);
+      }
+    });
+  };
+
+  if (renaming) {
+    return (
+      <div className="chat-row-rename flex items-center gap-2 rounded-md py-1 pl-2.5">
+        <MessageCircle className="size-3.5 shrink-0 text-fg-tertiary" />
+        <InlineRenameInput
+          initialValue={title}
+          ariaLabel="Rename chat"
+          maxLength={120}
+          onCommit={commitRename}
+          onClose={() => setRenaming(false)}
+          className="w-full min-w-0 text-[0.9375rem]"
+        />
+      </div>
+    );
+  }
 
   return (
     <div
       className={cn(
-        "group flex items-center rounded-md pl-2.5 transition-colors",
+        "chat-row group flex items-center rounded-md pr-1 pl-2.5 transition-colors",
         active ? "bg-accent-soft" : "hover:bg-surface-hover",
       )}
     >
       <Link
-        href={`/study?t=${thread.id}`}
+        href={`/chat?t=${thread.id}`}
         className={cn(
-          "min-w-0 flex-1 truncate py-1.5 pr-1 text-[0.875rem]",
+          // Same type size as the nav rows — the tree must not read as
+          // a second, smaller font tier.
+          "flex min-w-0 flex-1 items-center gap-2 py-1.5 pr-1 text-[0.9375rem]",
           active ? "text-accent-text" : "text-fg",
         )}
       >
-        {threadTitle(thread)}
+        <MessageCircle className="size-3.5 shrink-0 text-fg-tertiary" />
+        <span className="truncate">{title}</span>
       </Link>
-      <button
-        type="button"
-        onClick={togglePin}
-        disabled={pending}
-        aria-label={thread.pinned ? "Unpin chat" : "Pin chat"}
-        title={thread.pinned ? "Unpin" : "Pin"}
-        className={cn(
-          "mr-1 flex size-6 shrink-0 items-center justify-center rounded text-fg-tertiary transition-opacity hover:text-fg",
-          // Hover-reveal on desktop; always visible on touch (no hover).
-          thread.pinned
-            ? "opacity-100"
-            : "opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 max-lg:opacity-100",
-        )}
-      >
-        <PinIcon className="size-3.5" />
-      </button>
+      <Dropdown>
+        <DropdownTrigger asChild>
+          <button
+            type="button"
+            aria-label={`${title} options`}
+            title="Chat options"
+            className={rowActionClass}
+          >
+            <MoreHorizontal className="size-3.5" />
+          </button>
+        </DropdownTrigger>
+        <DropdownContent align="start" className="w-48">
+          <DropdownItem disabled={pending} onSelect={togglePin}>
+            {thread.pinned ? (
+              <PinOff className="size-4 text-fg-tertiary" />
+            ) : (
+              <Pin className="size-4 text-fg-tertiary" />
+            )}
+            {thread.pinned ? "Unpin" : "Pin"}
+          </DropdownItem>
+          <DropdownItem disabled={pending} onSelect={() => setRenaming(true)}>
+            <Pencil className="size-4 text-fg-tertiary" />
+            Rename
+          </DropdownItem>
+          <MoveToProjectMenu
+            projects={projects}
+            currentProjectId={thread.projectId}
+            disabled={pending}
+            onMove={moveToProject}
+          />
+          <DropdownSeparator />
+          <DropdownItem
+            disabled={pending}
+            className="text-danger"
+            onSelect={deleteChat}
+          >
+            <Trash2 className="size-4" />
+            Delete
+          </DropdownItem>
+        </DropdownContent>
+      </Dropdown>
     </div>
   );
 }
 
-function Rail({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="ml-[1.35rem] border-l border-border pl-1.5">{children}</div>
-  );
-}
-
-/** The folder's ⋯ menu — settings (where the project's context/
- * instructions live) and delete. The folder LABEL only expands. */
+/** The project row's ⋯ menu — settings (where the project's context/
+ * instructions live) and delete. The row LABEL navigates to the page. */
 function ProjectMenu({
   projectId,
   projectName,
@@ -140,14 +271,14 @@ function ProjectMenu({
           type="button"
           aria-label={`${projectName} options`}
           title="Project options"
-          className="flex size-6 shrink-0 items-center justify-center rounded text-fg-tertiary hover:text-fg data-[state=open]:text-fg"
+          className={rowActionClass}
         >
           <MoreHorizontal className="size-3.5" />
         </button>
       </DropdownTrigger>
       <DropdownContent align="start" className="w-52">
         <DropdownItem asChild>
-          <Link href={`/study/project/${projectId}`}>
+          <Link href={`/project/${projectId}`}>
             <Settings className="size-4 text-fg-tertiary" />
             Project settings
           </Link>
@@ -185,152 +316,183 @@ function ProjectMenu({
 function StudyChatTree({ study }: { study: SidebarStudy }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const activeId = pathname === "/study" ? searchParams.get("t") : null;
+  const activeId = pathname === "/chat" ? searchParams.get("t") : null;
 
-  const hasContent =
-    study.projects.length > 0 ||
-    study.pinned.length > 0 ||
-    study.chats.length > 0;
+  // A tab inside More keeps the expander open (its active row must stay
+  // visible); otherwise the learner toggles it.
+  const [moreOpen, setMoreOpen] = React.useState(false);
+  const moreActive = MORE_ITEMS.some((item) =>
+    isNavEntryActive(pathname, item),
+  );
+  const showMore = moreOpen || moreActive;
 
-  const [open, setOpen] = React.useState(true);
-  const [closedFolders, setClosedFolders] = React.useState<Set<string>>(
-    () => new Set(),
+  const navTab = (item: (typeof PRIMARY_ITEMS)[number]) => (
+    <Link
+      key={item.href}
+      href={item.href}
+      className={navRowClass(isNavEntryActive(pathname, item))}
+    >
+      <item.icon className="size-4" />
+      {item.label}
+    </Link>
   );
 
-  const toggleFolder = (id: string) => {
-    setClosedFolders((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
   return (
-    <div>
-      <div
-        className={cn(navRowClass(pathname === "/study" && !activeId), "pr-1")}
-      >
-        <Link href="/study" className="flex min-w-0 flex-1 items-center gap-2.5">
-          <MessageCircle className="size-4 shrink-0" />
-          Chat
-        </Link>
-        {hasContent && (
-          <button
-            type="button"
-            onClick={() => setOpen((o) => !o)}
-            aria-label={open ? "Collapse chat list" : "Expand chat list"}
-            className="flex size-6 shrink-0 items-center justify-center rounded text-fg-tertiary hover:text-fg"
+    <div className="study-nav space-y-4">
+      <div className="study-nav-tabs flex flex-col gap-0.5">
+        <div className={navRowClass(pathname === "/chat" && !activeId)}>
+          <Link
+            href="/chat"
+            className="study-nav-new-chat flex min-w-0 flex-1 items-center gap-2.5"
           >
-            {open ? (
-              <ChevronDown className="size-4" />
-            ) : (
-              <ChevronRight className="size-4" />
-            )}
-          </button>
-        )}
+            <SquarePen className="size-4 shrink-0" />
+            New chat
+          </Link>
+        </div>
+        {PRIMARY_ITEMS.map(navTab)}
+        <button
+          type="button"
+          onClick={() => setMoreOpen((open) => !open)}
+          aria-expanded={showMore}
+          className={cn(navRowClass(false), "study-nav-more w-full text-left")}
+        >
+          <MoreHorizontal className="size-4" />
+          More
+        </button>
+        {showMore && MORE_ITEMS.map(navTab)}
       </div>
 
-      {open && (
-        <div className="mt-0.5 space-y-0.5">
-          {study.pinned.length > 0 && (
-            <Rail>
-              <p className="px-2.5 pt-1 text-[0.72rem] font-semibold tracking-wider text-fg-tertiary uppercase">
-                Pinned
-              </p>
-              {study.pinned.map((thread) => (
-                <ThreadRow
-                  key={thread.id}
-                  thread={thread}
-                  active={thread.id === activeId}
-                />
-              ))}
-            </Rail>
-          )}
-
-          {study.projects.map((project) => {
-            const folderOpen = !closedFolders.has(project.id);
-            const onProjectPage = pathname === `/study/project/${project.id}`;
-            return (
-              <div key={project.id}>
-                <div
-                  className={cn(
-                    "group flex items-center rounded-md pr-1 pl-4 transition-colors",
-                    onProjectPage ? "bg-accent-soft" : "hover:bg-surface-hover",
-                  )}
+      {(study.pinned.length > 0 || study.pinnedBooks.length > 0) && (
+        <div>
+          <SectionLabel>Pinned</SectionLabel>
+          <div className="space-y-0.5">
+            {study.pinned.map((thread) => (
+              <ThreadRow
+                key={thread.id}
+                thread={thread}
+                active={thread.id === activeId}
+                projects={study.projects}
+              />
+            ))}
+            {/* Pinned vocabulary BOOKS — name opens the book, + adds a
+                word straight into it from anywhere. */}
+            {study.pinnedBooks.map((book) => (
+              <div
+                key={book.id}
+                className="book-row group flex items-center rounded-md pr-1 pl-2.5 transition-colors hover:bg-surface-hover"
+              >
+                <Link
+                  href={`/vocab?book=${book.id}`}
+                  className="flex min-w-0 flex-1 items-center gap-2 py-1.5 pr-1 text-[0.9375rem] text-fg"
                 >
-                  {/* The label only expands/collapses — the project's
-                      context lives behind ⋯ → Project settings. */}
+                  <BookMarked className="size-3.5 shrink-0 text-fg-tertiary" />
+                  <span className="truncate">{book.name}</span>
+                  <span className="text-[0.78rem] text-fg-tertiary">
+                    {book.wordCount}
+                  </span>
+                </Link>
+                <QuickAddVocabDialog bookId={book.id} bookName={book.name}>
                   <button
                     type="button"
-                    onClick={() => toggleFolder(project.id)}
-                    aria-expanded={folderOpen}
-                    className={cn(
-                      "flex min-w-0 flex-1 items-center gap-2 py-1.5 text-[0.875rem] font-medium",
-                      onProjectPage ? "text-accent-text" : "text-fg",
-                    )}
+                    aria-label={`Add word to ${book.name}`}
+                    title={`Add a word to ${book.name}`}
+                    className={rowActionClass}
                   >
-                    {folderOpen ? (
-                      <ChevronDown className="size-3.5 shrink-0 text-fg-tertiary" />
-                    ) : (
-                      <ChevronRight className="size-3.5 shrink-0 text-fg-tertiary" />
-                    )}
-                    <Folder className="size-3.5 shrink-0 text-fg-tertiary" />
-                    <span className="truncate">{project.name}</span>
+                    <Plus className="size-3.5" />
                   </button>
-                  <form action={createStudyThread}>
-                    <input type="hidden" name="projectId" value={project.id} />
-                    <button
-                      type="submit"
-                      aria-label={`Start ${project.name} chat`}
-                      title={`Start a new chat in ${project.name}`}
-                      className="flex size-6 shrink-0 items-center justify-center rounded text-fg-tertiary hover:text-fg"
-                    >
-                      <Plus className="size-3.5" />
-                    </button>
-                  </form>
-                  <ProjectMenu
-                    projectId={project.id}
-                    projectName={project.name}
-                  />
-                </div>
-                {folderOpen && project.threads.length > 0 && (
-                  <Rail>
-                    {project.threads.map((thread) => (
-                      <ThreadRow
-                        key={thread.id}
-                        thread={thread}
-                        active={thread.id === activeId}
-                      />
-                    ))}
-                  </Rail>
+                </QuickAddVocabDialog>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div>
+        <div className="flex items-center justify-between pr-1">
+          <SectionLabel>Projects</SectionLabel>
+          <NewProjectDialog>
+            <button
+              type="button"
+              aria-label="New project"
+              title="New project"
+              className="mb-1.5 flex size-6 shrink-0 items-center justify-center rounded text-fg-tertiary transition-colors hover:bg-surface-hover hover:text-fg"
+            >
+              <Plus className="size-3.5" />
+            </button>
+          </NewProjectDialog>
+        </div>
+        <div className="space-y-0.5">
+          {study.projects.map((project) => {
+            const onProjectPage = pathname === `/project/${project.id}`;
+            return (
+              <div
+                key={project.id}
+                className={cn(
+                  "project-row group flex items-center rounded-md pr-1 pl-2.5 transition-colors",
+                  onProjectPage ? "bg-accent-soft" : "hover:bg-surface-hover",
                 )}
+              >
+                {/* The label opens the project page — its chats live
+                    there, ChatGPT-style, not nested in the sidebar. */}
+                <Link
+                  href={`/project/${project.id}`}
+                  className={cn(
+                    "flex min-w-0 flex-1 items-center gap-2 py-1.5 pr-1 text-[0.9375rem] font-medium",
+                    onProjectPage ? "text-accent-text" : "text-fg",
+                  )}
+                >
+                  <Folder className="size-3.5 shrink-0 text-fg-tertiary" />
+                  <span className="truncate">{project.name}</span>
+                </Link>
+                <form action={createStudyThread}>
+                  <input type="hidden" name="projectId" value={project.id} />
+                  <button
+                    type="submit"
+                    aria-label={`Start ${project.name} chat`}
+                    title={`Start a new chat in ${project.name}`}
+                    className={rowActionClass}
+                  >
+                    <SquarePen className="size-3.5" />
+                  </button>
+                </form>
+                <ProjectMenu
+                  projectId={project.id}
+                  projectName={project.name}
+                />
               </div>
             );
           })}
-
-          <Link
-            href="/study/project/new"
-            className="flex items-center gap-2 rounded-md py-1.5 pr-2 pl-[1.6rem] text-[0.875rem] text-fg-secondary transition-colors hover:bg-surface-hover hover:text-fg"
-          >
-            <FolderPlus className="size-3.5" />
-            New project
-          </Link>
-
-          {study.chats.length > 0 && (
-            <Rail>
-              <p className="px-2.5 pt-1 text-[0.72rem] font-semibold tracking-wider text-fg-tertiary uppercase">
-                Chats
-              </p>
-              {study.chats.map((thread) => (
-                <ThreadRow
-                  key={thread.id}
-                  thread={thread}
-                  active={thread.id === activeId}
-                />
-              ))}
-            </Rail>
+          {study.projects.length === 0 && (
+            <NewProjectDialog>
+              {/* Distinct accessible name — the section's + is already
+                  "New project", and two identical names break strict
+                  locators (and screen-reader disambiguation). */}
+              <button
+                type="button"
+                aria-label="Create your first project"
+                className="project-row-empty flex w-full items-center gap-2 rounded-md py-1.5 pl-2.5 text-[0.9375rem] text-fg-secondary transition-colors hover:bg-surface-hover hover:text-fg"
+              >
+                <Plus className="size-3.5" />
+                New project
+              </button>
+            </NewProjectDialog>
           )}
+        </div>
+      </div>
+
+      {study.chats.length > 0 && (
+        <div>
+          <SectionLabel>Chats</SectionLabel>
+          <div className="space-y-0.5">
+            {study.chats.map((thread) => (
+              <ThreadRow
+                key={thread.id}
+                thread={thread}
+                active={thread.id === activeId}
+                projects={study.projects}
+              />
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -338,30 +500,13 @@ function StudyChatTree({ study }: { study: SidebarStudy }) {
 }
 
 export function SelfStudySection({ study }: { study: SidebarStudy }) {
-  const pathname = usePathname();
   return (
     <div className="mb-5">
-      <SectionLabel>Self-study</SectionLabel>
       <nav className="flex flex-col gap-0.5">
         {/* useSearchParams lives below this Suspense boundary. */}
         <React.Suspense fallback={null}>
           <StudyChatTree study={study} />
         </React.Suspense>
-        {STATIC_ITEMS.map((item) => {
-          const active = item.exact
-            ? pathname === item.href
-            : pathname === item.href || pathname.startsWith(item.href + "/");
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={navRowClass(active)}
-            >
-              <item.icon className="size-4" />
-              {item.label}
-            </Link>
-          );
-        })}
       </nav>
     </div>
   );

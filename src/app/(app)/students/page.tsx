@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Users } from "lucide-react";
 import { requireTeacher } from "@/lib/auth";
 import { listStudents } from "@/lib/queries";
 import { PageHeader } from "@/components/ui/page-header";
@@ -13,6 +14,7 @@ export default async function StudentsPage() {
   return (
     <div>
       <PageHeader
+        icon={Users}
         title="Students"
         subtitle={`${students.length} learner${students.length === 1 ? "" : "s"} in your classroom`}
       />

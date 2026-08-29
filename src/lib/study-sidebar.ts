@@ -1,5 +1,11 @@
-import { asc, desc, eq } from "drizzle-orm";
-import { db, studyProjects, studyThreads } from "@/db";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
+import {
+  db,
+  studyProjects,
+  studyThreads,
+  studyVocabListItems,
+  studyVocabLists,
+} from "@/db";
 import { getLearner } from "@/lib/auth";
 
 export type SidebarThread = {
@@ -17,26 +23,39 @@ export type SidebarProject = {
   threads: SidebarThread[];
 };
 
+export type SidebarBook = {
+  id: string;
+  name: string;
+  wordCount: number;
+};
+
 export type SidebarStudy = {
   projects: SidebarProject[];
   /** Pinned chats, floated out of their groups. */
   pinned: SidebarThread[];
+  /** Pinned vocabulary books — one-tap open + quick-add. */
+  pinnedBooks: SidebarBook[];
   /** Loose chats (no project). */
   chats: SidebarThread[];
 };
 
-const EMPTY: SidebarStudy = { projects: [], pinned: [], chats: [] };
+const EMPTY: SidebarStudy = {
+  projects: [],
+  pinned: [],
+  pinnedBooks: [],
+  chats: [],
+};
 
 /**
  * The signed-in account's study tree for the sidebar (projects with
  * their chat history + pinned + loose chats). Every authed layout calls
- * this; [] shapes for accounts that never opened /study.
+ * this; [] shapes for accounts that never opened /chat.
  */
 export async function getSidebarStudy(): Promise<SidebarStudy> {
   const learner = await getLearner();
   if (!learner) return EMPTY;
 
-  const [projects, threads] = await Promise.all([
+  const [projects, threads, pinnedBooks] = await Promise.all([
     db
       .select({
         id: studyProjects.id,
@@ -58,6 +77,25 @@ export async function getSidebarStudy(): Promise<SidebarStudy> {
       .where(eq(studyThreads.learnerId, learner.id))
       .orderBy(desc(studyThreads.updatedAt))
       .limit(100),
+    db
+      .select({
+        id: studyVocabLists.id,
+        name: studyVocabLists.name,
+        wordCount: sql<number>`count(${studyVocabListItems.id})::int`,
+      })
+      .from(studyVocabLists)
+      .leftJoin(
+        studyVocabListItems,
+        eq(studyVocabListItems.listId, studyVocabLists.id),
+      )
+      .where(
+        and(
+          eq(studyVocabLists.learnerId, learner.id),
+          eq(studyVocabLists.pinned, true),
+        ),
+      )
+      .groupBy(studyVocabLists.id)
+      .orderBy(asc(studyVocabLists.name)),
   ]);
 
   const pinned = threads.filter((t) => t.pinned);
@@ -80,6 +118,7 @@ export async function getSidebarStudy(): Promise<SidebarStudy> {
       threads: byProject.get(p.id) ?? [],
     })),
     pinned,
+    pinnedBooks,
     chats,
   };
 }

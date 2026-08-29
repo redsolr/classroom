@@ -189,7 +189,7 @@ export const getAccount = cache(async (): Promise<Account | null> => {
 });
 
 // ---------------------------------------------------------------------------
-// Learners — the self-serve study surface (/study). Orthogonal to the
+// Learners — the self-serve study surface (/chat). Orthogonal to the
 // teacher/student roles above: ANY signed-in login gets a learner row on
 // first touch, keyed on the WorkOS user id. A teacher studying French and
 // a claimed roster student keep their existing roles untouched.

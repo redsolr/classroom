@@ -21,22 +21,24 @@ export function DialogContent({
 }) {
   return (
     <DialogPrimitive.Portal>
-      <DialogPrimitive.Overlay className="animate-overlay-in fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px]" />
+      <DialogPrimitive.Overlay className="dialog-overlay animate-overlay-in fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px]" />
+      {/* ChatGPT-style card: vertically centered, side margins so it
+          never touches the screen edges, generous rounding. */}
       <DialogPrimitive.Content
         className={cn(
-          "animate-panel-in fixed left-1/2 top-[12%] z-50 w-full max-w-lg -translate-x-1/2",
-          "rounded-xl bg-surface-raised shadow-overlay focus:outline-none",
+          "dialog-panel animate-panel-in fixed top-1/2 left-1/2 z-50 w-[calc(100vw-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2",
+          "rounded-2xl bg-surface-raised shadow-overlay focus:outline-none",
           className,
         )}
         {...props}
       >
-        <div className="flex items-start justify-between border-b border-border px-5 py-4">
-          <div>
-            <DialogPrimitive.Title className="text-[1rem] font-semibold">
+        <div className="dialog-header flex items-start justify-between border-b border-border px-5 py-4">
+          <div className="dialog-titles">
+            <DialogPrimitive.Title className="dialog-title text-[1rem] font-semibold">
               {title}
             </DialogPrimitive.Title>
             {description ? (
-              <DialogPrimitive.Description className="mt-0.5 text-[0.875rem] text-fg-secondary">
+              <DialogPrimitive.Description className="dialog-description mt-0.5 text-[0.875rem] text-fg-secondary">
                 {description}
               </DialogPrimitive.Description>
             ) : (
@@ -45,11 +47,11 @@ export function DialogContent({
               </DialogPrimitive.Description>
             )}
           </div>
-          <DialogPrimitive.Close className="rounded-md p-1 text-fg-tertiary transition-colors hover:bg-surface-hover hover:text-fg">
+          <DialogPrimitive.Close className="dialog-close rounded-md p-1 text-fg-tertiary transition-colors hover:bg-surface-hover hover:text-fg">
             <X className="size-4" />
           </DialogPrimitive.Close>
         </div>
-        <div className="px-5 py-4">{children}</div>
+        <div className="dialog-body px-5 py-4">{children}</div>
       </DialogPrimitive.Content>
     </DialogPrimitive.Portal>
   );

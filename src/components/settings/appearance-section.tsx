@@ -49,15 +49,18 @@ function ThemeCard({
     system: "Auto",
   };
   return (
+    // Fluid width — the three cards split the row on every viewport
+    // (fixed 120px cards left the third wrapping alone on phones with a
+    // dead right half of the section).
     <button
       type="button"
       onClick={onClick}
-      className={`flex flex-col items-center gap-2 transition-opacity ${
+      className={`flex w-full flex-col items-center gap-2 transition-opacity ${
         active ? "opacity-100" : "opacity-60 hover:opacity-80"
       }`}
     >
       <div
-        className={`h-[80px] w-[120px] overflow-hidden rounded-lg border-2 transition-colors ${
+        className={`aspect-[3/2] w-full overflow-hidden rounded-lg border-2 transition-colors ${
           active ? "border-accent" : "border-transparent"
         }`}
         style={{
@@ -96,7 +99,7 @@ export function AppearanceSection() {
           How Classroom looks on this device. &ldquo;Auto&rdquo; follows your
           system setting.
         </p>
-        <div className="flex flex-wrap items-start gap-4 sm:gap-6">
+        <div className="grid max-w-md grid-cols-3 items-start gap-3 sm:gap-4">
           {(["light", "dark", "system"] as const).map((m) => (
             <ThemeCard
               key={m}

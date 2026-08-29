@@ -23,6 +23,7 @@ import {
   lessons,
   lessonTopics,
   students,
+  vocabularyBooks,
   vocabularyItems,
   type Lesson,
   type Student,
@@ -121,6 +122,7 @@ export async function getStudentProfile(teacherId: string, studentId: string) {
     studentVocabulary,
     studentHomework,
     studentInsights,
+    studentVocabularyBooks,
   ] = await Promise.all([
     db.select().from(lessons).where(scoped).orderBy(desc(lessons.startedAt)),
     db
@@ -162,6 +164,16 @@ export async function getStudentProfile(teacherId: string, studentId: string) {
         and(eq(insights.teacherId, teacherId), eq(insights.studentId, studentId)),
       )
       .orderBy(desc(insights.updatedAt)),
+    db
+      .select()
+      .from(vocabularyBooks)
+      .where(
+        and(
+          eq(vocabularyBooks.teacherId, teacherId),
+          eq(vocabularyBooks.studentId, studentId),
+        ),
+      )
+      .orderBy(asc(vocabularyBooks.createdAt)),
   ]);
 
   return {
@@ -172,6 +184,7 @@ export async function getStudentProfile(teacherId: string, studentId: string) {
     vocabulary: studentVocabulary,
     homework: studentHomework,
     insights: studentInsights,
+    vocabularyBooks: studentVocabularyBooks,
   };
 }
 

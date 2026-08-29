@@ -1,0 +1,125 @@
+# Vercel deploy — the single deploy implementation for BOTH targets,
+# ported from the crm repo's proven pipeline:
+#   production  target:"production" → classroom.jurisimus.com
+#   preview     no target → a Preview deployment; aliased explicitly to
+#               dev-classroom.jurisimus.com (portfolio convention:
+#               dev-<product>; Vercel's Preview env scope supplies the
+#               dev vars: Neon dev-branch DATABASE_URL, dev URLs)
+#
+# Two entry points:
+#   workflow_call      ci.yml's deploy jobs invoke this after every
+#                      test tier is green: main → production,
+#                      develop → preview
+#   workflow_dispatch  manual "deploy this ref" button in the Actions
+#                      tab — redeploy or roll back either target to any
+#                      commit without a laptop CLI session
+#
+# The job POSTs Vercel's REST API with a gitSource ref: Vercel pulls
+# the commit from the project's GitHub link and builds it on Vercel
+# infra, where the sensitive-scoped DATABASE_URL lives (the Neon
+# migration runs there via scripts/migrate-deploy.mjs). VERCEL_TOKEN
+# is the team-scoped token (vcp_*) — same team as the crm project, so
+# the same secret value works. The IDs below are link config, not
+# credentials.
+name: deploy
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Commit SHA or ref to deploy
+        required: true
+        type: string
+      target:
+        description: "'production' or 'preview'"
+        required: false
+        type: string
+        default: production
+    secrets:
+      VERCEL_TOKEN:
+        required: true
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Commit SHA or ref to deploy
+        required: true
+        type: string
+        default: main
+      target:
+        description: Deploy target
+        required: true
+        type: choice
+        options: [production, preview]
+        default: production
+
+jobs:
+  vercel:
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_TEAM_ID: team_txhXzjQ4P5MWPOyivnlDIPIY
+      VERCEL_PROJECT_ID: prj_qyktAQfHjPvthEgH52gsrfQnqIp6
+      VERCEL_REPO_ID: "1299095221"
+      DEPLOY_REF: ${{ inputs.ref }}
+      DEPLOY_TARGET: ${{ inputs.target }}
+    steps:
+      - name: Create deployment
+        # Preview deployments carry NO "target" field — that is what
+        # scopes them to Vercel's built-in Preview env (vars, branch
+        # domain routing). Only production sets target explicitly.
+        run: |
+          if [ "$DEPLOY_TARGET" = "production" ]; then
+            target_field='"target":"production",'
+          else
+            target_field=''
+          fi
+          # -s without -f: an HTTP error must land in $resp so the jq
+          # check below can PRINT Vercel's error body — with -f the step
+          # dies at exit 22 and the reason is lost (learned on run 1).
+          resp=$(curl -s -X POST "https://api.vercel.com/v13/deployments?teamId=$VERCEL_TEAM_ID" \
+            -H "Authorization: Bearer ${{ secrets.VERCEL_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{"name":"class-room","project":"'"$VERCEL_PROJECT_ID"'",'"$target_field"'"gitSource":{"type":"github","repoId":'"$VERCEL_REPO_ID"',"ref":"'"$DEPLOY_REF"'"}}')
+          id=$(echo "$resp" | jq -r '.id // empty')
+          if [ -z "$id" ]; then
+            echo "deployment creation failed:" >&2
+            echo "$resp" | jq . >&2
+            exit 1
+          fi
+          echo "created $id -> https://$(echo "$resp" | jq -r .url)"
+          echo "DEPLOYMENT_ID=$id" >> "$GITHUB_ENV"
+
+      - name: Wait for deployment to go READY
+        run: |
+          for i in $(seq 1 60); do
+            state=$(curl -sf -H "Authorization: Bearer ${{ secrets.VERCEL_TOKEN }}" \
+              "https://api.vercel.com/v13/deployments/$DEPLOYMENT_ID?teamId=$VERCEL_TEAM_ID" | jq -r .readyState)
+            echo "[$i] $state"
+            case "$state" in
+              READY) exit 0 ;;
+              ERROR|CANCELED) echo "deployment ended $state" >&2; exit 1 ;;
+            esac
+            sleep 15
+          done
+          echo "timed out waiting for deployment" >&2
+          exit 1
+
+      # Deployments created from an exact SHA are not "branch"
+      # deployments to Vercel, so a branch-pinned domain would NOT
+      # follow them automatically (the crm learned this 2026-08-08:
+      # deploy-dev went READY while dev-crm kept serving the previous
+      # build). Aliasing explicitly keeps the exact-CI-tested-sha
+      # discipline AND a deterministic domain. Production needs none of
+      # this — target:"production" assigns the prod domains itself.
+      - name: Point the dev domain at this deployment (preview only)
+        if: inputs.target != 'production'
+        run: |
+          resp=$(curl -s -X POST "https://api.vercel.com/v2/deployments/$DEPLOYMENT_ID/aliases?teamId=$VERCEL_TEAM_ID" \
+            -H "Authorization: Bearer ${{ secrets.VERCEL_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{"alias":"dev-classroom.jurisimus.com"}')
+          if ! echo "$resp" | jq -e '.uid // .alias' > /dev/null; then
+            echo "alias assignment failed:" >&2
+            echo "$resp" | jq . >&2
+            exit 1
+          fi
+          echo "dev-classroom.jurisimus.com -> $DEPLOYMENT_ID"

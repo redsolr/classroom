@@ -287,6 +287,7 @@ export default async function StudentProfilePage({
           <VocabularySection
             studentId={profile.student.id}
             vocabulary={profile.vocabulary}
+            books={profile.vocabularyBooks}
           />
         </TabsContent>
         <TabsContent value="homework" className="pt-5">

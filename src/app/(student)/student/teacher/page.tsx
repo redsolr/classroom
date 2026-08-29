@@ -5,6 +5,7 @@ import { db, homework, lessons, teachers } from "@/db";
 import { requireStudent } from "@/lib/auth";
 import { NOT_HAPPENED_STATUSES } from "@/lib/lesson-status";
 import { Avatar } from "@/components/ui/avatar";
+import { UserRound } from "lucide-react";
 import { Card, PageHeader } from "@/components/ui/page-header";
 
 export const metadata: Metadata = { title: "My teacher" };
@@ -122,8 +123,9 @@ export default async function StudentTeacherPage() {
   ];
 
   return (
-    <div className="mx-auto max-w-xl">
+    <div className="max-w-xl">
       <PageHeader
+        icon={UserRound}
         title="My teacher"
         subtitle="You and your teacher, at a glance."
       />

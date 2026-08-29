@@ -86,6 +86,7 @@ export default async function SchedulePage({
   return (
     <div>
       <PageHeader
+        icon={CalendarClock}
         title="Schedule"
         subtitle={
           upcoming.length === 0

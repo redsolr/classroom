@@ -45,7 +45,7 @@ export function StudentRouteSkeleton() {
   );
 }
 
-/** /study — single conversation column (threads live in the sidebar). */
+/** /chat — single conversation column (threads live in the sidebar). */
 export function StudyChatSkeleton() {
   return (
     <div
@@ -67,7 +67,7 @@ export function StudyChatSkeleton() {
   );
 }
 
-/** /study/vocab — heading, add-word card, word rows. */
+/** /vocab — heading, add-word card, word rows. */
 export function StudyVocabSkeleton() {
   return (
     <div
@@ -86,21 +86,27 @@ export function StudyVocabSkeleton() {
   );
 }
 
-/** /study/vocab/review — heading + the flashcard. */
+/** /vocab/review — heading + the deck shelf. The route's landing is the
+ * shelf now; the drill is one click deeper and shares this segment, so
+ * the rows are the shape worth matching. */
 export function StudyReviewSkeleton() {
   return (
     <div
       aria-hidden
-      className="mx-auto w-full max-w-xl animate-pulse px-4 py-8 sm:px-6"
+      className="mx-auto w-full max-w-3xl animate-pulse px-4 py-8 sm:px-6"
     >
-      <Bone className="mb-5 h-8 w-32" />
-      <Bone className="mb-3 h-4 w-28" />
-      <Bone className="h-56 rounded-lg" />
+      <Bone className="mb-2 h-8 w-32" />
+      <Bone className="mb-6 h-4 w-56" />
+      <div className="space-y-2">
+        <Bone className="h-20 rounded-lg" />
+        <Bone className="h-20 rounded-lg" />
+        <Bone className="h-20 rounded-lg" />
+      </div>
     </div>
   );
 }
 
-/** /study/account — heading + the three settings cards. */
+/** /account — heading + the three settings cards. */
 export function StudyAccountSkeleton() {
   return (
     <div

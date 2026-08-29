@@ -11,13 +11,17 @@ topics, and long-term insights for review, keeps a living learning record per
 student, and produces a clean student-facing recap — while private notes stay
 private.
 
-## Self-study space (`/study`)
+> **[FEATURES.md](./FEATURES.md)** is the current capability map — what the
+> product can do today, residuals, and deliberate cuts. Any feature-visible
+> change updates it in the SAME commit.
+
+## Self-study space (`/chat`)
 
 Any signed-in account also gets a personal study space (2026-08-09 arc):
 streaming AI tutor chat per language (threads, like ChatGPT), a personal
 vocabulary table (sortable columns, language filter, edit-in-place) with
 SM-2 flashcard review and an Anki-ready CSV export
-(`/study/vocab/export.csv`), and a Stripe **Study Pro** subscription. Free tier = `STUDY_FREE_DAILY_CAP` tutor messages per rolling
+(`/vocab/export.csv`), and a Stripe **Study Pro** subscription. Free tier = `STUDY_FREE_DAILY_CAP` tutor messages per rolling
 day (default 10); Pro raises it to an abuse brake (default 500). Vocabulary
 and review are always free. The tutor runs on OpenAI — the composer has a
 per-message model picker over the `STUDY_AI_MODELS` roster (default
@@ -25,7 +29,7 @@ per-message model picker over the `STUDY_AI_MODELS` roster (default
 server-side, `STUDY_AI_MODEL` preselects the default) — and falls back to
 a deterministic offline mock without `OPENAI_API_KEY`. The learner role is
 orthogonal to teacher/student — a `learners` row is created on first visit
-to `/study`, and the roster surfaces are untouched.
+to `/chat`, and the roster surfaces are untouched.
 
 Stripe setup (test mode): create a recurring price, set `STRIPE_SECRET_KEY`,
 `STRIPE_STUDY_PRICE_ID`, and `STRIPE_WEBHOOK_SECRET` (from
@@ -65,6 +69,18 @@ request resolves to the seeded demo teacher. For real auth, fill the
 The app is pinned to **port 3020** (web-app owns 3000, internal-console owns
 3001; Postgres is on 5439 because 5432/5433 are taken by the platform
 container and a native Windows PostgreSQL service).
+
+Both dev scripts raise Node's HTTP header cap
+(`NODE_OPTIONS=--max-http-header-size=65536`) — **don't remove it.** Cookies
+are port-blind, so every app on `localhost` (web-app :3000, crm :3100, this
+app :3020, rift :3030, platform :8080) sends its WorkOS session cookie on
+every request to every other one. Each sealed session is a multi-KB JWE, so
+four signed-in apps overflow Node's 16 KB default and the dev server answers
+`431 Request Header Fields Too Large` before any route runs — which looks
+exactly like the page being broken. The per-app `WORKOS_COOKIE_NAME` stops
+the apps overwriting each other's sessions; it does not stop them being
+*sent*. Clearing `localhost` cookies also works, but logs you out of the
+whole fleet and the pile-up just returns.
 
 Without `ANTHROPIC_API_KEY`, "Process with AI" uses a deterministic mock
 extractor (free, offline) that understands simple note conventions:

@@ -73,7 +73,7 @@ export default async function CompanionChatPage({
               key={m.id}
               className={
                 m.role === "user"
-                  ? "ml-8 rounded-lg bg-accent-soft px-4 py-2.5"
+                  ? "ml-auto w-fit max-w-[85%] rounded-lg bg-accent-soft px-4 py-2.5"
                   : "mr-8 rounded-lg bg-surface px-4 py-2.5 shadow-card"
               }
             >
