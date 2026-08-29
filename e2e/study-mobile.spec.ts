@@ -24,10 +24,10 @@ test("hamburger opens the drawer; a nav tap navigates and closes it", async ({
     page.getByRole("link", { name: "New chat" }).first(),
   ).toBeVisible();
 
-  await page.getByRole("link", { name: "Vocabulary" }).click();
+  await page.getByRole("link", { name: "Books", exact: true }).first().click();
   await page.waitForURL("**/vocab");
   await expect(
-    page.getByRole("heading", { name: "My vocabulary" }),
+    page.getByRole("heading", { name: "Books" }),
   ).toBeVisible();
   // Link tap closed the drawer.
   await expect(page.getByRole("button", { name: "Close menu" })).not.toBeVisible();

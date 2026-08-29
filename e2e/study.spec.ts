@@ -864,19 +864,19 @@ test("curated packs: browse, add one word, import all as a personal list", async
 }) => {
   await page.goto("/packs");
   await expect(
-    page.getByRole("heading", { name: "Curated lists" }),
+    page.getByRole("heading", { name: "Official books" }),
   ).toBeVisible();
   await expect(page.getByText("Persona 5 essentials")).toBeVisible();
 
   await page.getByRole("link", { name: /Café survival French/ }).click();
   await page.waitForURL("**/packs/cafe-french");
 
-  // One word first — the row flips to its "in your dictionary" state.
+  // One word first — the row flips to its "saved" state.
   await page
-    .getByRole("button", { name: "Add commander to my dictionary" })
+    .getByRole("button", { name: "Add commander to my vocabulary" })
     .click();
   await expect(
-    page.getByRole("button", { name: "commander is in your dictionary" }),
+    page.getByRole("button", { name: "commander is saved" }),
   ).toBeVisible();
   await page.goto("/vocab?book=all");
   const main = page.getByRole("main");
@@ -889,7 +889,7 @@ test("curated packs: browse, add one word, import all as a personal list", async
   // learner's own book.
   await page.goto("/packs/cafe-french");
   await page
-    .getByRole("button", { name: "Add all to my vocabulary" })
+    .getByRole("button", { name: "Save as my book" })
     .click();
   await expect(page.getByText(/saved the pack as your/)).toBeVisible();
 

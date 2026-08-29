@@ -11,6 +11,7 @@ import {
 import { requireLearner } from "@/lib/auth";
 import { isCardDue } from "@/lib/srs";
 import { QuickAddVocabDialog } from "@/components/study/quick-add-vocab-dialog";
+import { SectionTabs } from "@/components/study/section-tabs";
 import {
   VocabShelf,
   AddWordDialogButton,
@@ -145,10 +146,10 @@ export default async function StudyVocabPage({
     <PageShell>
       <PageHeader
         icon={Layers}
-        title="My vocabulary"
+        title="Books"
         subtitle={
           items.length === 0
-            ? "Your personal dictionary — organized into books."
+            ? "Collections of words — yours to build, or start from an official one."
             : `${items.length} word${items.length === 1 ? "" : "s"} across ${lists.length} book${lists.length === 1 ? "" : "s"}`
         }
         actions={
@@ -162,6 +163,13 @@ export default async function StudyVocabPage({
             </Link>
           )
         }
+      />
+
+      <SectionTabs
+        tabs={[
+          { href: "/vocab", label: "My books", active: true },
+          { href: "/packs", label: "Official", active: false },
+        ]}
       />
 
       <div className="max-w-3xl">

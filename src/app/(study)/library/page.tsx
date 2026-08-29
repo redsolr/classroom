@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader, PageShell } from "@/components/ui/page-header";
 
-export const metadata: Metadata = { title: "Library" };
+export const metadata: Metadata = { title: "Reading list" };
 
 /**
  * The reading library shelf — one generated cover per book/article the
@@ -38,7 +38,7 @@ export default async function LibraryPage() {
     <PageShell className="library-page">
       <PageHeader
         icon={LibraryBig}
-        title="Library"
+        title="Reading list"
         subtitle="What you're reading, and what you took from it."
         actions={
           <AddBookDialog>
@@ -53,7 +53,7 @@ export default async function LibraryPage() {
       {books.length === 0 ? (
         <EmptyState
           icon={<BookOpen />}
-          title="Your library is empty"
+          title="Your reading list is empty"
           description="Add a book or article you're reading — each one holds your notes and a chat to discuss it."
           action={
             <AddBookDialog>

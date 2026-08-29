@@ -8,6 +8,8 @@
 > the SAME commit. Add the row, update the row, or move it to "Cut" when
 > a decision kills it.
 
+> **Vocabulary of the product itself (2026-08-29)**: **Books** are collections of words — yours, or **Official books** (ours, reachable as the "Official" tab, never a separate nav item). **Decks** are the Anki-style drill over them. **Reading list** is what you have read. "Dictionary" and "Curated lists" are retired; one word, one meaning.
+
 ## Self-study — AI chat (`/chat`)
 
 - **Zero-step chat landing** — `/chat` opens straight into the composer as a DRAFT chat; the thread is created server-side on the first send, URL follows via replaceState — no "New chat" tap; the empty state centers a greeting + the composer mid-pane (Claude landing shape) and docks the composer to the bottom once the first message lands; user bubbles hug the right at fit-content (2026-08-14)
@@ -21,9 +23,9 @@
 - **Ask dock** — Ctrl/Cmd+J floating assistant on every study page (real loose thread, reload-on-open)
 - **Free-tier cap** — rolling-24h message cap (free 10/day → Study Pro 500); 429 points at the upgrade
 
-## Self-study — vocabulary (`/vocab`)
+## Self-study — books & decks (`/vocab`, `/vocab/review`, `/packs`)
 
-- **Books-first dictionary** — shelf landing (All words + books with counts); per-book pin / inline-rename / delete (words survive); "New book" allows empty
+- **Books** (`/vocab`) — your own collections of words — shelf landing (All words + books with counts); per-book pin / inline-rename / delete (words survive); "New book" allows empty
 - **Compact Attio-style table** — ONE layout on every viewport; learner-customizable columns (localStorage); **quiz mode** (tap-to-reveal meanings); sort + language/category filters; add/edit via dialog (IME-safe Enter/Escape)
 - **Drag-to-reorder book rows** — dnd-kit grip handle, optimistic order (2026-08-12)
 - **Pinned books in the sidebar** — one-tap open + quick-add dialog (adopts existing words)
@@ -31,10 +33,10 @@
 - **Chat→vocab bulk extraction** — "Save words from this chat" on ANY chat: whole-conversation extraction → checkbox review (each candidate labeled with its own language) → per-language deduped bulk save (2026-08-14)
 - **SRS review (`/vocab/review`)** — SM-2-lite flashcards; status DERIVED from review evidence, never asserted; **Tinder-style deck**: full-bleed language-tinted cover cards (coverHue keyed by language), fixed layout with in-place answer reveal (white sheet over the cover), whole-card swipe to grade before or after reveal (→ Good ← Forgot ↑ Easy ↓ Hard) with drag-follow + badge + fly-off + seamless keyed-stack promotion, circular grade buttons ordered by swipe axis; **practice-again cram rounds** (shuffled ≤50 words, schedule-neutral per Anki convention) from the completion/nothing-due screen (2026-08-14); **per-book review** — `/vocab/review?book=<id>` scopes the due deck AND its cram rounds to one book, so a book is a study unit and not just a grouping; the book page offers "Review N due" whenever it has due cards (2026-08-29)
 - **Categories + personal lists** — word-class categories, ordered lists, save-current-view-as-list
-- **Curated packs (`/packs`)** — product-shipped collections: **title packs** (Dragon Ball, Death Note, One Piece, Naruto, Persona 5, Final Fantasy VII — all JA) plus general ones (Anime essentials, Gaming JA, Café FR). **Spotify-shaped copying**: `+` adds the word to the dictionary (the "liked" layer), the row's `⋯` files it into any book / a brand-new book / pulls it back out, and import-all adds every missing word AND saves the pack as a book. Rows list the books holding them. Removing from a book keeps the word; removing from the dictionary is a separate, confirmed action that says it drops review progress and clears every book (2026-08-29). Catalog = `src/content/study-packs.ts`, synced per environment by `npm run db:seed:packs` (upsert by slug, items replaced wholesale). Packs carry OUR OWN word lists and descriptions only — never source text or artwork. **Tankōbon shelf** — `/packs` renders generated manga-volume covers (`components/study/pack-cover.tsx`: signature kanji the pack actually teaches + vertical spine title + screentone + publisher band), same shelf grid and hover lift as `/library`; art is a hand-set glyph/hue-pair per slug with a deterministic glyph+hue fallback, so a new pack looks right with zero extra work (title packs + shelf: 2026-08-29)
+- **Official books** (`/packs`, surfaced as the "Official" TAB under Books and Decks — not a separate nav item, since official content is the main draw) — product-shipped collections: **title packs** (Dragon Ball, Death Note, One Piece, Naruto, Persona 5, Final Fantasy VII — all JA) plus general ones (Anime essentials, Gaming JA, Café FR). **Spotify-shaped copying**: `+` adds the word to your vocabulary (the "liked" layer), the row's `⋯` files it into any book / a brand-new book / pulls it back out, and import-all adds every missing word AND saves the pack as a book. Rows list the books holding them. Removing from a book keeps the word; removing from your vocabulary is a separate, confirmed action that says it drops review progress and clears every book (2026-08-29). Catalog = `src/content/study-packs.ts`, synced per environment by `npm run db:seed:packs` (upsert by slug, items replaced wholesale). Packs carry OUR OWN word lists and descriptions only — never source text or artwork. **Tankōbon shelf** — `/packs` renders generated manga-volume covers (`components/study/pack-cover.tsx`: signature kanji the pack actually teaches + vertical spine title + screentone + publisher band), same shelf grid and hover lift as `/library`; art is a hand-set glyph/hue-pair per slug with a deterministic glyph+hue fallback, so a new pack looks right with zero extra work (title packs + shelf: 2026-08-29) **Practice as a deck** drills an official book at `/vocab/review?pack=<slug>` without saving anything — one catalog, two doors (browse-and-copy, or drill).
 - **Anki-ready CSV export** — learner-scoped `/vocab/export.csv` (UTF-8 BOM, CRLF)
 
-## Self-study — reading library (`/library`, `/notes`)
+## Self-study — reading list (`/library`, `/notes`)
 
 - **Books shelf** — one entry per book/article read (generated covers); add via dialog or the tutor's `add_book` tool (2026-08-12)
 - **Book pages** — summary + atomic notes + book discussion chats (`<book_context>` rides the chat); deleting a book frees notes and chats, never destroys

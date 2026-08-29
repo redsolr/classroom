@@ -8,7 +8,7 @@ import { STUDY_LANGUAGES } from "@/lib/study-languages";
 import { STUDY_VOCAB_CATEGORIES } from "@/lib/study-vocab-categories";
 
 /**
- * THE word form — one dialog behind every add/edit path (dictionary
+ * THE word form — one dialog behind every add/edit path (vocabulary
  * "New word", pinned-book quick-add, row-menu edit), so the fields, the
  * labels, and the submit scaffolding can't drift apart. Callers differ
  * only in trigger/controlled mode, defaults, and the action the

@@ -190,20 +190,27 @@ export function StudyReview({
   deck: initialDeck,
   totalWords,
   listId = null,
+  packSlug = null,
+  initialMode = "due",
 }: {
   deck: ReviewCard[];
-  /** Size of the SCOPE — the book, or the whole dictionary. A practice
+  /** Size of the SCOPE — the book, or the whole vocabulary. A practice
    * round is offered whenever it's > 0. */
   totalWords: number;
-  /** Book this session is scoped to, null for the whole dictionary.
+  /** Book this session is scoped to, null for the whole vocabulary.
    * Carried so a cram round redeals from the SAME scope instead of
    * silently widening to every word the learner owns. */
   listId?: string | null;
+  /** Official book being drilled without saving it. Its cards aren't the
+   * learner's rows, so the session starts (and stays) in practice mode —
+   * there's no schedule to move. */
+  packSlug?: string | null;
+  initialMode?: "due" | "practice";
 }) {
   const [deck, setDeck] = React.useState(initialDeck);
   /** "due" grades for real (SM-2); "practice" is an Anki-style cram
    * round — same swipes, NEVER touches the schedule. */
-  const [mode, setMode] = React.useState<"due" | "practice">("due");
+  const [mode, setMode] = React.useState<"due" | "practice">(initialMode);
   const [index, setIndex] = React.useState(0);
   const [revealed, setRevealed] = React.useState(false);
   const [graded, setGraded] = React.useState(0);
@@ -301,6 +308,23 @@ export function StudyReview({
   };
 
   const practiceAgain = () => {
+    // An official book's cards aren't the learner's rows, so there's
+    // nothing to fetch — we already hold the whole deck. Reshuffle in
+    // place (Fisher-Yates; a comparator-based shuffle is biased).
+    if (packSlug) {
+      const shuffled = [...initialDeck];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      setMode("practice");
+      setDeck(shuffled);
+      setIndex(0);
+      setGraded(0);
+      setRevealed(false);
+      setSaveError(false);
+      return;
+    }
     startPractice(async () => {
       try {
         const cards = await loadStudyPracticeDeck(listId);

@@ -62,7 +62,7 @@ export type VocabListSummary = {
 };
 
 /**
- * The dictionary table — compact, Attio-style, ONE layout for every
+ * The vocabulary table — compact, Attio-style, ONE layout for every
  * viewport (it scrolls sideways on phones instead of forking into
  * cards). A quick-lookup surface: no SRS columns (due/reps live on the
  * Review page); which columns show is the learner's choice, persisted
@@ -629,7 +629,7 @@ export function VocabTable({
                             onSelect={() => {
                               if (
                                 !window.confirm(
-                                  `Delete “${item.term}” from your dictionary?`,
+                                  `Delete “${item.term}” from your vocabulary?`,
                                 )
                               )
                                 return;

@@ -356,7 +356,7 @@ export async function renameStudyThread(threadId: string, title: string) {
 }
 
 /**
- * A shuffled cram deck over the learner's whole dictionary — the
+ * A shuffled cram deck over the learner's whole vocabulary — the
  * "practice again" round after (or instead of) the due deck. Anki
  * convention: practicing NEVER reschedules; the SRS state stays
  * derived from real due reviews only, so the caller must not grade
@@ -375,7 +375,7 @@ export async function loadStudyPracticeDeck(listId?: string | null) {
 
   // A cram round has to stay inside whatever the session was scoped to —
   // practising a book must not deal cards from the rest of the
-  // dictionary.
+  // vocabulary.
   if (listId) {
     const list = await requireOwnList(learner.id, listId);
     return db
@@ -1064,11 +1064,11 @@ export async function reorderStudyVocabListItem(
  * Copy ONE pack item into the learner's vocabulary, optionally filing it
  * into a book at the same time.
  *
- * The dictionary is the "liked songs" layer and books are playlists: a
- * word lives in the dictionary once and appears in any number of books.
+ * The vocabulary is the "liked songs" layer and books are playlists: a
+ * word lives in the vocabulary once and appears in any number of books.
  * So an already-saved word is NOT a no-op when a book is named — it was
  * possibly added from another pack or by hand, and filing it still has
- * to work. Only the dictionary insert is conditional.
+ * to work. Only the vocabulary insert is conditional.
  */
 export async function addStudyPackItem(
   itemId: string,

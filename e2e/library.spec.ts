@@ -16,7 +16,7 @@ test.beforeAll(resetMockLearner);
 
 test("shelf: add a book and land on its page", async ({ page }) => {
   await page.goto("/library");
-  await expect(page.getByText("Your library is empty")).toBeVisible();
+  await expect(page.getByText("Your reading list is empty")).toBeVisible();
 
   await page.getByRole("button", { name: "Add book", exact: true }).click();
   const dialog = page.getByRole("dialog");

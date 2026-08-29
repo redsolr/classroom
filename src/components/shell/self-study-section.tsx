@@ -70,14 +70,26 @@ import { cn } from "@/lib/utils";
  * navigation).
  */
 
+/**
+ * One word, one meaning (2026-08-29 naming pass):
+ *
+ *   Books        — collections of words: yours, or ours (Official tab).
+ *   Decks        — the Anki-style drill over them.
+ *   Reading list — things you've read. No longer "Library", which made
+ *                  "book" mean two different things in one sidebar.
+ *
+ * "Curated lists" is gone as a DESTINATION: official content is the main
+ * draw, so it lives as a tab inside the section it belongs to instead of
+ * a separate nav item people have to go find. "Dictionary" is gone too —
+ * it was a third synonym for Vocabulary / All words.
+ */
 const PRIMARY_ITEMS = [
-  { href: "/vocab", label: "Vocabulary", icon: Layers, exact: true },
-  { href: "/vocab/review", label: "Review", icon: BookOpenCheck, exact: false },
-  { href: "/packs", label: "Curated lists", icon: BookMarked, exact: false },
+  { href: "/vocab", label: "Books", icon: Layers, exact: true },
+  { href: "/vocab/review", label: "Decks", icon: BookOpenCheck, exact: false },
 ];
 
 const MORE_ITEMS = [
-  { href: "/library", label: "Library", icon: LibraryBig, exact: false },
+  { href: "/library", label: "Reading list", icon: LibraryBig, exact: false },
   { href: "/notes", label: "Notes", icon: NotebookPen, exact: false },
 ];
 

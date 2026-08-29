@@ -17,7 +17,7 @@ import {
   PageShell,
 } from "@/components/ui/page-header";
 
-export const metadata: Metadata = { title: "Curated list" };
+export const metadata: Metadata = { title: "Official book" };
 
 export default async function StudyPackPage({
   params,

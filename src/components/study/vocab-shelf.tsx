@@ -42,12 +42,12 @@ import type { VocabListSummary } from "@/components/study/vocab-table";
  * rename inline, delete) lives on each row's ⋯ menu.
  */
 
-/** "New word" for the general dictionary — the shared form, as a dialog. */
+/** "New word" for the general vocabulary — the shared form, as a dialog. */
 export function AddWordDialogButton() {
   return (
     <WordFormDialog
       title="New word"
-      description="Added to your dictionary."
+      description="Added to your vocabulary."
       trigger={<Button variant="primary">New word</Button>}
       action={addStudyVocab}
     />
@@ -84,7 +84,7 @@ function NewBookDialog() {
       </DialogTrigger>
       <DialogContent
         title="New book"
-        description="A themed collection inside your dictionary — pin it to the sidebar for one-tap access."
+        description="A themed collection inside your vocabulary — pin it to the sidebar for one-tap access."
       >
         <form onSubmit={onSubmit} className="flex items-center gap-2">
           <Input
@@ -189,7 +189,7 @@ function BookRow({ list }: { list: VocabListSummary }) {
             onSelect={() => {
               if (
                 !window.confirm(
-                  `Delete “${list.name}”? Its words stay in your dictionary.`,
+                  `Delete “${list.name}”? Its words stay in your vocabulary.`,
                 )
               )
                 return;

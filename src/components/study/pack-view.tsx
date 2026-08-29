@@ -11,6 +11,7 @@ import {
   Plus,
   Trash2,
   X,
+  Zap,
 } from "lucide-react";
 import type { StudyPack, StudyPackItem } from "@/db";
 import {
@@ -36,19 +37,23 @@ export type SavedEntry = { vocabId: string; bookIds: string[] };
 export type PackBook = { id: string; name: string };
 
 /**
- * A curated pack's item list, with the full Spotify-shaped set of copy
- * affordances:
+ * An OFFICIAL BOOK's word list, with the full set of copy affordances:
  *
- *   "+"      — add the word to the dictionary (the "liked songs" layer)
- *   "⋯"      — file it into any book, or pull it back out
- *   "Add all"— import every missing word AND save the pack as a book
+ *   "+"               — add the word to your vocabulary
+ *   "⋯"               — file it into a book of yours, or pull it out
+ *   "Save as my book" — copy every missing word AND save this as a book
+ *   "Practice"        — drill it as a deck, saving nothing
  *
- * Already-saved words render as ✓, so the pack doubles as a coverage
- * view of the learner's own dictionary. The ✓ is keyed on term +
- * language across the WHOLE dictionary, not on "added from this pack" —
- * which is why removing from a book and removing from the dictionary are
- * deliberately separate actions here: a word showing ✓ may have been
- * added elsewhere and carry review history worth protecting.
+ * The last two are the two doors onto ONE catalog: an official book is
+ * the same rows whether you copy it or drill it, so it never has to
+ * exist twice.
+ *
+ * Already-saved words render as ✓, so an official book doubles as a
+ * coverage view of your own vocabulary. That ✓ is keyed on term +
+ * language across ALL your words, not on "added from this book" — which
+ * is why removing from a book and removing from your vocabulary stay
+ * deliberately separate: a word showing ✓ may have been added elsewhere
+ * and carry review history worth protecting.
  */
 export function PackView({
   pack,
@@ -100,7 +105,7 @@ export function PackView({
     });
   };
 
-  const addToDictionary = (item: StudyPackItem) =>
+  const addToVocabulary = (item: StudyPackItem) =>
     run(
       item,
       async () => {
@@ -181,7 +186,7 @@ export function PackView({
     );
   };
 
-  const removeFromDictionary = (item: StudyPackItem) => {
+  const removeFromVocabulary = (item: StudyPackItem) => {
     const entry = saved[key(item)];
     if (!entry) return;
     run(
@@ -204,7 +209,7 @@ export function PackView({
       try {
         const result = await importStudyPack(pack.id);
         setImported(result);
-        // Every term is now in the dictionary AND in the pack's book, so
+        // Every term is now in the vocabulary AND in the pack's book, so
         // rebuild saved-state from the ids the action handed back — no
         // reload, which would discard the banner above.
         setBooks((prev) =>
@@ -241,10 +246,19 @@ export function PackView({
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <Button variant="primary" loading={importing} onClick={importAll}>
           <Download className="size-3.5" />
-          Add all to my vocabulary
+          Save as my book
         </Button>
+        {/* The other door onto the same catalog: drill it now, decide
+            later whether it's worth keeping. */}
+        <Link
+          href={`/vocab/review?pack=${pack.slug}`}
+          className="inline-flex h-9 items-center gap-2 rounded-md bg-surface px-3.5 text-[0.9375rem] font-medium shadow-card transition-colors hover:bg-surface-hover"
+        >
+          <Zap className="size-3.5 text-fg-tertiary" />
+          Practice as a deck
+        </Link>
         <span className="text-[0.875rem] text-fg-tertiary">
-          {savedCount} of {items.length} already in your dictionary
+          {savedCount} of {items.length} already saved
         </span>
       </div>
 
@@ -311,14 +325,14 @@ export function PackView({
 
               <button
                 type="button"
-                onClick={() => !isSaved && addToDictionary(item)}
+                onClick={() => !isSaved && addToVocabulary(item)}
                 disabled={isSaved || busyId === item.id}
                 aria-label={
                   isSaved
-                    ? `${item.term} is in your dictionary`
-                    : `Add ${item.term} to my dictionary`
+                    ? `${item.term} is saved`
+                    : `Add ${item.term} to my vocabulary`
                 }
-                title={isSaved ? "In your dictionary" : "Add to my dictionary"}
+                title={isSaved ? "Saved" : "Add to my vocabulary"}
                 className={
                   isSaved
                     ? "flex size-7 shrink-0 items-center justify-center rounded-md text-accent-text"
@@ -374,20 +388,20 @@ export function PackView({
                         className="text-danger"
                         onSelect={() => {
                           // The ✓ means "this term is in your
-                          // dictionary", not "you added it here" — so
+                          // vocabulary", not "you added it here" — so
                           // say what's actually at stake before nuking
                           // a row that may carry review history.
                           if (
                             !window.confirm(
-                              `Remove “${item.term}” from your dictionary? This also drops its review progress and takes it out of every book.`,
+                              `Remove “${item.term}” from your vocabulary? This also drops its review progress and takes it out of every book.`,
                             )
                           )
                             return;
-                          removeFromDictionary(item);
+                          removeFromVocabulary(item);
                         }}
                       >
                         <Trash2 className="size-4" />
-                        Remove from my dictionary
+                        Remove from my vocabulary
                       </DropdownItem>
                     </>
                   )}
@@ -404,7 +418,7 @@ export function PackView({
       >
         <DialogContent
           title="New book"
-          description="A themed collection inside your dictionary — the word goes in as its first entry."
+          description="A collection of words inside your vocabulary — this word goes in as its first entry."
         >
           <form
             onSubmit={(event) => {

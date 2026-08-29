@@ -5,9 +5,10 @@ import { BookMarked } from "lucide-react";
 import { db, studyPackItems, studyPacks } from "@/db";
 import { requireLearner } from "@/lib/auth";
 import { PackCover } from "@/components/study/pack-cover";
+import { SectionTabs } from "@/components/study/section-tabs";
 import { PageHeader, PageShell } from "@/components/ui/page-header";
 
-export const metadata: Metadata = { title: "Curated lists" };
+export const metadata: Metadata = { title: "Official books" };
 
 export default async function StudyPacksPage() {
   await requireLearner();
@@ -29,13 +30,20 @@ export default async function StudyPacksPage() {
     <PageShell>
       <PageHeader
         icon={BookMarked}
-        title="Curated lists"
-        subtitle="Ready-made vocabulary for the things you actually do — pick a pack, add the words you want (or the whole thing) to your own dictionary."
+        title="Official books"
+        subtitle="Ready-made vocabulary for the things you actually do — take the words you want, save the whole book, or drill it as a deck without saving anything."
+      />
+
+      <SectionTabs
+        tabs={[
+          { href: "/vocab", label: "My books", active: false },
+          { href: "/packs", label: "Official", active: true },
+        ]}
       />
 
       {packs.length === 0 ? (
         <p className="text-[0.9375rem] text-fg-tertiary">
-          No curated lists yet — they're on the way.
+          No official books yet — they're on the way.
         </p>
       ) : (
         <div className="packs-shelf grid max-w-4xl grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
