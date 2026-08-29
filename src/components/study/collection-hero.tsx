@@ -5,16 +5,21 @@ import { coverHue } from "@/components/study/book-cover";
  * The COLLECTION HEADER — one shape for every "a pile of words you can
  * study" page: your book, an official book, a deck.
  *
- * Straight from the playlist-page shape: a tinted wash behind the
- * cover, a small eyebrow saying what kind of thing this is, the title
- * set oversized, a quiet meta line, and the loud action sitting just
- * below it all. The point is that opening a book should feel like
- * arriving somewhere, not like loading a table.
+ * This was a straight lift of a streaming playlist header — full-bleed
+ * gradient banner, uppercase eyebrow stacked over a 3.25rem display
+ * title, everything bottom-aligned. It arrived well and read as somebody
+ * else's app. Rebuilt in Classroom's own language (2026-08-29):
  *
- * The wash is the collection's own hue at LOW ALPHA over the page
- * background, so one definition works in both themes — a solid tint
- * would have needed a light and a dark variant that then drift apart.
- * Server component: no hooks, so every page can render it directly.
+ *   - a CARD (`rounded-xl bg-surface shadow-card`), the container every
+ *     other surface in this app already uses, instead of a bled banner
+ *   - the collection's hue as a soft glow BEHIND THE COVER only, so the
+ *     colour is still present without painting the whole header
+ *   - the kind of thing ("Book", "Official book") as an inline pill in
+ *     the app's existing badge language, not an uppercase eyebrow
+ *   - a title one step above the page scale (2rem) rather than a
+ *     billboard — this is a heading, not a hero image
+ *
+ * Server component: no hooks, so every page renders it directly.
  */
 export function CollectionHero({
   cover,
@@ -26,12 +31,13 @@ export function CollectionHero({
   hueSeed,
 }: {
   cover: React.ReactNode;
+  /** What kind of thing this is — rendered as a pill beside the meta. */
   eyebrow: string;
   title: React.ReactNode;
   meta?: React.ReactNode;
   description?: React.ReactNode;
   actions?: React.ReactNode;
-  /** Tints the wash. Defaults to the title's own generated hue, so the
+  /** Tints the glow. Defaults to the title's own generated hue, so the
    * header and the cover always agree. */
   hueSeed?: string | number;
 }) {
@@ -41,26 +47,29 @@ export function CollectionHero({
       : coverHue(hueSeed ?? (typeof title === "string" ? title : "book"));
 
   return (
-    <div
-      className="collection-hero -mx-4 mb-6 rounded-none px-4 pt-6 pb-5 sm:-mx-6 sm:px-6 lg:-mx-10 lg:rounded-2xl lg:px-10 lg:pt-8"
-      style={{
-        background: `linear-gradient(175deg, hsl(${hue} 70% 50% / 0.24) 0%, hsl(${hue} 70% 50% / 0.07) 55%, transparent 100%)`,
-      }}
-    >
-      <div className="collection-hero-head flex items-end gap-4 sm:gap-6">
-        <div className="w-24 shrink-0 sm:w-36 lg:w-44">{cover}</div>
-        <div className="min-w-0 flex-1 pb-1">
-          <p className="collection-hero-eyebrow text-[0.75rem] font-semibold tracking-wider text-fg-secondary uppercase">
-            {eyebrow}
-          </p>
-          <h1 className="collection-hero-title mt-1 text-[1.75rem] leading-[1.05] font-bold tracking-tight sm:text-[2.5rem] lg:text-[3.25rem]">
+    <div className="collection-hero mb-6 overflow-hidden rounded-xl bg-surface p-4 shadow-card sm:p-5">
+      <div className="collection-hero-head flex items-center gap-4 sm:gap-5">
+        {/* The glow sits behind the art, not across the header: the
+            collection keeps its colour, the page keeps its surface. */}
+        <div className="relative w-20 shrink-0 sm:w-28">
+          <div
+            aria-hidden
+            className="absolute -inset-3 rounded-full blur-2xl"
+            style={{ background: `hsl(${hue} 70% 50% / 0.35)` }}
+          />
+          <div className="relative">{cover}</div>
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <h1 className="collection-hero-title text-[1.5rem] leading-tight font-semibold tracking-tight sm:text-[2rem]">
             {title}
           </h1>
-          {meta && (
-            <p className="collection-hero-meta mt-2 text-[0.875rem] text-fg-secondary sm:text-[0.9375rem]">
-              {meta}
-            </p>
-          )}
+          <p className="collection-hero-meta mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.875rem] text-fg-secondary">
+            <span className="collection-hero-kind rounded-full bg-accent-soft px-2 py-0.5 text-[0.72rem] font-semibold text-accent-text">
+              {eyebrow}
+            </span>
+            {meta}
+          </p>
         </div>
       </div>
 
@@ -71,7 +80,7 @@ export function CollectionHero({
       )}
 
       {actions && (
-        <div className="collection-hero-actions mt-5 flex flex-wrap items-center gap-3">
+        <div className="collection-hero-actions mt-4 flex flex-wrap items-center gap-2">
           {actions}
         </div>
       )}
@@ -80,9 +89,10 @@ export function CollectionHero({
 }
 
 /**
- * The one loud action on a collection page — the play button. Deep rose
- * (`--practice`), circular, oversized: energetic, never destructive, and
- * the same object everywhere so it's recognised before it's read.
+ * The one loud action on a collection page. Deep rose (`--practice`):
+ * energetic, never destructive, and the same object everywhere so it's
+ * recognised before it's read. A pill at the app's own control height —
+ * the oversized circular play it started as belonged to another app.
  */
 export function PlayAction({
   children,
@@ -91,7 +101,7 @@ export function PlayAction({
   return (
     <a
       {...props}
-      className="play-action inline-flex h-12 items-center gap-2.5 rounded-full bg-practice pr-6 pl-5 text-[1rem] font-semibold text-white shadow-sm transition-transform hover:scale-[1.03] hover:bg-practice-hover"
+      className="play-action inline-flex h-10 items-center gap-2 rounded-full bg-practice pr-5 pl-4 text-[0.9375rem] font-semibold text-white shadow-sm transition-colors hover:bg-practice-hover"
     >
       {children}
     </a>

@@ -25,7 +25,7 @@ test("hamburger opens the drawer; a nav tap navigates and closes it", async ({
   ).toBeVisible();
 
   await page.getByRole("link", { name: "Books", exact: true }).first().click();
-  await page.waitForURL("**/vocab");
+  await page.waitForURL("**/books");
   await expect(
     page.getByRole("heading", { name: "Books", exact: true }),
   ).toBeVisible();
@@ -60,7 +60,7 @@ test("vocabulary at phone width: books shelf, dialog add, compact table, edit", 
   page,
 }) => {
   // The landing is the bookshelf; adding goes through the dialog.
-  await page.goto("/vocab");
+  await page.goto("/books");
   await page.getByRole("button", { name: "New word" }).click();
   const addDialog = page.getByRole("dialog");
   await addDialog.getByLabel("Language").selectOption("French");
@@ -119,7 +119,7 @@ test("the bottom quick-access bar navigates without opening the drawer", async (
   // renders fine and still can't be tapped (covered, off-screen, or
   // behind the composer).
   await tabbar.getByRole("link", { name: "Decks" }).click();
-  await page.waitForURL("**/vocab/review");
+  await page.waitForURL("**/decks");
   await expect(
     page.getByRole("heading", { name: "Decks", exact: true }),
   ).toBeVisible();
@@ -128,15 +128,30 @@ test("the bottom quick-access bar navigates without opening the drawer", async (
     "aria-current",
     "page",
   );
-  // Longest-match wins: /vocab/review must NOT also light up Books.
+  // Longest-match wins: /decks must NOT also light up Books.
   await expect(
     tabbar.getByRole("link", { name: "Books" }),
   ).not.toHaveAttribute("aria-current", "page");
 
   await tabbar.getByRole("link", { name: "Books" }).click();
-  await page.waitForURL("**/vocab");
-  await tabbar.getByRole("link", { name: "Official" }).click();
-  await page.waitForURL("**/packs");
+  await page.waitForURL("**/books");
+
+  // Home leads the bar — the "what should I do now" surface.
+  await tabbar.getByRole("link", { name: "Home" }).click();
+  await page.waitForURL("**/home");
+  await expect(tabbar.getByRole("link", { name: "Home" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+
+  // Official came OUT of the bar when Home went in — it's a cover shelf
+  // on Home instead, which is one tap from the same place.
+  await expect(tabbar.getByRole("link", { name: "Official" })).toHaveCount(0);
+  await page
+    .locator(".official-shelf")
+    .getByRole("link", { name: "See all" })
+    .click();
+  await page.waitForURL("**/official");
   await expect(
     page.getByRole("heading", { name: "Official books" }),
   ).toBeVisible();
@@ -158,7 +173,7 @@ test("the bar never covers the chat composer or the Ask button", async ({
 
   // The Ask launcher deliberately doesn't render on /chat (that page IS
   // a chat), so it gets measured where it does exist.
-  await page.goto("/vocab");
+  await page.goto("/books");
   const bar = await page.locator(".mobile-tabbar").boundingBox();
   const ask = await page.getByRole("button", { name: "Ask AI" }).boundingBox();
   if (!bar || !ask) throw new Error("study chrome not measurable");

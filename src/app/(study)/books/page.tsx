@@ -12,12 +12,12 @@ import {
 } from "@/db";
 import { requireLearner } from "@/lib/auth";
 import { isCardDue } from "@/lib/srs";
+import { membersByList } from "@/lib/study-shelves";
 import { QuickAddVocabDialog } from "@/components/study/quick-add-vocab-dialog";
 import {
   CollectionHero,
   PlayAction,
 } from "@/components/study/collection-hero";
-import { Greeting } from "@/components/study/greeting";
 import { OfficialShelf } from "@/components/study/official-shelf";
 import { SectionTabs } from "@/components/study/section-tabs";
 import { BookTile, LikedCover } from "@/components/study/study-covers";
@@ -90,11 +90,10 @@ export default async function StudyVocabPage({
       .orderBy(asc(studyPacks.name)),
   ]);
 
+  const members = membersByList(listItemRows);
   const lists: VocabListSummary[] = listRows.map((list) => ({
     ...list,
-    itemIds: listItemRows
-      .filter((row) => row.listId === list.id)
-      .map((row) => row.vocabId),
+    itemIds: members.get(list.id) ?? [],
   }));
 
   const dueCount = items.filter((item) => isCardDue(item.srsDueAt, now)).length;
@@ -112,16 +111,16 @@ export default async function StudyVocabPage({
       : items;
     const bookLanguage = visible[0]?.language;
     // Books are study units, not just groupings — a book with due cards
-    // offers its own session (`/vocab/review?book=`), scoped to it.
+    // offers its own session (`/decks?book=`), scoped to it.
     const bookDueCount = visible.filter((item) =>
       isCardDue(item.srsDueAt, now),
     ).length;
 
-    const reviewHref = `/vocab/review?book=${activeBook?.id ?? "all"}`;
+    const reviewHref = `/decks?book=${activeBook?.id ?? "all"}`;
 
     return (
       <PageShell>
-        <BackLink href="/vocab">My books</BackLink>
+        <BackLink href="/books">My books</BackLink>
         {/* The playlist-page shape: art, an oversized title, and one
             loud action. A book is a place you arrive at, not a filter
             you applied. */}
@@ -134,7 +133,7 @@ export default async function StudyVocabPage({
               <LikedCover />
             )
           }
-          eyebrow={activeBook ? "Book" : "Every word you've saved"}
+          eyebrow={activeBook ? "Book" : "Your vocabulary"}
           title={activeBook?.name ?? "All words"}
           meta={
             <>
@@ -146,7 +145,7 @@ export default async function StudyVocabPage({
           actions={
             <>
               <PlayAction href={reviewHref}>
-                <Play className="size-5 fill-current" />
+                <Play className="size-4 fill-current" />
                 {bookDueCount > 0 ? `Review ${bookDueCount}` : "Practice"}
               </PlayAction>
               {activeBook ? (
@@ -177,30 +176,24 @@ export default async function StudyVocabPage({
   }
 
   // ── Landing: the learner's bookshelf ──
-  // The greeting rides the SUBTITLE, not the title: the sidebar tab says
-  // "Books", so the heading has to as well (one word, one meaning). The
-  // "what should I do now" surface is Decks — this page is the library,
-  // and duplicating its rows as a shortcut grid above itself would just
-  // be the same links twice.
+  // No greeting here any more. It made sense while Books was the first
+  // thing a learner saw; Home owns the greeting now, and two pages
+  // saying good evening is one page too many. This is the library — it
+  // states what's in it.
   return (
     <PageShell>
       <PageHeader
         icon={Layers}
         title="Books"
         subtitle={
-          <>
-            <Greeting />
-            {items.length === 0
-              ? " — collections of words, yours to build or taken from an official one."
-              : dueCount > 0
-                ? ` — ${dueCount} card${dueCount === 1 ? "" : "s"} are ready for you.`
-                : ` — ${items.length} word${items.length === 1 ? "" : "s"} across ${lists.length} book${lists.length === 1 ? "" : "s"}, nothing due right now.`}
-          </>
+          items.length === 0
+            ? "Collections of words — yours to build, or taken from an official one."
+            : `${items.length} word${items.length === 1 ? "" : "s"} across ${lists.length} book${lists.length === 1 ? "" : "s"}`
         }
         actions={
           dueCount > 0 && (
             <Link
-              href="/vocab/review?book=all"
+              href="/decks?book=all"
               className="inline-flex h-9 items-center gap-2 rounded-md bg-accent px-3.5 text-[0.9375rem] font-medium text-white shadow-sm transition-colors hover:bg-accent-hover"
             >
               <BookOpenCheck className="size-4" />
@@ -212,9 +205,9 @@ export default async function StudyVocabPage({
 
       <SectionTabs
         tabs={[
-          { href: "/vocab", label: "My books", active: true },
+          { href: "/books", label: "My books", active: true },
           {
-            href: "/packs",
+            href: "/official",
             label: `Official ${officialRows.length}`,
             active: false,
           },

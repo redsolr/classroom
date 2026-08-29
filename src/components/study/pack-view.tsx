@@ -301,8 +301,8 @@ export function PackView({
         actions={
           <>
             {/* Drill it now, decide later whether it's worth keeping. */}
-            <PlayAction href={`/vocab/review?pack=${pack.slug}`}>
-              <Play className="size-5 fill-current" />
+            <PlayAction href={`/decks?pack=${pack.slug}`}>
+              <Play className="size-4 fill-current" />
               Practice
             </PlayAction>
             <Button loading={importing} onClick={importAll}>
@@ -318,7 +318,7 @@ export function PackView({
           Added {imported.added} new word{imported.added === 1 ? "" : "s"} and
           saved the pack as your “{imported.list}” book —{" "}
           <Link
-            href="/vocab"
+            href="/books"
             className="font-medium underline underline-offset-2"
           >
             open my books

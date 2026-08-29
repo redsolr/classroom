@@ -69,7 +69,7 @@ function NewBookDialog() {
       try {
         const { id } = await createStudyVocabList(name, []);
         setOpen(false);
-        router.push(`/vocab?book=${id}`);
+        router.push(`/books?book=${id}`);
       } catch (err) {
         console.error("vocab: failed to create book", err);
       }
@@ -134,7 +134,7 @@ function BookRow({ list }: { list: VocabListSummary }) {
         />
       ) : (
         <Link
-          href={`/vocab?book=${list.id}`}
+          href={`/books?book=${list.id}`}
           className="min-w-0 flex-1"
         >
           <span className="block truncate text-[0.9375rem] font-medium">
@@ -254,7 +254,7 @@ export function VocabShelf({
         <AddWordDialogButton />
         <NewBookDialog />
         <Link
-          href="/packs"
+          href="/official"
           className="inline-flex h-9 items-center gap-1.5 rounded-md px-2.5 text-[0.9375rem] font-medium text-accent-text transition-colors hover:bg-surface-hover"
         >
           <Sparkles className="size-3.5" />
@@ -271,7 +271,7 @@ export function VocabShelf({
             isn't — so it wears the liked tile, not a book cover. */}
         <li className="transition-colors hover:bg-surface-hover">
           <Link
-            href="/vocab?book=all"
+            href="/books?book=all"
             className="flex items-center gap-3 px-3 py-2.5 sm:px-4"
           >
             <LikedCover className="w-11 shrink-0" />

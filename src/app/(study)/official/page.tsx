@@ -36,8 +36,8 @@ export default async function StudyPacksPage() {
 
       <SectionTabs
         tabs={[
-          { href: "/vocab", label: "My books", active: false },
-          { href: "/packs", label: "Official", active: true },
+          { href: "/books", label: "My books", active: false },
+          { href: "/official", label: "Official", active: true },
         ]}
       />
 
@@ -50,14 +50,14 @@ export default async function StudyPacksPage() {
           {packs.map((pack) => (
             <Link
               key={pack.id}
-              href={`/packs/${pack.slug}`}
+              href={`/official/${pack.slug}`}
               className="pack-volume group block"
             >
               <PackCover
                 slug={pack.slug}
                 name={pack.name}
                 language={pack.language}
-                className="transition-transform group-hover:-translate-y-1"
+                className="transition duration-200 group-hover:brightness-110"
               />
               <span className="mt-2 block truncate text-[0.875rem] font-medium">
                 {pack.name}

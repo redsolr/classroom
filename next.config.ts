@@ -10,15 +10,56 @@ const nextConfig: NextConfig = {
   // up. List a device origin here to develop against it. No effect on a
   // production build.
   allowedDevOrigins: ["100.70.14.13"],
-  // The study surface moved off the /study prefix (2026-08-12): the chat
-  // window lives at /chat and the other pages at the root (/vocab,
-  // /library, …). Installed PWAs still launch start_url=/study and old
-  // links live in bookmarks — keep them working; non-permanent so the
-  // mapping can evolve.
+  // The dev-tools badge is pinned to the bottom edge of the viewport,
+  // which is exactly where the phone quick-access bar now lives — on a
+  // 390px screen it sits ON the Home tab and swallows the tap. It costs
+  // us nothing (it's a dev-only affordance we never use) and it would
+  // have annoyed the founder's dev phone run the same way it broke the
+  // mobile spec.
+  devIndicators: false,
+  // URLs speak the product's OWN vocabulary (2026-08-29). The routes were
+  // the last place the pre-naming-pass words survived: the UI said Books,
+  // Decks, Official and Reading list while the address bar still said
+  // /vocab, /vocab/review, /packs and /library. "One word, one meaning"
+  // has to include the URL — it is the most public name a page has.
+  //
+  //   /vocab → /books        /vocab/review → /decks
+  //   /packs → /official     /library      → /reading
+  //
+  // Every old path keeps working (the /study prefix from the 2026-08-12
+  // move included). Query strings ride along automatically, so
+  // /vocab/review?book=<id> lands on /decks?book=<id>. Non-permanent on
+  // purpose: a 308 is cached by browsers indefinitely and would outlive
+  // our ability to change our minds.
   async redirects() {
     return [
       { source: "/study", destination: "/chat", permanent: false },
       { source: "/study/:path*", destination: "/:path*", permanent: false },
+      // Longest first — /vocab/review must not fall through to /books.
+      { source: "/vocab/review", destination: "/decks", permanent: false },
+      {
+        source: "/vocab/export.csv",
+        destination: "/books/export.csv",
+        permanent: false,
+      },
+      { source: "/vocab", destination: "/books", permanent: false },
+      {
+        source: "/vocab/:path*",
+        destination: "/books/:path*",
+        permanent: false,
+      },
+      { source: "/packs", destination: "/official", permanent: false },
+      {
+        source: "/packs/:path*",
+        destination: "/official/:path*",
+        permanent: false,
+      },
+      { source: "/library", destination: "/reading", permanent: false },
+      {
+        source: "/library/:path*",
+        destination: "/reading/:path*",
+        permanent: false,
+      },
     ];
   },
 };

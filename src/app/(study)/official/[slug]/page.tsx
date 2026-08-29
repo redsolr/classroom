@@ -92,7 +92,7 @@ export default async function StudyPackPage({
 
   return (
     <PageShell>
-      <BackLink href="/packs">All official books</BackLink>
+      <BackLink href="/official">All official books</BackLink>
       {/* The title lives in PackView's hero — the copy actions belong
           with the art, and two headers on one page is one too many. */}
       <div className="max-w-3xl">
