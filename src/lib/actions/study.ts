@@ -362,17 +362,41 @@ export async function renameStudyThread(threadId: string, title: string) {
  * derived from real due reviews only, so the caller must not grade
  * these through reviewStudyVocab.
  */
-export async function loadStudyPracticeDeck() {
+export async function loadStudyPracticeDeck(listId?: string | null) {
   const learner = await requireLearner();
+  const columns = {
+    id: studyVocab.id,
+    language: studyVocab.language,
+    term: studyVocab.term,
+    reading: studyVocab.reading,
+    meaning: studyVocab.meaning,
+    example: studyVocab.example,
+  };
+
+  // A cram round has to stay inside whatever the session was scoped to —
+  // practising a book must not deal cards from the rest of the
+  // dictionary.
+  if (listId) {
+    const list = await requireOwnList(learner.id, listId);
+    return db
+      .select(columns)
+      .from(studyVocab)
+      .innerJoin(
+        studyVocabListItems,
+        eq(studyVocabListItems.vocabId, studyVocab.id),
+      )
+      .where(
+        and(
+          eq(studyVocab.learnerId, learner.id),
+          eq(studyVocabListItems.listId, list.id),
+        ),
+      )
+      .orderBy(sql`random()`)
+      .limit(50);
+  }
+
   return db
-    .select({
-      id: studyVocab.id,
-      language: studyVocab.language,
-      term: studyVocab.term,
-      reading: studyVocab.reading,
-      meaning: studyVocab.meaning,
-      example: studyVocab.example,
-    })
+    .select(columns)
     .from(studyVocab)
     .where(eq(studyVocab.learnerId, learner.id))
     .orderBy(sql`random()`)
@@ -1036,10 +1060,25 @@ export async function reorderStudyVocabListItem(
 // items into the learner's own vocabulary (dedup per language by term).
 // ---------------------------------------------------------------------------
 
-/** Copy ONE pack item into the learner's vocabulary. */
+/**
+ * Copy ONE pack item into the learner's vocabulary, optionally filing it
+ * into a book at the same time.
+ *
+ * The dictionary is the "liked songs" layer and books are playlists: a
+ * word lives in the dictionary once and appears in any number of books.
+ * So an already-saved word is NOT a no-op when a book is named — it was
+ * possibly added from another pack or by hand, and filing it still has
+ * to work. Only the dictionary insert is conditional.
+ */
 export async function addStudyPackItem(
   itemId: string,
-): Promise<{ added: boolean }> {
+  target?: { listId?: string; newListName?: string },
+): Promise<{
+  added: boolean;
+  vocabId: string;
+  listId: string | null;
+  listName: string | null;
+}> {
   const learner = await requireLearner();
   const id = z.string().uuid().parse(itemId);
 
@@ -1050,20 +1089,69 @@ export async function addStudyPackItem(
     .where(eq(studyPackItems.id, id));
   if (!row) throw new Error("Pack item not found");
 
-  const saved = await savedTermsFor(learner.id, row.language);
-  if (saved.has(row.item.term.toLowerCase())) return { added: false };
+  // Same dedup key the pack page's ✓ is computed from: language + the
+  // lowercased term.
+  const existing = await db
+    .select({ id: studyVocab.id })
+    .from(studyVocab)
+    .where(
+      and(
+        eq(studyVocab.learnerId, learner.id),
+        eq(studyVocab.language, row.language),
+        sql`lower(${studyVocab.term}) = ${row.item.term.toLowerCase()}`,
+      ),
+    )
+    .limit(1);
 
-  await db.insert(studyVocab).values({
-    learnerId: learner.id,
-    language: row.language,
-    term: row.item.term,
-    reading: row.item.reading,
-    meaning: row.item.meaning,
-    example: row.item.example,
-    category: row.item.category,
-  });
+  let vocabId = existing[0]?.id;
+  const added = !vocabId;
+  if (!vocabId) {
+    const [created] = await db
+      .insert(studyVocab)
+      .values({
+        learnerId: learner.id,
+        language: row.language,
+        term: row.item.term,
+        reading: row.item.reading,
+        meaning: row.item.meaning,
+        example: row.item.example,
+        category: row.item.category,
+      })
+      .returning({ id: studyVocab.id });
+    vocabId = created.id;
+  }
+
+  let listId: string | null = null;
+  let listName: string | null = null;
+  if (target?.newListName !== undefined) {
+    const name = z.string().trim().min(1).max(120).parse(target.newListName);
+    const [list] = await db
+      .insert(studyVocabLists)
+      .values({ learnerId: learner.id, name })
+      .returning();
+    await db.insert(studyVocabListItems).values({
+      listId: list.id,
+      vocabId,
+      position: await nextListPosition(list.id),
+    });
+    listId = list.id;
+    listName = list.name;
+  } else if (target?.listId) {
+    const list = await requireOwnList(learner.id, target.listId);
+    await db
+      .insert(studyVocabListItems)
+      .values({
+        listId: list.id,
+        vocabId,
+        position: await nextListPosition(list.id),
+      })
+      .onConflictDoNothing(); // already filed here = no-op
+    listId = list.id;
+    listName = list.name;
+  }
+
   revalidatePath("/vocab");
-  return { added: true };
+  return { added, vocabId, listId, listName };
 }
 
 /**
@@ -1072,9 +1160,14 @@ export async function addStudyPackItem(
  * refreshed) carrying the pack's curated order. The learner's list is
  * theirs afterwards — reorder, prune, extend freely.
  */
-export async function importStudyPack(
-  packId: string,
-): Promise<{ added: number; list: string }> {
+export async function importStudyPack(packId: string): Promise<{
+  added: number;
+  list: string;
+  listId: string;
+  /** Lowercased term → the learner's own vocab row id, so the pack page
+   * can refresh its saved-state without a reload. */
+  vocabIdsByTerm: Record<string, string>;
+}> {
   const learner = await requireLearner();
   const id = z.string().uuid().parse(packId);
 
@@ -1144,7 +1237,19 @@ export async function importStudyPack(
   );
 
   revalidatePath("/vocab");
-  return { added: fresh.length, list: pack.name };
+  // The pack page keeps its saved-state in React state, so hand back the
+  // ids it needs to reflect the import without a reload (a reload would
+  // also throw away the confirmation banner it just earned).
+  return {
+    added: fresh.length,
+    list: pack.name,
+    listId: list.id,
+    vocabIdsByTerm: Object.fromEntries(
+      items
+        .map((i) => [i.term.toLowerCase(), byTerm.get(i.term.toLowerCase())])
+        .filter((pair): pair is [string, string] => !!pair[1]),
+    ),
+  };
 }
 
 const gradeSchema = z.enum(["again", "hard", "good", "easy"]);

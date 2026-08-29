@@ -189,10 +189,16 @@ function CardFace({
 export function StudyReview({
   deck: initialDeck,
   totalWords,
+  listId = null,
 }: {
   deck: ReviewCard[];
-  /** Dictionary size — a practice round is offered whenever it's > 0. */
+  /** Size of the SCOPE — the book, or the whole dictionary. A practice
+   * round is offered whenever it's > 0. */
   totalWords: number;
+  /** Book this session is scoped to, null for the whole dictionary.
+   * Carried so a cram round redeals from the SAME scope instead of
+   * silently widening to every word the learner owns. */
+  listId?: string | null;
 }) {
   const [deck, setDeck] = React.useState(initialDeck);
   /** "due" grades for real (SM-2); "practice" is an Anki-style cram
@@ -297,7 +303,7 @@ export function StudyReview({
   const practiceAgain = () => {
     startPractice(async () => {
       try {
-        const cards = await loadStudyPracticeDeck();
+        const cards = await loadStudyPracticeDeck(listId);
         if (cards.length === 0) return;
         setMode("practice");
         setDeck(cards);

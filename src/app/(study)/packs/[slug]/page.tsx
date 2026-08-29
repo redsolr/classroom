@@ -1,7 +1,14 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { and, asc, eq } from "drizzle-orm";
-import { db, studyPackItems, studyPacks, studyVocab } from "@/db";
+import {
+  db,
+  studyPackItems,
+  studyPacks,
+  studyVocab,
+  studyVocabListItems,
+  studyVocabLists,
+} from "@/db";
 import { requireLearner } from "@/lib/auth";
 import { PackView } from "@/components/study/pack-view";
 import {
@@ -25,14 +32,17 @@ export default async function StudyPackPage({
   });
   if (!pack) notFound();
 
-  const [items, savedRows] = await Promise.all([
+  const [items, savedRows, bookRows, membershipRows] = await Promise.all([
     db
       .select()
       .from(studyPackItems)
       .where(eq(studyPackItems.packId, pack.id))
       .orderBy(asc(studyPackItems.position)),
+    // Ids too, not just terms: filing a word into a book and removing it
+    // from one both need the learner's own vocab row, and the ✓ state is
+    // keyed on the same lowercased term the add action dedups on.
     db
-      .select({ term: studyVocab.term })
+      .select({ id: studyVocab.id, term: studyVocab.term })
       .from(studyVocab)
       .where(
         and(
@@ -40,8 +50,37 @@ export default async function StudyPackPage({
           eq(studyVocab.language, pack.language),
         ),
       ),
+    db
+      .select({ id: studyVocabLists.id, name: studyVocabLists.name })
+      .from(studyVocabLists)
+      .where(eq(studyVocabLists.learnerId, learner.id))
+      .orderBy(asc(studyVocabLists.createdAt)),
+    db
+      .select({
+        listId: studyVocabListItems.listId,
+        vocabId: studyVocabListItems.vocabId,
+      })
+      .from(studyVocabListItems)
+      .innerJoin(
+        studyVocabLists,
+        eq(studyVocabListItems.listId, studyVocabLists.id),
+      )
+      .where(eq(studyVocabLists.learnerId, learner.id)),
   ]);
-  const savedTerms = savedRows.map((r) => r.term.toLowerCase());
+
+  // term (lowercased) → the learner's row + the books holding it, which
+  // is everything the pack rows need to render their saved state.
+  const savedByTerm = Object.fromEntries(
+    savedRows.map((row) => [
+      row.term.toLowerCase(),
+      {
+        vocabId: row.id,
+        bookIds: membershipRows
+          .filter((m) => m.vocabId === row.id)
+          .map((m) => m.listId),
+      },
+    ]),
+  );
 
   return (
     <PageShell>
@@ -58,7 +97,12 @@ export default async function StudyPackPage({
       </PageHeader>
 
       <div className="max-w-3xl">
-        <PackView pack={pack} items={items} initialSavedTerms={savedTerms} />
+        <PackView
+          pack={pack}
+          items={items}
+          initialSaved={savedByTerm}
+          books={bookRows}
+        />
       </div>
     </PageShell>
   );

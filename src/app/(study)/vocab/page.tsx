@@ -86,6 +86,11 @@ export default async function StudyVocabPage({
           .filter((i): i is (typeof items)[number] => !!i)
       : items;
     const bookLanguage = visible[0]?.language;
+    // Books are study units, not just groupings — a book with due cards
+    // offers its own session (`/vocab/review?book=`), scoped to it.
+    const bookDueCount = visible.filter((item) =>
+      isCardDue(item.srsDueAt, now),
+    ).length;
 
     return (
       <PageShell>
@@ -94,17 +99,32 @@ export default async function StudyVocabPage({
           title={activeBook?.name ?? "All words"}
           subtitle={`${visible.length} word${visible.length === 1 ? "" : "s"}`}
           actions={
-            activeBook ? (
-              <QuickAddVocabDialog
-                bookId={activeBook.id}
-                bookName={activeBook.name}
-                defaultLanguage={bookLanguage}
-              >
-                <Button variant="primary">New word</Button>
-              </QuickAddVocabDialog>
-            ) : (
-              <AddWordDialogButton />
-            )
+            <div className="flex items-center gap-2">
+              {bookDueCount > 0 && (
+                <Link
+                  href={
+                    activeBook
+                      ? `/vocab/review?book=${activeBook.id}`
+                      : "/vocab/review"
+                  }
+                  className="inline-flex h-9 items-center gap-2 rounded-md bg-surface px-3.5 text-[0.9375rem] font-medium shadow-card transition-colors hover:bg-surface-hover"
+                >
+                  <BookOpenCheck className="size-4 text-fg-tertiary" />
+                  Review {bookDueCount} due
+                </Link>
+              )}
+              {activeBook ? (
+                <QuickAddVocabDialog
+                  bookId={activeBook.id}
+                  bookName={activeBook.name}
+                  defaultLanguage={bookLanguage}
+                >
+                  <Button variant="primary">New word</Button>
+                </QuickAddVocabDialog>
+              ) : (
+                <AddWordDialogButton />
+              )}
+            </div>
           }
         />
         <div className="max-w-4xl">
