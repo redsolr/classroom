@@ -8,11 +8,12 @@ import {
   studySentences,
   studyVocab,
   studyVocabListItems,
-  studyVocabLists,
 } from "@/db";
 import { requireLearner } from "@/lib/auth";
 import { hasSingleCloze } from "@/lib/cloze";
-import { srsReviewPatch } from "@/lib/srs";
+import type { ReviewGrade } from "@/lib/srs";
+import { gradeOwnedCard } from "@/lib/srs-review";
+import { requireOwnVocabList } from "@/lib/study-guards";
 import { STUDY_LANGUAGES } from "@/lib/study-languages";
 import {
   generateSentenceCards,
@@ -32,7 +33,6 @@ import {
  */
 
 const languageSchema = z.enum(STUDY_LANGUAGES);
-const gradeSchema = z.enum(["again", "hard", "good", "easy"]);
 
 /** A sentence with no blank is not a card — refuse it at the edge
  * rather than storing a row the drill can't render. */
@@ -45,19 +45,6 @@ const clozeTextSchema = z
     message:
       "Wrap exactly one word or phrase in {{double braces}} — that's the blank.",
   });
-
-/** The learner owns this book, or the call fails. */
-async function requireOwnList(learnerId: string, listId: string) {
-  const id = z.string().uuid().parse(listId);
-  const list = await db.query.studyVocabLists.findFirst({
-    where: and(
-      eq(studyVocabLists.id, id),
-      eq(studyVocabLists.learnerId, learnerId),
-    ),
-  });
-  if (!list) throw new Error("Book not found");
-  return list;
-}
 
 const sentenceFormSchema = z.object({
   language: languageSchema,
@@ -144,40 +131,16 @@ export async function deleteStudySentence(sentenceId: string) {
  */
 export async function reviewStudySentence(
   sentenceId: string,
-  grade: "again" | "hard" | "good" | "easy",
+  grade: ReviewGrade,
 ) {
   const learner = await requireLearner();
-  const id = z.string().uuid().parse(sentenceId);
-  const parsedGrade = gradeSchema.parse(grade);
-
-  const card = await db.query.studySentences.findFirst({
-    where: and(
-      eq(studySentences.id, id),
-      eq(studySentences.learnerId, learner.id),
-    ),
-  });
-  if (!card) throw new Error("Sentence card not found");
-
-  const now = new Date();
-  const patch = srsReviewPatch(
-    {
-      reps: card.srsReps,
-      easeFactor: card.srsEaseFactor,
-      intervalDays: card.srsIntervalDays,
-    },
-    parsedGrade,
-    now,
+  await gradeOwnedCard(
+    studySentences,
+    learner.id,
+    sentenceId,
+    grade,
+    "Sentence card not found",
   );
-
-  await db
-    .update(studySentences)
-    .set({ ...patch, updatedAt: now })
-    .where(
-      and(
-        eq(studySentences.id, id),
-        eq(studySentences.learnerId, learner.id),
-      ),
-    );
 
   // Same reason the word drill doesn't revalidate itself: the page hands
   // the client a session snapshot, and refreshing mid-session yanks
@@ -198,7 +161,7 @@ export async function loadStudySentencePracticeDeck(listId?: string | null) {
   };
 
   if (listId) {
-    const list = await requireOwnList(learner.id, listId);
+    const list = await requireOwnVocabList(learner.id, listId);
     return db
       .select(columns)
       .from(studySentences)
@@ -236,7 +199,7 @@ export async function generateStudySentences(
   listId?: string | null,
 ): Promise<{ created: number; skipped: number }> {
   const learner = await requireLearner();
-  const list = listId ? await requireOwnList(learner.id, listId) : null;
+  const list = listId ? await requireOwnVocabList(learner.id, listId) : null;
 
   // LEFT JOIN + IS NULL rather than a NOT IN subquery: it stays one
   // index-friendly scan as the deck grows.

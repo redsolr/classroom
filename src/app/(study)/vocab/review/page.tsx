@@ -22,6 +22,7 @@ import {
 import { OfficialShelf } from "@/components/study/official-shelf";
 import { SectionTabs } from "@/components/study/section-tabs";
 import { StudyReview } from "@/components/study/study-review";
+import { toSentenceCards, toWordCards } from "@/lib/study-cards";
 import { BackLink, PageHeader, PageShell } from "@/components/ui/page-header";
 
 export const metadata: Metadata = { title: "Decks" };
@@ -111,7 +112,7 @@ export default async function StudyReviewPage({
         />
         <div className="mx-auto w-full max-w-xl">
           <StudyReview
-            deck={cards.map((row) => ({ ...row, kind: "sentence" as const }))}
+            deck={toSentenceCards(cards)}
             totalWords={total}
             listId={list?.id ?? null}
             deckKind="sentence"
@@ -157,7 +158,7 @@ export default async function StudyReviewPage({
         />
         <div className="mx-auto w-full max-w-xl">
           <StudyReview
-            deck={packCards.map((row) => ({ ...row, kind: "word" as const }))}
+            deck={toWordCards(packCards)}
             totalWords={packCards.length}
             packSlug={officialBook.slug}
             initialMode="practice"
@@ -172,46 +173,46 @@ export default async function StudyReviewPage({
     const now = new Date();
     const [words, listRows, listItemRows, sentenceRows, officialRows] =
       await Promise.all([
-      db
-        .select({ id: studyVocab.id, srsDueAt: studyVocab.srsDueAt })
-        .from(studyVocab)
-        .where(eq(studyVocab.learnerId, learner.id)),
-      db
-        .select({ id: studyVocabLists.id, name: studyVocabLists.name })
-        .from(studyVocabLists)
-        .where(eq(studyVocabLists.learnerId, learner.id))
-        .orderBy(asc(studyVocabLists.createdAt)),
-      db
-        .select({
-          listId: studyVocabListItems.listId,
-          vocabId: studyVocabListItems.vocabId,
-        })
-        .from(studyVocabListItems)
-        .innerJoin(
-          studyVocabLists,
-          eq(studyVocabListItems.listId, studyVocabLists.id),
-        )
-        .where(eq(studyVocabLists.learnerId, learner.id)),
-      db
-        .select({
-          id: studySentences.id,
-          listId: studySentences.listId,
-          srsDueAt: studySentences.srsDueAt,
-        })
-        .from(studySentences)
-        .where(eq(studySentences.learnerId, learner.id)),
-      db
-        .select({
-          id: studyPacks.id,
-          slug: studyPacks.slug,
-          name: studyPacks.name,
-          language: studyPacks.language,
-          itemCount: sql<number>`count(${studyPackItems.id})::int`,
-        })
-        .from(studyPacks)
-        .leftJoin(studyPackItems, eq(studyPackItems.packId, studyPacks.id))
-        .groupBy(studyPacks.id)
-        .orderBy(asc(studyPacks.name)),
+        db
+          .select({ id: studyVocab.id, srsDueAt: studyVocab.srsDueAt })
+          .from(studyVocab)
+          .where(eq(studyVocab.learnerId, learner.id)),
+        db
+          .select({ id: studyVocabLists.id, name: studyVocabLists.name })
+          .from(studyVocabLists)
+          .where(eq(studyVocabLists.learnerId, learner.id))
+          .orderBy(asc(studyVocabLists.createdAt)),
+        db
+          .select({
+            listId: studyVocabListItems.listId,
+            vocabId: studyVocabListItems.vocabId,
+          })
+          .from(studyVocabListItems)
+          .innerJoin(
+            studyVocabLists,
+            eq(studyVocabListItems.listId, studyVocabLists.id),
+          )
+          .where(eq(studyVocabLists.learnerId, learner.id)),
+        db
+          .select({
+            id: studySentences.id,
+            listId: studySentences.listId,
+            srsDueAt: studySentences.srsDueAt,
+          })
+          .from(studySentences)
+          .where(eq(studySentences.learnerId, learner.id)),
+        db
+          .select({
+            id: studyPacks.id,
+            slug: studyPacks.slug,
+            name: studyPacks.name,
+            language: studyPacks.language,
+            itemCount: sql<number>`count(${studyPackItems.id})::int`,
+          })
+          .from(studyPacks)
+          .leftJoin(studyPackItems, eq(studyPackItems.packId, studyPacks.id))
+          .groupBy(studyPacks.id)
+          .orderBy(asc(studyPacks.name)),
       ]);
 
     const dueById = new Map(
@@ -263,9 +264,7 @@ export default async function StudyReviewPage({
             },
             ...listRows
               .map((list) => {
-                const scoped = sentenceRows.filter(
-                  (s) => s.listId === list.id,
-                );
+                const scoped = sentenceRows.filter((s) => s.listId === list.id);
                 return {
                   id: `sentences-${list.id}`,
                   name: list.name,
@@ -320,10 +319,9 @@ export default async function StudyReviewPage({
                     No sentence cards yet
                   </p>
                   <p className="mx-auto mt-1 max-w-md text-[0.875rem] text-fg-tertiary">
-                    A sentence card blanks out one word inside a real
-                    sentence — knowing what a word means and being able to
-                    supply it are different skills, and only one of them is
-                    speaking.
+                    A sentence card blanks out one word inside a real sentence —
+                    knowing what a word means and being able to supply it are
+                    different skills, and only one of them is speaking.
                   </p>
                   <Link
                     href="/sentences"
@@ -447,7 +445,7 @@ export default async function StudyReviewPage({
           while the title stays on the shared page edge. */}
       <div className="mx-auto w-full max-w-xl">
         <StudyReview
-          deck={deck.map((row) => ({ ...row, kind: "word" as const }))}
+          deck={toWordCards(deck)}
           totalWords={totalWords}
           listId={list?.id ?? null}
         />

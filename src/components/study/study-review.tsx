@@ -10,37 +10,14 @@ import {
 } from "@/lib/actions/sentences";
 import { coverHue } from "@/components/study/book-cover";
 import { parseCloze } from "@/lib/cloze";
+import {
+  toSentenceCards,
+  toWordCards,
+  type DeckKind,
+  type ReviewCard,
+} from "@/lib/study-cards";
 import type { ReviewGrade } from "@/lib/srs";
 import { cn } from "@/lib/utils";
-
-/**
- * The two card types, as a UNION rather than one row with half its
- * columns null. They share everything below — the stack, the swipe, the
- * optimistic save, the scheduler — and nothing else: a word card asks
- * what a word means, a sentence card asks whether you can still supply
- * it when a sentence needs it.
- */
-export type WordCard = {
-  kind: "word";
-  id: string;
-  language: string;
-  term: string;
-  reading: string | null;
-  meaning: string | null;
-  example: string | null;
-};
-
-export type SentenceCard = {
-  kind: "sentence";
-  id: string;
-  language: string;
-  /** Cloze text — exactly one `{{…}}` span, the thing being tested. */
-  text: string;
-  translation: string | null;
-  note: string | null;
-};
-
-export type ReviewCard = WordCard | SentenceCard;
 
 /**
  * Button row order mirrors the swipe axes left→right: ← / ↓ / ↑ / →.
@@ -269,10 +246,8 @@ export function StudyReview({
    * there's no schedule to move. */
   packSlug?: string | null;
   initialMode?: "due" | "practice";
-  /** Which card type this session deals. Session-level, not read off
-   * the first card: an EMPTY sentence deck still has to offer sentence
-   * practice, not word practice. */
-  deckKind?: "word" | "sentence";
+  /** Which card type this session deals — see DeckKind. */
+  deckKind?: DeckKind;
 }) {
   const [deck, setDeck] = React.useState(initialDeck);
   /** "due" grades for real (SM-2); "practice" is an Anki-style cram
@@ -397,16 +372,10 @@ export function StudyReview({
     }
     startPractice(async () => {
       try {
-        const cards: ReviewCard[] =
+        const cards =
           deckKind === "sentence"
-            ? (await loadStudySentencePracticeDeck(listId)).map((row) => ({
-                ...row,
-                kind: "sentence" as const,
-              }))
-            : (await loadStudyPracticeDeck(listId)).map((row) => ({
-                ...row,
-                kind: "word" as const,
-              }));
+            ? toSentenceCards(await loadStudySentencePracticeDeck(listId))
+            : toWordCards(await loadStudyPracticeDeck(listId));
         if (cards.length === 0) return;
         setMode("practice");
         setDeck(cards);

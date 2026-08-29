@@ -41,7 +41,9 @@ import {
   getStripe,
   studyPriceId,
 } from "@/lib/billing";
-import { srsReviewPatch } from "@/lib/srs";
+import type { ReviewGrade } from "@/lib/srs";
+import { gradeOwnedCard } from "@/lib/srs-review";
+import { requireOwnVocabList } from "@/lib/study-guards";
 import { countTutorMessagesLast24h } from "@/lib/study-usage";
 
 // ---------------------------------------------------------------------------
@@ -377,7 +379,7 @@ export async function loadStudyPracticeDeck(listId?: string | null) {
   // practising a book must not deal cards from the rest of the
   // vocabulary.
   if (listId) {
-    const list = await requireOwnList(learner.id, listId);
+    const list = await requireOwnVocabList(learner.id, listId);
     return db
       .select(columns)
       .from(studyVocab)
@@ -833,18 +835,6 @@ async function nextListPosition(listId: string): Promise<number> {
 }
 
 /** The learner's list, or throw — every list mutation goes through this. */
-async function requireOwnList(learnerId: string, listId: string) {
-  const id = z.string().uuid().parse(listId);
-  const list = await db.query.studyVocabLists.findFirst({
-    where: and(
-      eq(studyVocabLists.id, id),
-      eq(studyVocabLists.learnerId, learnerId),
-    ),
-  });
-  if (!list) throw new Error("List not found");
-  return list;
-}
-
 /**
  * Create a book — empty ("New book" on the shelf) or from an ordered
  * set of the learner's own words (the table's current view). Rows that
@@ -882,7 +872,7 @@ export async function createStudyVocabList(name: string, vocabIds: string[]) {
 /** Pinned books ride in the sidebar (open + quick-add), ChatGPT-style. */
 export async function toggleStudyVocabListPin(listId: string) {
   const learner = await requireLearner();
-  const list = await requireOwnList(learner.id, listId);
+  const list = await requireOwnVocabList(learner.id, listId);
 
   await db
     .update(studyVocabLists)
@@ -908,7 +898,7 @@ export async function setDefaultStudyVocabList(
   isDefault: boolean,
 ) {
   const learner = await requireLearner();
-  const list = await requireOwnList(learner.id, listId);
+  const list = await requireOwnVocabList(learner.id, listId);
 
   await db.transaction(async (tx) => {
     await tx
@@ -947,7 +937,7 @@ const bookWordSchema = z.object({
  */
 export async function addStudyVocabToBook(listId: string, formData: FormData) {
   const learner = await requireLearner();
-  const list = await requireOwnList(learner.id, listId);
+  const list = await requireOwnVocabList(learner.id, listId);
   const parsed = bookWordSchema.parse({
     language: formData.get("language"),
     term: formData.get("term"),
@@ -994,7 +984,7 @@ export async function addStudyVocabToBook(listId: string, formData: FormData) {
 export async function renameStudyVocabList(listId: string, name: string) {
   const learner = await requireLearner();
   const parsedName = listNameSchema.parse(name);
-  const list = await requireOwnList(learner.id, listId);
+  const list = await requireOwnVocabList(learner.id, listId);
 
   await db
     .update(studyVocabLists)
@@ -1007,7 +997,7 @@ export async function renameStudyVocabList(listId: string, name: string) {
 
 export async function deleteStudyVocabList(listId: string) {
   const learner = await requireLearner();
-  const list = await requireOwnList(learner.id, listId);
+  const list = await requireOwnVocabList(learner.id, listId);
 
   await db.delete(studyVocabLists).where(eq(studyVocabLists.id, list.id));
 
@@ -1017,7 +1007,7 @@ export async function deleteStudyVocabList(listId: string) {
 
 export async function addToStudyVocabList(listId: string, vocabId: string) {
   const learner = await requireLearner();
-  const list = await requireOwnList(learner.id, listId);
+  const list = await requireOwnVocabList(learner.id, listId);
   const id = z.string().uuid().parse(vocabId);
 
   const word = await db.query.studyVocab.findFirst({
@@ -1043,7 +1033,7 @@ export async function removeFromStudyVocabList(
   vocabId: string,
 ) {
   const learner = await requireLearner();
-  const list = await requireOwnList(learner.id, listId);
+  const list = await requireOwnVocabList(learner.id, listId);
   const id = z.string().uuid().parse(vocabId);
 
   await db
@@ -1066,7 +1056,7 @@ export async function reorderStudyVocabListItem(
   toIndex: number,
 ) {
   const learner = await requireLearner();
-  const list = await requireOwnList(learner.id, listId);
+  const list = await requireOwnVocabList(learner.id, listId);
   const id = z.string().uuid().parse(vocabId);
   const target = z.number().int().min(0).max(10_000).parse(toIndex);
 
@@ -1190,7 +1180,7 @@ export async function addStudyPackItem(
     listId = list.id;
     listName = list.name;
   } else if (target?.listId) {
-    const list = await requireOwnList(learner.id, target.listId);
+    const list = await requireOwnVocabList(learner.id, target.listId);
     await db
       .insert(studyVocabListItems)
       .values({
@@ -1305,40 +1295,19 @@ export async function importStudyPack(packId: string): Promise<{
   };
 }
 
-const gradeSchema = z.enum(["again", "hard", "good", "easy"]);
-
 /**
  * Flashcard review — same SM-2-lite engine and evidence-derived status
  * pipeline as the roster vocabulary (src/lib/srs.ts).
  */
-export async function reviewStudyVocab(
-  vocabId: string,
-  grade: "again" | "hard" | "good" | "easy",
-) {
+export async function reviewStudyVocab(vocabId: string, grade: ReviewGrade) {
   const learner = await requireLearner();
-  const id = z.string().uuid().parse(vocabId);
-  const parsedGrade = gradeSchema.parse(grade);
-
-  const item = await db.query.studyVocab.findFirst({
-    where: and(eq(studyVocab.id, id), eq(studyVocab.learnerId, learner.id)),
-  });
-  if (!item) throw new Error("Vocabulary item not found");
-
-  const now = new Date();
-  const patch = srsReviewPatch(
-    {
-      reps: item.srsReps,
-      easeFactor: item.srsEaseFactor,
-      intervalDays: item.srsIntervalDays,
-    },
-    parsedGrade,
-    now,
+  await gradeOwnedCard(
+    studyVocab,
+    learner.id,
+    vocabId,
+    grade,
+    "Vocabulary item not found",
   );
-
-  await db
-    .update(studyVocab)
-    .set({ ...patch, updatedAt: now })
-    .where(and(eq(studyVocab.id, id), eq(studyVocab.learnerId, learner.id)));
 
   // Deliberately NOT revalidating /vocab/review: the review page
   // hands the client a session snapshot of the due deck, and refreshing
