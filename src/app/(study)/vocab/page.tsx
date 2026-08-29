@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { asc, desc, eq } from "drizzle-orm";
+import { asc, desc, eq, sql } from "drizzle-orm";
 import { BookOpenCheck, Layers } from "lucide-react";
 import {
   db,
+  studyPackItems,
+  studyPacks,
   studyVocab,
   studyVocabListItems,
   studyVocabLists,
@@ -11,6 +13,7 @@ import {
 import { requireLearner } from "@/lib/auth";
 import { isCardDue } from "@/lib/srs";
 import { QuickAddVocabDialog } from "@/components/study/quick-add-vocab-dialog";
+import { OfficialShelf } from "@/components/study/official-shelf";
 import { SectionTabs } from "@/components/study/section-tabs";
 import {
   VocabShelf,
@@ -23,7 +26,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { BackLink, PageHeader, PageShell } from "@/components/ui/page-header";
 
-export const metadata: Metadata = { title: "My vocabulary" };
+export const metadata: Metadata = { title: "Books" };
 
 export default async function StudyVocabPage({
   searchParams,
@@ -34,7 +37,7 @@ export default async function StudyVocabPage({
   const { book } = await searchParams;
   const now = new Date();
 
-  const [items, listRows, listItemRows] = await Promise.all([
+  const [items, listRows, listItemRows, officialRows] = await Promise.all([
     db
       .select()
       .from(studyVocab)
@@ -64,6 +67,20 @@ export default async function StudyVocabPage({
         asc(studyVocabListItems.listId),
         asc(studyVocabListItems.position),
       ),
+    // The official catalog rides along so the Books page can SHOW it
+    // rather than hide it behind a tab.
+    db
+      .select({
+        id: studyPacks.id,
+        slug: studyPacks.slug,
+        name: studyPacks.name,
+        language: studyPacks.language,
+        itemCount: sql<number>`count(${studyPackItems.id})::int`,
+      })
+      .from(studyPacks)
+      .leftJoin(studyPackItems, eq(studyPackItems.packId, studyPacks.id))
+      .groupBy(studyPacks.id)
+      .orderBy(asc(studyPacks.name)),
   ]);
 
   const lists: VocabListSummary[] = listRows.map((list) => ({
@@ -168,13 +185,19 @@ export default async function StudyVocabPage({
       <SectionTabs
         tabs={[
           { href: "/vocab", label: "My books", active: true },
-          { href: "/packs", label: "Official", active: false },
+          {
+            href: "/packs",
+            label: `Official ${officialRows.length}`,
+            active: false,
+          },
         ]}
       />
 
       <div className="max-w-3xl">
         <VocabShelf lists={lists} totalWords={items.length} />
       </div>
+
+      <OfficialShelf items={officialRows} />
     </PageShell>
   );
 }

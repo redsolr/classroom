@@ -84,7 +84,7 @@ export default async function StudyPackPage({
 
   return (
     <PageShell>
-      <BackLink href="/packs">All curated lists</BackLink>
+      <BackLink href="/packs">All official books</BackLink>
       <PageHeader
         title={pack.name}
         subtitle={`${pack.language} · ${items.length} words`}

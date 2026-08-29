@@ -27,7 +27,7 @@ test("hamburger opens the drawer; a nav tap navigates and closes it", async ({
   await page.getByRole("link", { name: "Books", exact: true }).first().click();
   await page.waitForURL("**/vocab");
   await expect(
-    page.getByRole("heading", { name: "Books" }),
+    page.getByRole("heading", { name: "Books", exact: true }),
   ).toBeVisible();
   // Link tap closed the drawer.
   await expect(page.getByRole("button", { name: "Close menu" })).not.toBeVisible();

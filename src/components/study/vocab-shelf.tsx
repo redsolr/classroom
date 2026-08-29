@@ -228,11 +228,15 @@ export function VocabShelf({
           className="inline-flex h-9 items-center gap-1.5 rounded-md px-2.5 text-[0.9375rem] font-medium text-accent-text transition-colors hover:bg-surface-hover"
         >
           <Sparkles className="size-3.5" />
-          Browse curated books
+          Browse official books
         </Link>
       </div>
 
-      <ul className="divide-y divide-border rounded-xl bg-surface shadow-card">
+      {/* Named container: the official cover shelf below can hold a book
+          with the SAME title (saving an official book names your copy
+          after it), so "the learner's OWN books" has to be addressable
+          on its own. */}
+      <ul className="books-shelf divide-y divide-border rounded-xl bg-surface shadow-card">
         <li className="transition-colors hover:bg-surface-hover">
           <Link
             href="/vocab?book=all"
@@ -257,7 +261,7 @@ export function VocabShelf({
       {lists.length === 0 && (
         <p className="mt-3 text-[0.875rem] text-fg-tertiary">
           No books yet — create one, save a filtered view as a book, or
-          import a curated one.
+          import an official one.
         </p>
       )}
     </div>

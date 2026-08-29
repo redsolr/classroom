@@ -17,6 +17,7 @@ import {
   PinOff,
   Plus,
   Settings,
+  Sparkles,
   SquarePen,
   Trash2,
 } from "lucide-react";
@@ -86,6 +87,10 @@ import { cn } from "@/lib/utils";
 const PRIMARY_ITEMS = [
   { href: "/vocab", label: "Books", icon: Layers, exact: true },
   { href: "/vocab/review", label: "Decks", icon: BookOpenCheck, exact: false },
+  // ONE row, not an expanded list of every title: the covers do the
+  // selling on the Books page itself, and nine text rows here would just
+  // compete with the learner's own books for attention.
+  { href: "/packs", label: "Official", icon: Sparkles, exact: false },
 ];
 
 const MORE_ITEMS = [

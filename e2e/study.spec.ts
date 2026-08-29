@@ -894,7 +894,12 @@ test("curated packs: browse, add one word, import all as a personal list", async
   await expect(page.getByText(/saved the pack as your/)).toBeVisible();
 
   await page.goto("/vocab");
-  await main.getByRole("link", { name: /Café survival French/ }).click();
+  // Scoped to the learner's OWN books: the official cover shelf on the
+  // same page carries a book of the same name.
+  await page
+    .locator(".books-shelf")
+    .getByRole("link", { name: /Café survival French/ })
+    .click();
   await page.waitForURL(/book=/);
   await expect(
     table.locator("tbody tr").filter({ hasText: "l'addition" }),
