@@ -11,6 +11,7 @@ import {
   studyVocabLists,
 } from "@/db";
 import { markCloze } from "@/lib/cloze";
+import { escapeLike } from "@/lib/sql-like";
 import { STUDY_LANGUAGES } from "@/lib/study-languages";
 import { STUDY_VOCAB_CATEGORIES } from "@/lib/study-vocab-categories";
 
@@ -371,11 +372,6 @@ function ok(payload: Record<string, unknown>): string {
 }
 function fail(message: string): string {
   return JSON.stringify({ error: message });
-}
-
-/** Escape LIKE wildcards so learner-typed text matches literally. */
-function escapeLike(value: string): string {
-  return value.replace(/[\\%_]/g, (c) => `\\${c}`);
 }
 
 export function createStudyToolExecutor(scope: {

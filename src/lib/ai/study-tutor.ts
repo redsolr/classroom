@@ -195,7 +195,7 @@ function buildInstructions(ctx: TutorContext): string {
           (b) =>
             `- ${b.title}${b.author ? ` — ${b.author}` : ""}${b.summary ? `: ${b.summary}` : ""}`,
         )
-        .join("\n")}\n</reading>`,
+        .join("\n")}\n</library>`,
     );
   }
   return parts.join("\n\n");

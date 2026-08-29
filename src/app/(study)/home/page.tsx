@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { and, asc, desc, eq, isNotNull, sql } from "drizzle-orm";
-import { House, MessageCircle, Play, SquarePen } from "lucide-react";
+import { House, Play, SquarePen } from "lucide-react";
 import {
   db,
   studyMessages,
@@ -14,15 +14,17 @@ import {
   studyVocabLists,
 } from "@/db";
 import { requireLearner } from "@/lib/auth";
-import { isCardDue } from "@/lib/srs";
+import { dueIds, membersByList } from "@/lib/study-shelves";
 import { threadTitle } from "@/lib/study-display";
 import { Greeting } from "@/components/study/greeting";
+import { SearchBar } from "@/components/study/search-bar";
 import { OfficialShelf } from "@/components/study/official-shelf";
+import { PackCover } from "@/components/study/pack-cover";
 import { Shelf, ShelfCard } from "@/components/study/shelf";
 import {
-  BookTile,
-  LikedCover,
-  SentenceCover,
+  ChatTile,
+  CollectionCover,
+  type CollectionArt,
 } from "@/components/study/study-covers";
 import { PageHeader, PageShell } from "@/components/ui/page-header";
 
@@ -35,7 +37,7 @@ type QuickPick = {
   /** One line of state: "12 due", "48 words", … */
   detail: string;
   href: string;
-  art: "liked" | "book" | "sentences";
+  art: CollectionArt;
   /** Draws the play overlay — only when there's something to drill. */
   playable?: boolean;
 };
@@ -65,7 +67,11 @@ export default async function StudyHomePage() {
   const [words, listRows, listItemRows, sentenceRows, officialRows, recent] =
     await Promise.all([
       db
-        .select({ id: studyVocab.id, srsDueAt: studyVocab.srsDueAt })
+        .select({
+          id: studyVocab.id,
+          language: studyVocab.language,
+          srsDueAt: studyVocab.srsDueAt,
+        })
         .from(studyVocab)
         .where(eq(studyVocab.learnerId, learner.id)),
       db
@@ -125,21 +131,18 @@ export default async function StudyHomePage() {
         .limit(MAX_CHATS),
     ]);
 
-  const dueById = new Map(words.map((w) => [w.id, isCardDue(w.srsDueAt, now)]));
-  const wordsDue = words.filter((w) => isCardDue(w.srsDueAt, now)).length;
-  const sentencesDue = sentenceRows.filter((s) =>
-    isCardDue(s.srsDueAt, now),
-  ).length;
+  const dueWordIds = dueIds(words, now);
+  const wordsDue = dueWordIds.size;
+  const sentencesDue = dueIds(sentenceRows, now).size;
   const totalDue = wordsDue + sentencesDue;
 
+  const members = membersByList(listItemRows);
   const books = listRows.map((list) => {
-    const memberIds = listItemRows
-      .filter((row) => row.listId === list.id)
-      .map((row) => row.vocabId);
+    const memberIds = members.get(list.id) ?? [];
     return {
       ...list,
       wordCount: memberIds.length,
-      dueCount: memberIds.filter((id) => dueById.get(id)).length,
+      dueCount: memberIds.filter((id) => dueWordIds.has(id)).length,
     };
   });
 
@@ -197,10 +200,30 @@ export default async function StudyHomePage() {
       })),
   ].slice(0, MAX_PICKS);
 
+  // What to RECOMMEND: official books in languages the learner already
+  // studies, minus the ones they've already saved (importing a pack
+  // creates a book named after it, so a name match is the honest
+  // "already have this" signal). Real personalisation from real signal —
+  // no model involved, and it can say WHY.
+  const studiedLanguages = [...new Set(words.map((w) => w.language))];
+  const ownedNames = new Set(listRows.map((l) => l.name.toLowerCase()));
+  const recommended = officialRows
+    .filter(
+      (pack) =>
+        studiedLanguages.includes(pack.language) &&
+        !ownedNames.has(pack.name.toLowerCase()),
+    )
+    .slice(0, MAX_PICKS);
+  const recommendedReason =
+    studiedLanguages.length === 1
+      ? `Because you're learning ${studiedLanguages[0]}`
+      : "Because of what you're learning";
+
   const firstRun = words.length === 0 && sentenceRows.length === 0;
 
   return (
     <PageShell>
+      <SearchBar />
       <PageHeader
         icon={House}
         title={<Greeting />}
@@ -274,7 +297,7 @@ export default async function StudyHomePage() {
       <div className="max-w-3xl space-y-10">
         {picks.length > 0 && (
           <Shelf
-            title={totalDue > 0 ? "Waiting for you" : "Jump back in"}
+            title={totalDue > 0 ? "Waiting for you" : "Your library"}
             className="home-picks"
           >
             {picks.map((pick) => (
@@ -285,58 +308,61 @@ export default async function StudyHomePage() {
                 detail={pick.detail}
                 badge={pick.playable ? pick.detail : undefined}
                 playable={pick.playable}
+                cover={<CollectionCover art={pick.art} name={pick.name} />}
+              />
+            ))}
+          </Shelf>
+        )}
+
+        {/* ROW 2 — what they might want next, and it can say WHY. No
+            model: official books in a language they already study, minus
+            what they already own. An unexplained recommendation is just
+            an advert. */}
+        {recommended.length > 0 && (
+          <Shelf
+            title={recommendedReason}
+            seeAllHref="/official"
+            className="home-recommended"
+          >
+            {recommended.map((pack) => (
+              <ShelfCard
+                key={pack.id}
+                href={`/official/${pack.slug}`}
+                name={pack.name}
+                detail={`${pack.itemCount} word${pack.itemCount === 1 ? "" : "s"}`}
                 cover={
-                  pick.art === "liked" ? (
-                    <LikedCover />
-                  ) : pick.art === "sentences" ? (
-                    <SentenceCover />
-                  ) : (
-                    <BookTile name={pick.name} />
-                  )
+                  <PackCover
+                    slug={pack.slug}
+                    name={pack.name}
+                    language={pack.language}
+                  />
                 }
               />
             ))}
           </Shelf>
         )}
 
-        {books.length > 0 && (
-          <Shelf title="Your books" seeAllHref="/books" className="home-books">
-            {books.map((book) => (
-              <ShelfCard
-                key={book.id}
-                href={`/books?book=${book.id}`}
-                name={book.name}
-                detail={`${book.wordCount} word${book.wordCount === 1 ? "" : "s"}`}
-                cover={<BookTile name={book.name} />}
-              />
-            ))}
-          </Shelf>
-        )}
-
+        {/* ROW 3 — recents. Chats get generated tiles so this reads as a
+            shelf rather than a text list wedged between two shelves. */}
         {recent.length > 0 && (
-          <section className="home-chats">
-            <h2 className="mb-3 text-[1.375rem] font-bold tracking-tight">
-              Recent chats
-            </h2>
-            <ul className="divide-y divide-border overflow-hidden rounded-xl bg-surface shadow-card">
-              {recent.map((thread) => (
-                <li key={thread.id}>
-                  <Link
-                    href={`/chat?t=${thread.id}`}
-                    className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-surface-hover"
-                  >
-                    <MessageCircle className="size-4 shrink-0 text-fg-tertiary" />
-                    <span className="min-w-0 flex-1 truncate text-[0.9375rem]">
-                      {threadTitle(thread)}
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </section>
+          <Shelf title="Pick a chat back up" className="home-chats">
+            {recent.map((thread) => {
+              const title = threadTitle(thread);
+              return (
+                <ShelfCard
+                  key={thread.id}
+                  href={`/chat?t=${thread.id}`}
+                  name={title}
+                  detail={thread.language ?? "Chat"}
+                  cover={<ChatTile title={title} />}
+                />
+              );
+            })}
+          </Shelf>
         )}
       </div>
 
+      {/* ROW 4 — the whole catalog, for when none of the above was it. */}
       <OfficialShelf items={officialRows} />
     </PageShell>
   );

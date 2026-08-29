@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Heart, Quote } from "lucide-react";
+import { Heart, MessageSquare, Quote } from "lucide-react";
 import { coverHue } from "@/components/study/book-cover";
 import { cn } from "@/lib/utils";
 
@@ -125,4 +125,53 @@ export function BookTile({
       </span>
     </CoverTile>
   );
+}
+
+/**
+ * A chat's tile. A conversation has no artwork of its own, so it gets
+ * the same deterministic gradient treatment as a book with a speech
+ * glyph instead of a letter — enough to make the recents row read as a
+ * shelf rather than a text list wedged between two shelves.
+ */
+export function ChatTile({
+  title,
+  className,
+}: {
+  title: string;
+  className?: string;
+}) {
+  const hue = coverHue(title);
+  return (
+    <CoverTile
+      name="chat-tile"
+      className={className}
+      background={`linear-gradient(140deg, hsl(${hue} 42% 38%) 0%, hsl(${(hue + 24) % 360} 38% 22%) 100%)`}
+    >
+      <MessageSquare aria-hidden className="size-[32%]" />
+    </CoverTile>
+  );
+}
+
+/** What kind of artwork a collection wears. "liked" and "sentences" are
+ * app-level things with fixed covers; a book generates its own. */
+export type CollectionArt = "liked" | "book" | "sentences";
+
+/**
+ * Art for a collection, chosen by kind. The three-way switch existed
+ * verbatim on the deck shelf and on Home — two places that both had to
+ * be remembered the day a fourth collection type appears.
+ */
+export function CollectionCover({
+  art,
+  name,
+  className,
+}: {
+  art: CollectionArt;
+  /** Only read for "book" — the generated cover is keyed by title. */
+  name: string;
+  className?: string;
+}) {
+  if (art === "liked") return <LikedCover className={className} />;
+  if (art === "sentences") return <SentenceCover className={className} />;
+  return <BookTile name={name} className={className} />;
 }

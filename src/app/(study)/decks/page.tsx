@@ -14,6 +14,7 @@ import {
 } from "@/db";
 import { requireLearner } from "@/lib/auth";
 import { isCardDue } from "@/lib/srs";
+import { dueIds, membersByList } from "@/lib/study-shelves";
 import {
   DeckShelf,
   DeckShelfEmpty,
@@ -215,10 +216,9 @@ export default async function StudyReviewPage({
           .orderBy(asc(studyPacks.name)),
       ]);
 
-    const dueById = new Map(
-      words.map((w) => [w.id, isCardDue(w.srsDueAt, now)]),
-    );
-    const totalDue = words.filter((w) => isCardDue(w.srsDueAt, now)).length;
+    const dueWordIds = dueIds(words, now);
+    const totalDue = dueWordIds.size;
+    const members = membersByList(listItemRows);
 
     const decks: DeckSummary[] = [
       {
@@ -230,15 +230,13 @@ export default async function StudyReviewPage({
         art: "liked",
       },
       ...listRows.map((list) => {
-        const memberIds = listItemRows
-          .filter((row) => row.listId === list.id)
-          .map((row) => row.vocabId);
+        const memberIds = members.get(list.id) ?? [];
         return {
           id: list.id,
           name: list.name,
           href: `/decks?book=${list.id}`,
           totalWords: memberIds.length,
-          dueCount: memberIds.filter((id) => dueById.get(id)).length,
+          dueCount: memberIds.filter((id) => dueWordIds.has(id)).length,
           art: "book" as const,
         };
       }),

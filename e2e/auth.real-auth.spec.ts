@@ -47,6 +47,7 @@ const PROTECTED_ROUTES = [
   "/settings",
   "/student",
   "/home",
+  "/search",
   "/chat",
   "/reading",
   "/notes",

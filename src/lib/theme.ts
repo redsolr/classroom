@@ -28,12 +28,16 @@ export const THEME_STORAGE_KEY = "classroom-theme";
 /**
  * What new visitors get on first paint when they have no stored preference.
  *
- * "light", deliberately (the inverse of web-app's choice): classroom's
- * users are teachers, not developers — light UIs read as friendlier and
- * more familiar to this audience. Dark and OS-following are opt-in via
- * Settings → Appearance.
+ * **"dark" since 2026-08-29.** It was "light", on the reasoning that
+ * classroom's users are teachers rather than developers and light reads
+ * friendlier to that audience. What actually shipped since is a study
+ * product whose visual identity IS artwork — generated book covers,
+ * tankōbon spines, the liked tile, language-tinted review cards — and
+ * cover art on a white page looks like a spreadsheet with pictures in
+ * it. Light and OS-following stay one tap away in Settings →
+ * Appearance, and a stored preference always wins over this.
  */
-export const DEFAULT_THEME_MODE: ThemeMode = "light";
+export const DEFAULT_THEME_MODE = "dark" as ThemeMode;
 
 /** HTML attribute set on `<html>` so CSS can branch on `[data-theme=…]`. */
 const THEME_DOM_ATTR = "data-theme";
@@ -42,17 +46,23 @@ const THEME_CSS_CLASSES = ["light", "dark"] as const;
 
 // ─── Pure resolution ────────────────────────────────────────────────────────
 
-/** SSR-safe: `system` falls back to light on the server. */
+/** The app's own answer when there is nothing better — the resolved form
+ * of DEFAULT_THEME_MODE, used for SSR and when matchMedia is unavailable. */
+const FALLBACK_THEME: ResolvedTheme =
+  // `as ThemeMode` on the constant keeps it a union rather than the
+  // literal it happens to hold today, so this stays a real branch that
+  // follows the default instead of a comparison TypeScript can fold away.
+  DEFAULT_THEME_MODE === "light" ? "light" : "dark";
+
+/** SSR-safe: `system` can't be resolved without a window, so it falls back
+ * to the app default rather than to a hard-coded side of the switch. */
 export function resolveTheme(mode: ThemeMode): ResolvedTheme {
   if (mode === "dark") return "dark";
   if (mode === "light") return "light";
-  if (
-    typeof window !== "undefined" &&
-    window.matchMedia("(prefers-color-scheme: dark)").matches
-  ) {
-    return "dark";
-  }
-  return "light";
+  if (typeof window === "undefined") return FALLBACK_THEME;
+  return window.matchMedia("(prefers-color-scheme: dark)").matches
+    ? "dark"
+    : "light";
 }
 
 // ─── localStorage I/O ───────────────────────────────────────────────────────
@@ -89,4 +99,4 @@ export function applyTheme(resolved: ResolvedTheme): void {
 // hydrates so the page never flashes the wrong theme. Constants are baked
 // in via template interpolation at module load — single source of truth.
 
-export const THEME_PRE_HYDRATION_SCRIPT = `(function(){try{var t=localStorage.getItem('${THEME_STORAGE_KEY}')||'${DEFAULT_THEME_MODE}';var r;if(t==='dark')r='dark';else if(t==='system')r=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';else r='light';document.documentElement.setAttribute('${THEME_DOM_ATTR}',r);document.documentElement.classList.add(r)}catch(e){}})()`;
+export const THEME_PRE_HYDRATION_SCRIPT = `(function(){try{var t=localStorage.getItem('${THEME_STORAGE_KEY}')||'${DEFAULT_THEME_MODE}';var r;if(t==='light')r='light';else if(t==='system')r=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';else r='${FALLBACK_THEME}';document.documentElement.setAttribute('${THEME_DOM_ATTR}',r);document.documentElement.classList.add(r)}catch(e){}})()`;

@@ -1410,9 +1410,17 @@ test("home: waiting-first quick picks, shelves, and a way back into a chat", asy
   await expect(picks.getByRole("link", { name: /All words/ })).toBeVisible();
   await expect(picks.getByRole("link", { name: /due/ }).first()).toBeVisible();
 
-  // Shelves: the learner's own books, then the official catalog.
+  // Row 1 is THEIRS — liked words first, then their books.
+  await expect(picks.getByRole("link", { name: /Home Test/ })).toBeVisible();
+  // Row 2 recommends official books in a language they already study,
+  // and says why. Row 4 is the whole catalog.
+  // Singular when they study one language ("Because you're learning
+  // Japanese"), plural when several — by this point in the suite it's
+  // several, so match the shared stem.
   await expect(
-    page.locator(".home-books").getByRole("link", { name: /Home Test/ }),
+    page.locator(".home-recommended").getByRole("heading", {
+      name: /^Because/,
+    }),
   ).toBeVisible();
   await expect(page.locator(".official-shelf")).toBeVisible();
 
@@ -1449,4 +1457,54 @@ test("urls: the old names still resolve, query strings intact", async ({
   await page.goto("/packs/cafe-french");
   await page.waitForURL("**/official/cafe-french");
   await expect(page.getByText(/Café survival French/).first()).toBeVisible();
+});
+
+test("search: one field over words, books, sentences and the catalog", async ({
+  page,
+}) => {
+  // A word this test owns, so the assertion doesn't hinge on which
+  // pack an earlier test happened to import.
+  await page.goto("/books");
+  await page.getByRole("button", { name: "New word" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Language").selectOption("Japanese");
+  await dialog.getByLabel("Word or phrase").fill("図書館");
+  await dialog.getByLabel("Meaning").fill("library building");
+  await dialog.getByRole("button", { name: "Add word" }).click();
+  await expect(dialog).not.toBeVisible();
+
+  // From Home — the field is at the top of the page, and it navigates.
+  await page.goto("/home");
+  await page.getByRole("search").getByLabel("Search").fill("図書館");
+  await page.keyboard.press("Enter");
+  await page.waitForURL(/\/search\?q=/);
+
+  // The dictionary case: the meaning is READ in the result, not hidden
+  // behind the click.
+  const words = page.locator(".search-group").filter({ hasText: "Words" });
+  await expect(words).toBeVisible();
+  await expect(words.getByText("library building")).toBeVisible();
+
+  // Matching on the MEANING finds it too — half the time you remember
+  // the English, not the word.
+  await page.getByLabel("Search").fill("library building");
+  await page.keyboard.press("Enter");
+  await page.waitForURL(/q=library/);
+  await expect(
+    page.locator(".search-group").filter({ hasText: "Words" }).getByText("図書館"),
+  ).toBeVisible();
+
+  // The useful half of catalog search: find the official book that
+  // TEACHES a word, not just ones whose title contains it.
+  await page.getByLabel("Search").fill("treasure chest");
+  await page.keyboard.press("Enter");
+  await page.waitForURL(/q=treasure/);
+  await expect(
+    page.getByText(/teaches “宝箱”|Gaming Japanese/).first(),
+  ).toBeVisible();
+
+  // A miss says so rather than rendering an empty page.
+  await page.getByLabel("Search").fill("zzzznotathing");
+  await page.keyboard.press("Enter");
+  await expect(page.getByText(/Nothing matches/)).toBeVisible();
 });
