@@ -156,3 +156,116 @@ export async function resetPilotTutors(): Promise<void> {
     await db.end();
   }
 }
+
+// ---------------------------------------------------------------------------
+// Live lesson calls (the `live-call` tier only).
+// ---------------------------------------------------------------------------
+
+/**
+ * A scheduled lesson between the mock-auth teacher and a student row,
+ * plus a clean room. Returns the lesson id — the call surface is keyed
+ * on lessons, not on paid bookings, which is what lets this run in an
+ * environment with no Stripe at all.
+ *
+ * The student is a roster row with an email and NO account. That is the
+ * common case in the product and the one the call guard's email match
+ * exists for.
+ */
+export async function seedCallLesson(): Promise<{
+  lessonId: string;
+  teacherId: string;
+}> {
+  const db = sql();
+  try {
+    const [teacher] = await db`
+      insert into teachers (workos_user_id, email, name)
+      values ('mock_teacher_dev', 'teacher@class-room.dev', 'Demo Teacher')
+      on conflict (workos_user_id) do update set email = excluded.email
+      returning id
+    `;
+    await db`delete from students
+      where teacher_id = ${teacher.id} and email = 'call-e2e@class-room.dev'`;
+    const [student] = await db`
+      insert into students (teacher_id, name, email, target_language)
+      values (${teacher.id}, 'Call E2E Student', 'call-e2e@class-room.dev', 'Japanese')
+      returning id
+    `;
+    const [lesson] = await db`
+      insert into lessons
+        (teacher_id, student_id, started_at, duration_minutes, status, source_type)
+      values (${teacher.id}, ${student.id}, now() + interval '5 minutes', 60,
+              'scheduled', 'manual')
+      returning id
+    `;
+    return { lessonId: lesson.id, teacherId: teacher.id };
+  } finally {
+    await db.end();
+  }
+}
+
+/** Everything this suite created, by the marker it stamps on the student. */
+export async function resetCallLessons(): Promise<void> {
+  const db = sql();
+  try {
+    await db`delete from students where email = 'call-e2e@class-room.dev'`;
+  } finally {
+    await db.end();
+  }
+}
+
+/** Record the student's consent the way the student's own click would.
+ * The suite drives only the teacher through the UI — under MOCK_AUTH
+ * both sides resolve to one identity, so the second consent is written
+ * directly rather than pretended. */
+export async function consentAsStudent(lessonId: string): Promise<void> {
+  const db = sql();
+  try {
+    await db`update lesson_calls set student_consent_at = now()
+             where lesson_id = ${lessonId}`;
+  } finally {
+    await db.end();
+  }
+}
+
+/** The room, the recording and its per-participant tracks, as stored. */
+export async function callState(lessonId: string): Promise<{
+  meetingId: string | null;
+  recording:
+    | { providerRecordingId: string; state: string; expectedTrackCount: number }
+    | null;
+  trackRoles: string[];
+}> {
+  const db = sql();
+  try {
+    const [call] = await db`
+      select id, provider_meeting_id from lesson_calls where lesson_id = ${lessonId}
+    `;
+    if (!call) return { meetingId: null, recording: null, trackRoles: [] };
+    const [rec] = await db`
+      select id, provider_recording_id, state, expected_track_count
+      from lesson_recordings where call_id = ${call.id}
+      order by created_at desc limit 1
+    `;
+    if (!rec) {
+      return { meetingId: call.provider_meeting_id, recording: null, trackRoles: [] };
+    }
+    const tracks = await db<{ role: string }[]>`
+      select role from lesson_recording_tracks
+      where recording_id = ${rec.id}
+    `;
+    return {
+      meetingId: call.provider_meeting_id,
+      recording: {
+        providerRecordingId: rec.provider_recording_id,
+        state: rec.state,
+        expectedTrackCount: rec.expected_track_count,
+      },
+      // Sorted HERE, not in SQL: `role` is an enum, and Postgres orders
+      // enum columns by DECLARATION order (teacher, student), not
+      // alphabetically — which reads as a flake in an assertion.
+      trackRoles: tracks.map((t) => t.role).sort(),
+    };
+  } finally {
+    await db.end();
+  }
+}

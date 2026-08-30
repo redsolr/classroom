@@ -1,5 +1,5 @@
 # class-room CI — the gates that previously only ran when someone typed
-# them (`npm run verify` + the e2e tiers). Three jobs:
+# them (`npm run verify` + the e2e tiers). Four jobs:
 #
 #   verify          lint + tsc + the server-action auth ratchet + build
 #   e2e-mocked      the product-loop Playwright tier (MOCK_AUTH, keyless)
@@ -8,6 +8,14 @@
 #                   the WorkOS secrets are configured on the repo; a
 #                   missing secret skips the job's steps loudly rather
 #                   than red-failing forks/fresh clones.
+#
+#   e2e-live-call   a REAL RealtimeKit call — two browsers on fake media
+#                   devices, one room, one recording, asserting every
+#                   participant produced an audio track. Same skip-on-
+#                   missing-secret shape, and it spends real provider
+#                   minutes when it does run.
+#
+# Required secrets for e2e-live-call: REALTIMEKIT_APP_ID REALTIMEKIT_API_KEY
 #
 # Required secrets for e2e-real-auth (Settings → Secrets → Actions):
 #   WORKOS_API_KEY  WORKOS_CLIENT_ID  WORKOS_COOKIE_PASSWORD
@@ -140,13 +148,72 @@ jobs:
       - if: steps.creds.outputs.has == 'true'
         run: npm run test:e2e:real-auth
 
+  e2e-live-call:
+    # A REAL RealtimeKit call: two browsers on fake media devices, one
+    # room, one recording. Runs only when provider credentials are
+    # configured and self-skips loudly otherwise — the same shape as
+    # e2e-real-auth, for the same reason: a fork or a fresh clone must
+    # not go red over a secret it cannot have.
+    #
+    # It is NOT free. Each run spends a couple of minutes of participant
+    # and audio-export time (pennies at pilot scale). If that stops being
+    # worth it per push, move it to a schedule rather than deleting it:
+    # the failure it guards is SILENT — a track recording whose allowlist
+    # matches nobody reports UPLOADED with a real duration and no error,
+    # and contains no audio at all. No mocked tier can see that.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: classroom
+          POSTGRES_PASSWORD: classroom
+          POSTGRES_DB: classroom
+        ports:
+          - 5439:5432
+        options: >-
+          --health-cmd "pg_isready -U classroom"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://classroom:classroom@localhost:5439/classroom
+      REALTIMEKIT_APP_ID: ${{ secrets.REALTIMEKIT_APP_ID }}
+      REALTIMEKIT_API_KEY: ${{ secrets.REALTIMEKIT_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check provider credentials
+        id: creds
+        run: |
+          if [ -n "$REALTIMEKIT_APP_ID" ] && [ -n "$REALTIMEKIT_API_KEY" ]; then
+            echo "has=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::RealtimeKit secrets not configured — live-call tier skipped"
+          fi
+      - if: steps.creds.outputs.has == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - if: steps.creds.outputs.has == 'true'
+        run: npm ci
+      - if: steps.creds.outputs.has == 'true'
+        run: npx playwright install --with-deps chromium
+      - if: steps.creds.outputs.has == 'true'
+        run: npm run db:migrate
+      - if: steps.creds.outputs.has == 'true'
+        run: npm run test:e2e:live-call
+
+
   deploy:
     # Production deploy — pushes to main only, after every test job is
     # green. (e2e-real-auth self-skips its steps when secrets are
     # missing but still reports success, so it gates cleanly either
     # way.) Implementation lives in deploy.yml — the same file is the
     # manual deploy/rollback button in the Actions tab.
-    needs: [verify, e2e-mocked, e2e-real-auth]
+    needs: [verify, e2e-mocked, e2e-real-auth, e2e-live-call]
     if: >-
       ${{ !cancelled() &&
           github.event_name == 'push' &&
@@ -154,7 +221,8 @@ jobs:
           vars.RUN_VERCEL_DEPLOY == 'true' &&
           needs.verify.result == 'success' &&
           needs['e2e-mocked'].result == 'success' &&
-          needs['e2e-real-auth'].result == 'success' }}
+          needs['e2e-real-auth'].result == 'success' &&
+          needs['e2e-live-call'].result == 'success' }}
     uses: ./.github/workflows/deploy.yml
     with:
       ref: ${{ github.sha }}
@@ -165,7 +233,7 @@ jobs:
     # Dev-env deploy — pushes to develop only, same all-green gate.
     # Deploys a PREVIEW deployment (Vercel's Preview env scope supplies
     # the dev vars) and aliases dev-classroom.jurisimus.com to it.
-    needs: [verify, e2e-mocked, e2e-real-auth]
+    needs: [verify, e2e-mocked, e2e-real-auth, e2e-live-call]
     if: >-
       ${{ !cancelled() &&
           github.event_name == 'push' &&
@@ -173,7 +241,8 @@ jobs:
           vars.RUN_VERCEL_DEPLOY == 'true' &&
           needs.verify.result == 'success' &&
           needs['e2e-mocked'].result == 'success' &&
-          needs['e2e-real-auth'].result == 'success' }}
+          needs['e2e-real-auth'].result == 'success' &&
+          needs['e2e-live-call'].result == 'success' }}
     uses: ./.github/workflows/deploy.yml
     with:
       ref: ${{ github.sha }}

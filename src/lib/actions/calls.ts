@@ -164,10 +164,24 @@ export async function startLessonRecording(
   if (existing) return { recordingId: existing.providerRecordingId };
 
   const participants = await listActiveParticipants(call.providerMeetingId);
-  const ours = participants.filter((p) =>
-    p.customParticipantId?.startsWith("teacher:") ||
-    p.customParticipantId?.startsWith("student:"),
+  const mine = participants.filter(
+    (p) =>
+      p.customParticipantId?.startsWith("teacher:") ||
+      p.customParticipantId?.startsWith("student:"),
   );
+
+  // ONE PERSON, ONE TRACK. Every join mints a fresh participant token, so
+  // someone with the lesson open in two tabs — or who dropped and came
+  // back — is several provider participants wearing one identity. Left
+  // alone that records the same voice twice under different ids, and
+  // `expectedTrackCount` becomes a count of TABS rather than of people,
+  // which quietly destroys the one check that proves a lesson was
+  // captured. Keyed on our own id, keeping the most recent join.
+  const byPerson = new Map<string, (typeof mine)[number]>();
+  for (const p of mine) {
+    if (p.customParticipantId) byPerson.set(p.customParticipantId, p);
+  }
+  const ours = [...byPerson.values()];
   if (ours.length < 2) {
     throw new Error(
       "Both people must be in the call before recording starts — recording a room with one participant would produce a lesson with no second voice",

@@ -17,6 +17,7 @@ import { defineConfig, devices } from "@playwright/test";
  * (docker compose up -d + db:migrate must have run).
  */
 const REAL_AUTH = process.env.E2E_MODE === "real-auth";
+const LIVE_CALL = process.env.E2E_MODE === "live-call";
 
 /**
  * Playwright never loads .env.local (Next and tsx do) — the real-auth
@@ -40,7 +41,8 @@ function loadEnvLocal(): void {
   }
 }
 
-if (REAL_AUTH) loadEnvLocal();
+// Both non-default tiers need secrets that only live in .env.local.
+if (REAL_AUTH || LIVE_CALL) loadEnvLocal();
 
 export default defineConfig({
   testDir: "./e2e",
@@ -53,10 +55,37 @@ export default defineConfig({
     baseURL: "http://localhost:3020",
     trace: "retain-on-failure",
     ...devices["Desktop Chrome"],
+    // A real call needs a camera and a microphone. Chromium's fake
+    // devices produce an actual tone and test pattern, so the recording
+    // under test contains audio rather than silence; without these the
+    // pre-call preview fails with NotSupportedError and the suite still
+    // passes, having proved less than it appears to.
+    ...(LIVE_CALL
+      ? {
+          permissions: ["microphone", "camera"],
+          launchOptions: {
+            args: [
+              "--use-fake-ui-for-media-stream",
+              "--use-fake-device-for-media-stream",
+              "--autoplay-policy=no-user-gesture-required",
+            ],
+          },
+        }
+      : {}),
   },
   projects: REAL_AUTH
     ? [{ name: "real-auth", testMatch: /.*\.real-auth\.spec\.ts/ }]
-    : [{ name: "mocked", testIgnore: /.*\.real-auth\.spec\.ts/ }],
+    : LIVE_CALL
+      ? [{ name: "live-call", testMatch: /.*\.live-call\.spec\.ts/ }]
+      : // The default tier ignores BOTH opt-in suites. A live-call spec
+        // picked up here would spend real provider minutes on every
+        // `npm run test:e2e`, and fail on any machine without credentials.
+        [
+          {
+            name: "mocked",
+            testIgnore: /.*\.(real-auth|live-call)\.spec\.ts/,
+          },
+        ],
   webServer: {
     command: REAL_AUTH ? "npm run dev" : "npm run dev:mock",
     url: "http://localhost:3020",
@@ -70,8 +99,12 @@ export default defineConfig({
     // empty), so this beats .env.local — a founder key sitting there must
     // never make `npm run test:e2e` burn real LLM/Stripe calls or break
     // the mock-reply assertions.
-    env: REAL_AUTH
-      ? {}
+    env:
+      REAL_AUTH || LIVE_CALL
+      ? // live-call runs under MOCK_AUTH but must KEEP its provider
+        // credentials — emptying them would make the room render "not
+        // configured" and the suite would pass while testing nothing.
+        {}
       : {
           STUDY_FREE_DAILY_CAP: "20",
           OPENAI_API_KEY: "",
