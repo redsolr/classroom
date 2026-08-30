@@ -16,6 +16,15 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import {
+  CallShell,
+  ControlButton,
+  DeviceSelect,
+} from "@/components/call/call-chrome";
+import type {
+  RealtimeKitClientStatic,
+  RealtimeKitMeeting,
+} from "@/components/call/realtimekit-client";
+import {
   consentToRecording,
   endLessonCall,
   joinLessonCall,
@@ -276,7 +285,7 @@ export function LessonCallRoom({
   // --- Screens ---------------------------------------------------------
   if (!configured) {
     return (
-      <Shell>
+      <CallShell>
         <div className="mx-auto max-w-md text-center">
           <h1 className="text-xl font-semibold">Live lessons are not set up</h1>
           <p className="mt-2 text-sm text-fg-secondary">
@@ -284,13 +293,13 @@ export function LessonCallRoom({
             cannot open. Nothing is wrong with your booking.
           </p>
         </div>
-      </Shell>
+      </CallShell>
     );
   }
 
   if (stage === "ended") {
     return (
-      <Shell>
+      <CallShell>
         <div className="mx-auto max-w-md text-center">
           <h1 className="text-xl font-semibold">Lesson ended</h1>
           <p className="mt-2 text-sm text-fg-secondary">
@@ -305,13 +314,13 @@ export function LessonCallRoom({
             Back to your lessons
           </Link>
         </div>
-      </Shell>
+      </CallShell>
     );
   }
 
   if (stage === "preflight") {
     return (
-      <Shell>
+      <CallShell>
         <div className="mx-auto w-full max-w-2xl">
           <h1 className="text-xl font-semibold">Lesson with {otherName}</h1>
           <p className="mt-1 text-sm text-fg-secondary">
@@ -415,7 +424,7 @@ export function LessonCallRoom({
             recorded.
           </p>
         </div>
-      </Shell>
+      </CallShell>
     );
   }
 
@@ -512,107 +521,3 @@ export function LessonCallRoom({
     </div>
   );
 }
-
-function Shell({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="grid min-h-dvh place-items-center px-4 py-10">{children}</div>
-  );
-}
-
-function ControlButton({
-  on,
-  onClick,
-  label,
-  dark,
-  children,
-}: {
-  on: boolean;
-  onClick: () => void;
-  label: string;
-  dark?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={`${label} ${on ? "on" : "off"}`}
-      aria-pressed={on}
-      className={
-        dark
-          ? `grid h-12 w-12 place-items-center rounded-full backdrop-blur ${on ? "bg-white/10 text-white hover:bg-white/20" : "bg-white text-black"}`
-          : `grid h-10 w-10 place-items-center rounded-lg border border-border ${on ? "bg-surface" : "bg-danger/10 text-danger"}`
-      }
-    >
-      {children}
-    </button>
-  );
-}
-
-function DeviceSelect({
-  label,
-  kind,
-  devices,
-  value,
-  onChange,
-}: {
-  label: string;
-  kind: MediaDeviceKind;
-  devices: MediaDeviceInfo[];
-  value: string;
-  onChange: (id: string) => void;
-}) {
-  const options = devices.filter((d) => d.kind === kind);
-  if (options.length === 0) return null;
-  return (
-    <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs text-fg-secondary">
-      {label}
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="truncate rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-fg"
-      >
-        <option value="">Default</option>
-        {options.map((d) => (
-          <option key={d.deviceId} value={d.deviceId}>
-            {d.label || "Unnamed device"}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
-// The SDK ships broad types; these name only what this component touches.
-type RealtimeKitTrack = MediaStreamTrack | null | undefined;
-
-type RealtimeKitParticipant = {
-  videoTrack?: RealtimeKitTrack;
-  audioTrack?: RealtimeKitTrack;
-};
-
-type RealtimeKitMeeting = {
-  self: {
-    videoTrack?: RealtimeKitTrack;
-    on: (event: string, handler: (payload: never) => void) => void;
-    enableAudio: () => Promise<void>;
-    disableAudio: () => Promise<void>;
-    enableVideo: () => Promise<void>;
-    disableVideo: () => Promise<void>;
-  };
-  participants: {
-    joined: {
-      toArray: () => RealtimeKitParticipant[];
-      on: (event: string, handler: (payload: never) => void) => void;
-    };
-  };
-  join: () => Promise<void>;
-  leave: () => Promise<void>;
-};
-
-type RealtimeKitClientStatic = {
-  init: (opts: {
-    authToken: string;
-    defaults?: { audio?: boolean; video?: boolean };
-  }) => Promise<RealtimeKitMeeting>;
-};

@@ -22,25 +22,6 @@ const API_BASE = "https://api.realtime.cloudflare.com/v2";
 
 export type CallRole = "teacher" | "student";
 
-/** A track file as the provider hands it back, before we own any of it. */
-export type ProviderTrackFile = {
-  fileName: string;
-  downloadUrl: string;
-  /** RealtimeKit's participant id. */
-  peerId: string;
-  /** OUR id, echoed back — this is what maps a file to a person. */
-  customParticipantId: string | null;
-};
-
-export type ProviderRecording = {
-  id: string;
-  status: string;
-  durationSeconds: number | null;
-  expiresAt: Date | null;
-  errorMessage: string | null;
-  tracks: ProviderTrackFile[];
-};
-
 export function realtimeKitConfigured(): boolean {
   return Boolean(
     process.env.REALTIMEKIT_APP_ID && process.env.REALTIMEKIT_API_KEY,
@@ -214,66 +195,3 @@ export async function stopRecording(recordingId: string): Promise<void> {
     body: { action: "stop" },
   });
 }
-
-/**
- * Fetch a recording and flatten its per-participant files.
- *
- * The `UPLOADED` webhook does NOT carry the download URLs — it carries the
- * expiry and nothing to fetch. So the pipeline is always
- * webhook → this call → copy.
- */
-export async function getRecording(
-  recordingId: string,
-): Promise<ProviderRecording> {
-  const body = await rtk<{
-    data: {
-      recording?: RawRecording;
-    } & RawRecording;
-  }>(`/recordings/${recordingId}`);
-  const raw = body.data.recording ?? body.data;
-
-  const tracks: ProviderTrackFile[] = [];
-  for (const layer of raw.download_url?.links ?? []) {
-    for (const [fileName, file] of Object.entries(layer.download_urls ?? {})) {
-      tracks.push({
-        fileName,
-        downloadUrl: file.download_url,
-        peerId: file.peer_id,
-        customParticipantId: file.custom_participant_id ?? null,
-      });
-    }
-  }
-
-  return {
-    id: raw.id,
-    status: raw.status,
-    durationSeconds:
-      typeof raw.recording_duration === "number"
-        ? Math.round(raw.recording_duration)
-        : null,
-    expiresAt: raw.download_url_expiry ? new Date(raw.download_url_expiry) : null,
-    errorMessage: raw.err_message ?? null,
-    tracks,
-  };
-}
-
-type RawRecording = {
-  id: string;
-  status: string;
-  recording_duration?: number;
-  download_url_expiry?: string | null;
-  err_message?: string | null;
-  download_url?: {
-    links?: {
-      layer_name: string;
-      download_urls?: Record<
-        string,
-        {
-          download_url: string;
-          peer_id: string;
-          custom_participant_id?: string | null;
-        }
-      >;
-    }[];
-  };
-};

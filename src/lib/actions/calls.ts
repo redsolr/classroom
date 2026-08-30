@@ -8,6 +8,7 @@ import {
   lessonCalls,
   lessonRecordings,
   lessonRecordingTracks,
+  type LessonCall,
 } from "@/db";
 import { requireLearner } from "@/lib/auth";
 import {
@@ -15,7 +16,9 @@ import {
   ensureCall,
   findCall,
   requireCallParticipant,
+  roleFromParticipantId,
   selfConsentAt,
+  type CallParticipant,
 } from "@/lib/call-guards";
 import {
   addParticipant,
@@ -44,6 +47,32 @@ import {
 
 const lessonIdSchema = z.string().uuid();
 
+/**
+ * The part of every action's preamble that is genuinely the same:
+ * validate the id, prove the caller belongs to this lesson, and find the
+ * room. Returns both, because every caller needs both.
+ *
+ * `requireLearner()` is deliberately NOT folded in here. The auth
+ * ratchet reads the AST of each exported action and looks for a direct
+ * call to a resolver; hiding it behind a helper would satisfy the
+ * function's need and defeat the check that keeps every action honest.
+ * The repetition is the point.
+ */
+async function openLesson(
+  caller: { workosUserId: string; email: string; name: string | null },
+  rawLessonId: string,
+): Promise<{ me: CallParticipant; call: LessonCall | null }> {
+  const lessonId = lessonIdSchema.parse(rawLessonId);
+  const me = await requireCallParticipant(caller, lessonId);
+  return { me, call: await findCall(lessonId) };
+}
+
+/** The room, or a refusal a person can read. */
+function requireRoom(call: LessonCall | null): LessonCall {
+  if (!call) throw new Error("Lesson room is not open");
+  return call;
+}
+
 export type JoinedCall = {
   authToken: string;
   meetingId: string;
@@ -64,8 +93,7 @@ export type JoinedCall = {
  */
 export async function joinLessonCall(rawLessonId: string): Promise<JoinedCall> {
   const caller = await requireLearner();
-  const lessonId = lessonIdSchema.parse(rawLessonId);
-  const me = await requireCallParticipant(caller, lessonId);
+  const { me } = await openLesson(caller, rawLessonId);
 
   if (!realtimeKitConfigured()) {
     throw new Error(
@@ -110,11 +138,8 @@ export async function consentToRecording(
   rawLessonId: string,
 ): Promise<{ bothConsented: boolean }> {
   const caller = await requireLearner();
-  const lessonId = lessonIdSchema.parse(rawLessonId);
-  const me = await requireCallParticipant(caller, lessonId);
-
-  const call = await findCall(lessonId);
-  if (!call) throw new Error("Lesson room is not open");
+  const { me, call } = await openLesson(caller, rawLessonId);
+  const room = requireRoom(call);
 
   const now = new Date();
   const [updated] = await db
@@ -124,10 +149,10 @@ export async function consentToRecording(
         ? { teacherConsentAt: now, updatedAt: now }
         : { studentConsentAt: now, updatedAt: now },
     )
-    .where(eq(lessonCalls.id, call.id))
+    .where(eq(lessonCalls.id, room.id))
     .returning();
 
-  revalidatePath(`/call/${lessonId}`);
+  revalidatePath(`/call/${me.lesson.id}`);
   return { bothConsented: bothConsented(updated) };
 }
 
@@ -147,27 +172,23 @@ export async function startLessonRecording(
   rawLessonId: string,
 ): Promise<{ recordingId: string }> {
   const caller = await requireLearner();
-  const lessonId = lessonIdSchema.parse(rawLessonId);
-  const me = await requireCallParticipant(caller, lessonId);
+  const { me, call } = await openLesson(caller, rawLessonId);
   // The teacher runs the lesson and is accountable for the record of it.
   if (me.role !== "teacher") {
     throw new Error("Only the teacher can start recording");
   }
 
-  const call = await findCall(lessonId);
-  if (!call) throw new Error("Lesson room is not open");
-  if (!bothConsented(call)) {
+  const room = requireRoom(call);
+  if (!bothConsented(room)) {
     throw new Error("Both people must consent before recording starts");
   }
 
-  const existing = await activeRecording(call.id);
+  const existing = await activeRecording(room.id);
   if (existing) return { recordingId: existing.providerRecordingId };
 
-  const participants = await listActiveParticipants(call.providerMeetingId);
-  const mine = participants.filter(
-    (p) =>
-      p.customParticipantId?.startsWith("teacher:") ||
-      p.customParticipantId?.startsWith("student:"),
+  const participants = await listActiveParticipants(room.providerMeetingId);
+  const mine = participants.filter((p) =>
+    roleFromParticipantId(p.customParticipantId),
   );
 
   // ONE PERSON, ONE TRACK. Every join mints a fresh participant token, so
@@ -191,7 +212,7 @@ export async function startLessonRecording(
   // user_ids are RealtimeKit's participant ids, NOT our
   // custom_participant_id. Passing ours records nothing, silently.
   const providerRecordingId = await startTrackRecording({
-    meetingId: call.providerMeetingId,
+    meetingId: room.providerMeetingId,
     userIds: ours.map((p) => p.participantId),
     fileNamePrefix: "lesson",
   });
@@ -199,7 +220,7 @@ export async function startLessonRecording(
   const [row] = await db
     .insert(lessonRecordings)
     .values({
-      callId: call.id,
+      callId: room.id,
       providerRecordingId,
       state: "recording",
       expectedTrackCount: ours.length,
@@ -212,9 +233,7 @@ export async function startLessonRecording(
   await db.insert(lessonRecordingTracks).values(
     ours.map((p) => ({
       recordingId: row.id,
-      role: p.customParticipantId?.startsWith("teacher:")
-        ? ("teacher" as const)
-        : ("student" as const),
+      role: roleFromParticipantId(p.customParticipantId) ?? "student",
       providerParticipantId: p.participantId,
       // Filled in from the provider's manifest on ingest; the placeholder
       // keeps the row unique per participant until then.
@@ -222,7 +241,7 @@ export async function startLessonRecording(
     })),
   );
 
-  revalidatePath(`/call/${lessonId}`);
+  revalidatePath(`/call/${me.lesson.id}`);
   return { recordingId: providerRecordingId };
 }
 
@@ -231,16 +250,12 @@ export async function stopLessonRecording(
   rawLessonId: string,
 ): Promise<{ stopped: boolean }> {
   const caller = await requireLearner();
-  const lessonId = lessonIdSchema.parse(rawLessonId);
-  const me = await requireCallParticipant(caller, lessonId);
+  const { me, call } = await openLesson(caller, rawLessonId);
   if (me.role !== "teacher") {
     throw new Error("Only the teacher can stop recording");
   }
 
-  const call = await findCall(lessonId);
-  if (!call) throw new Error("Lesson room is not open");
-
-  const active = await activeRecording(call.id);
+  const active = await activeRecording(requireRoom(call).id);
   if (!active) return { stopped: false };
 
   await stopRecording(active.providerRecordingId);
@@ -249,24 +264,21 @@ export async function stopLessonRecording(
     .set({ state: "recording_complete", stoppedAt: new Date(), updatedAt: new Date() })
     .where(eq(lessonRecordings.id, active.id));
 
-  revalidatePath(`/call/${lessonId}`);
+  revalidatePath(`/call/${me.lesson.id}`);
   return { stopped: true };
 }
 
 /** Mark the room closed. The provider ends its own session on idle. */
 export async function endLessonCall(rawLessonId: string): Promise<void> {
   const caller = await requireLearner();
-  const lessonId = lessonIdSchema.parse(rawLessonId);
-  await requireCallParticipant(caller, lessonId);
-
-  const call = await findCall(lessonId);
+  const { me, call } = await openLesson(caller, rawLessonId);
   if (!call || call.endedAt) return;
 
   await db
     .update(lessonCalls)
     .set({ endedAt: new Date(), updatedAt: new Date() })
     .where(eq(lessonCalls.id, call.id));
-  revalidatePath(`/call/${lessonId}`);
+  revalidatePath(`/call/${me.lesson.id}`);
 }
 
 // ---------------------------------------------------------------------------

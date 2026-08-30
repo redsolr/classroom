@@ -14,7 +14,12 @@ import {
   studyDecks,
 } from "@/db";
 import { requireLearner } from "@/lib/auth";
-import { dueIds, membersByDeck } from "@/lib/study-shelves";
+import {
+  dueIds,
+  languagesInCatalog,
+  membersByDeck,
+  shelvesByTheme,
+} from "@/lib/study-shelves";
 import { suggestedPath } from "@/lib/study-path-queries";
 import { threadTitle } from "@/lib/study-display";
 import {
@@ -306,39 +311,12 @@ export default async function StudyHomePage() {
 
   const firstRun = words.length === 0 && sentenceRows.length === 0;
 
-  /**
-   * The catalog, grouped onto editorial shelves.
-   *
-   * Order is fixed by `PACK_THEME_ORDER` rather than by size, so the page
-   * does not silently rearrange itself the week someone adds three books
-   * to one shelf. Empty shelves are dropped, which is what lets this
-   * scale down to a small catalog without ever rendering a titled row
-   * with nothing under it.
-   */
-  const themedShelves = PACK_THEME_ORDER.map((theme) => ({
-    theme,
-    label: PACK_THEME_LABEL[theme],
-    packs: officialRows.filter((pack) => pack.theme === theme),
-  })).filter((shelf) => shelf.packs.length > 0);
-
-  /**
-   * One tile per language we actually ship books in, with what is behind
-   * it. The counts are the honest part: "Japanese · 8 books · 142 words"
-   * is checkable, and it is the difference between offering a language
-   * and merely naming one.
-   */
-  const languages = [...new Set(officialRows.map((pack) => pack.language))]
-    .map((name) => {
-      const inLanguage = officialRows.filter((pack) => pack.language === name);
-      return {
-        name,
-        books: inLanguage.length,
-        words: inLanguage.reduce((sum, pack) => sum + pack.itemCount, 0),
-      };
-    })
-    // Most to offer first — with two languages this is cosmetic, with ten
-    // it is the difference between a shelf and a lucky dip.
-    .sort((a, b) => b.words - a.words);
+  const themedShelves = shelvesByTheme(
+    officialRows,
+    PACK_THEME_ORDER,
+    PACK_THEME_LABEL,
+  );
+  const languages = languagesInCatalog(officialRows);
 
   // The covers the spotlight fans out: the decks that actually have
   // something due, in the order the picks already ranked them. Real
