@@ -33,6 +33,38 @@ export async function resetMockLearner(): Promise<void> {
 }
 
 /**
+ * Force every word in a deck to `mastered`.
+ *
+ * The PLATINUM trophy is derived from review evidence — a card reaches
+ * `mastered` only by coming back after a long interval and still being
+ * known. That is the whole point of it (a trophy you can farm in one
+ * sitting is a sticker), and it is also why a test cannot earn one: the
+ * schedule would have to run for weeks.
+ *
+ * So the status is set directly here, the same way `seedPilotTutor` sets
+ * `payouts_enabled` — a value only the real world may produce, written
+ * from the harness so the SURFACE it drives can still be tested. What is
+ * under test is `isPlatinum` and the trophy it renders, not the SRS
+ * pipeline that awards it; `study.spec.ts` covers that separately.
+ */
+export async function masterEveryCardIn(deckName: string): Promise<void> {
+  const db = sql();
+  try {
+    await db`
+      update study_vocab set status = 'mastered'
+      where id in (
+        select i.vocab_id from study_deck_items i
+        join study_decks d on d.id = i.deck_id
+        join learners l on l.id = d.learner_id
+        where d.name = ${deckName} and l.workos_user_id = 'mock_teacher_dev'
+      )
+    `;
+  } finally {
+    await db.end();
+  }
+}
+
+/**
  * Sweep the mock teacher's accumulated e2e rows — every run creates
  * `E2E Student <runId>` students (cascading lessons/records) and never
  * cleaned them up, until the pile crossed the schedule agenda's 30-row
