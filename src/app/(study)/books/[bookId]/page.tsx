@@ -15,6 +15,7 @@ import { toggleStudyBookRead } from "@/lib/actions/books";
 import { BookMenu } from "@/components/study/book-menu";
 import { BookShareCard } from "@/components/study/book-share-card";
 import { BookTile } from "@/components/study/study-covers";
+import { NoteBlocks } from "@/components/study/note-blocks";
 import { CollectionHero, PlayAction } from "@/components/study/collection-hero";
 import { NewDeckDialog } from "@/components/study/new-deck-dialog";
 import { SubmitButton } from "@/components/ui/button";
@@ -205,11 +206,8 @@ export default async function StudyBookPage({
           ) : (
             <ul className="divide-y divide-border">
               {book.notes.map((note) => (
-                <li
-                  key={note.id}
-                  className="px-4 py-3 text-[0.9375rem] whitespace-pre-line"
-                >
-                  {note.content}
+                <li key={note.id} className="px-4 py-3">
+                  <NoteBlocks content={note.content} />
                 </li>
               ))}
             </ul>

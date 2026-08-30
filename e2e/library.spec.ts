@@ -47,15 +47,82 @@ test("book page: add a note, edit it in place", async ({ page }) => {
     page.getByText("Bad strategy is a list of goals"),
   ).toBeVisible();
 
-  // Edit in place — the card swaps to a textarea and back.
+  // Edit in place — the card swaps to the BLOCK editor and back. There
+  // is no Save button by design: it autosaves, so Done only stops
+  // editing. The assertion waits on the rendered text rather than a
+  // click, which is what makes it a test of the save rather than of the
+  // button that used to trigger one.
   await page.getByRole("button", { name: "Edit note" }).click();
   await page
-    .getByLabel("Edit note text")
+    .getByRole("textbox", { name: "paragraph block" })
     .fill("Bad strategy is goals without a diagnosis");
-  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.getByRole("button", { name: "Done" }).click();
   await expect(
     page.getByText("Bad strategy is goals without a diagnosis"),
   ).toBeVisible();
+});
+
+test("notes are blocks: shortcuts, a tickable box, and it all survives a reload", async ({
+  page,
+}) => {
+  await page.goto("/notes");
+  await page.getByLabel("New note").fill("Notion block test");
+  await page.getByRole("button", { name: "Add note" }).click();
+
+  await page
+    .locator(".note-card")
+    .filter({ hasText: "Notion block test" })
+    .getByRole("button", { name: "Edit note" })
+    .click();
+
+  // Scoped to the EDITOR, not the card: the card is found by its text,
+  // and this test is about to replace that text — a filtered locator
+  // stops matching the moment the edit lands. Only one editor is open.
+  const editor = page.locator(".note-editor");
+
+  // Markdown shortcuts are the fast path — typing the prefix converts
+  // the block, so the keyboard never has to leave the text.
+  await editor.getByRole("textbox").first().fill("## What I learned");
+  const heading = editor.getByRole("textbox", { name: "heading block" });
+  await expect(heading).toHaveValue("What I learned");
+
+  // Enter splits into a new block; `[] ` turns it into a to-do.
+  await heading.press("End");
+  await heading.press("Enter");
+  await editor
+    .getByRole("textbox", { name: "paragraph block" })
+    .fill("[] drill the verbs");
+  await expect(
+    editor.getByRole("textbox", { name: "todo block" }),
+  ).toHaveValue("drill the verbs");
+
+  // The box ticks, and ticking is content — it has to reach the note.
+  await editor.getByRole("checkbox", { name: "drill the verbs" }).click();
+  await page.getByRole("button", { name: "Done" }).click();
+
+  // The read view is SERVER data, so seeing the heading here already
+  // proves the write landed — not merely that the editor closed. Assert
+  // it before reloading: otherwise a lost edit reads as a flaky reload
+  // instead of the data loss it is.
+  const saved = page
+    .locator(".note-card")
+    .filter({ hasText: "What I learned" });
+  await expect(
+    saved.getByRole("heading", { name: "What I learned" }),
+  ).toBeVisible();
+
+  // And it is really stored, not just in this render: blocks came back
+  // as blocks, still ticked, parsed from the markdown that was saved.
+  await page.reload();
+  const reloaded = page
+    .locator(".note-card")
+    .filter({ hasText: "What I learned" });
+  await expect(
+    reloaded.getByRole("heading", { name: "What I learned" }),
+  ).toBeVisible();
+  await expect(
+    reloaded.getByRole("checkbox", { name: "drill the verbs" }),
+  ).toHaveAttribute("aria-checked", "true");
 });
 
 test("discussion chat: the book's summary + notes reach the prompt, and save note files to the book", async ({

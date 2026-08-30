@@ -4,6 +4,7 @@ import { BookOpen, GraduationCap } from "lucide-react";
 import { loadSharedBook } from "@/lib/study-book-queries";
 import { CopySharedBookButton } from "@/components/study/copy-shared-book";
 import { BookTile } from "@/components/study/study-covers";
+import { NoteBlocks } from "@/components/study/note-blocks";
 import { Card, CardHeader } from "@/components/ui/page-header";
 
 export const metadata: Metadata = {
@@ -110,11 +111,8 @@ export default async function SharedBookPage({
             <CardHeader title="Notes" />
             <ul className="divide-y divide-border">
               {book.notes.map((note) => (
-                <li
-                  key={note.id}
-                  className="px-4 py-3 text-[0.9375rem] whitespace-pre-line"
-                >
-                  {note.content}
+                <li key={note.id} className="px-4 py-3">
+                  <NoteBlocks content={note.content} />
                 </li>
               ))}
             </ul>
