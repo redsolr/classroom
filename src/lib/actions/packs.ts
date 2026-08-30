@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidateDeck, revalidateWord } from "@/lib/study-revalidate";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
@@ -141,7 +141,7 @@ export async function addStudyPackItem(
     listName = list.name;
   }
 
-  revalidatePath("/books");
+  revalidateWord();
   return { added, vocabId, deckId, listName };
 }
 
@@ -227,7 +227,9 @@ export async function importStudyPack(packId: string): Promise<{
     })),
   );
 
-  revalidatePath("/books");
+  // An import makes a DECK and fills it with words — both moved.
+  revalidateDeck(list.id);
+  revalidateWord();
   // The pack page keeps its saved-state in React state, so hand back the
   // ids it needs to reflect the import without a reload (a reload would
   // also throw away the confirmation banner it just earned).

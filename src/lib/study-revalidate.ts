@@ -74,3 +74,22 @@ export function revalidateDeck(deckId?: string | null): void {
   revalidatePath("/official");
   if (deckId) revalidatePath(`/decks/${deckId}`);
 }
+
+/**
+ * Everywhere a WORD is rendered.
+ *
+ * A word shows wherever its decks show, plus the LIKED LAYER — which is
+ * `/decks/all`, the `/decks/[deckId]` page with the id `all`. That last
+ * one is why this exists: saving a word revalidated `/books` and nothing
+ * else, from back when the word table lived at `/books?book=all`. The
+ * 2026-08-30 merge moved the table to `/decks/all` and left every word
+ * mutation pointing at the page it had left.
+ *
+ * NOT for grading a card. `reviewStudyVocab` deliberately revalidates
+ * neither the deck nor the liked layer: the drill hands the client a
+ * session snapshot, and refreshing mid-session yanks cards out from
+ * under the learner and re-queues "again" cards early.
+ */
+export function revalidateWord(): void {
+  revalidateDeck("all");
+}

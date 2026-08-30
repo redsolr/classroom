@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { revalidateWord } from "@/lib/study-revalidate";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
@@ -114,7 +115,7 @@ export async function addStudyVocab(formData: FormData) {
     category: parsed.category ?? null,
   });
 
-  revalidatePath("/books");
+  revalidateWord();
 }
 
 /**
@@ -155,7 +156,7 @@ export async function updateStudyVocab(
     .returning({ id: studyVocab.id });
   if (updated.length === 0) throw new Error("Vocabulary item not found");
 
-  revalidatePath("/books");
+  revalidateWord();
 }
 
 export async function deleteStudyVocab(vocabId: string) {
@@ -166,7 +167,7 @@ export async function deleteStudyVocab(vocabId: string) {
     .delete(studyVocab)
     .where(and(eq(studyVocab.id, id), eq(studyVocab.learnerId, learner.id)));
 
-  revalidatePath("/books");
+  revalidateWord();
 }
 
 /**
@@ -311,7 +312,7 @@ export async function addStudyVocabBulk(
         meaning: item.meaning || null,
       })),
     );
-    revalidatePath("/books");
+    revalidateWord();
   }
 
   return { added: fresh.length };
@@ -331,9 +332,11 @@ export async function reviewStudyVocab(vocabId: string, grade: ReviewGrade) {
     "Vocabulary item not found",
   );
 
-  // Deliberately NOT revalidating /decks: the review page
-  // hands the client a session snapshot of the due deck, and refreshing
-  // it mid-session yanks cards out from under the learner (and re-queues
-  // "again" cards early). A fresh visit re-queries anyway.
+  // Deliberately NOT `revalidateWord()`, and deliberately a raw path:
+  // the review page hands the client a session snapshot of the due deck,
+  // and refreshing /decks mid-session yanks cards out from under the
+  // learner (and re-queues "again" cards early). A fresh visit re-queries
+  // anyway. This is the ONE word mutation that must stay narrower than
+  // the entity helper — don't tidy it into one.
   revalidatePath("/books");
 }
