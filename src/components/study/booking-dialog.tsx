@@ -37,20 +37,38 @@ export type BookingTutor = {
   discountPercent: number;
 };
 
+/**
+ * The trigger is rendered HERE, from a label — not passed in as
+ * `children` for `asChild` to slot.
+ *
+ * It used to take the slot button as `children`. That crossed the RSC
+ * boundary: a server component handed a `<button>` element to this client
+ * component, which fed it to `<DialogTrigger asChild>`. Radix's Slot runs
+ * `React.Children.only`, and a child serialised across that boundary does
+ * not reliably satisfy it — the page rendered correct HTML and then threw
+ * "Primitive.button failed to slot onto its children" during HYDRATION,
+ * replacing the whole tutor page with the error boundary.
+ *
+ * That is why it looked intermittent: the server HTML was always right
+ * (curl saw the slot grid), so whether a test passed depended on whether
+ * it asserted before or after hydration blew the tree away. A label is a
+ * string; strings cross the boundary without a slot.
+ */
 export function BookingDialog({
   tutor,
   slot,
   focusOptions,
   defaultFocus,
   defaultNotes,
-  children,
+  label,
 }: {
   tutor: BookingTutor;
   slot: Slot;
   focusOptions: readonly string[];
   defaultFocus: string[];
   defaultNotes: string | null;
-  children: React.ReactNode;
+  /** What the trigger reads — the slot's start time, in the learner's zone. */
+  label: string;
 }) {
   const [plan, setPlan] = React.useState<"single" | "recurring">("single");
   const [focus, setFocus] = React.useState<string[]>(defaultFocus);
@@ -72,7 +90,9 @@ export function BookingDialog({
 
   return (
     <Dialog>
-      <DialogTrigger asChild>{children}</DialogTrigger>
+      <DialogTrigger className="rounded-lg bg-surface px-3.5 py-2 text-[0.9375rem] font-medium shadow-card transition-colors hover:bg-accent hover:text-white">
+        {label}
+      </DialogTrigger>
       <DialogContent
         title={`Book ${tutor.name}`}
         description={`${when} · ${tutor.lessonMinutes} minutes`}

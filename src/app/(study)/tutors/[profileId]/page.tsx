@@ -128,17 +128,11 @@ export default async function TutorPage({
                         focusOptions={LESSON_FOCUS_OPTIONS}
                         defaultFocus={previous?.focus ?? []}
                         defaultNotes={previous?.notes ?? null}
-                      >
-                        <button
-                          type="button"
-                          className="rounded-lg bg-surface px-3.5 py-2 text-[0.9375rem] font-medium shadow-card transition-colors hover:bg-accent hover:text-white"
-                        >
-                          {new Intl.DateTimeFormat(undefined, {
-                            hour: "numeric",
-                            minute: "2-digit",
-                          }).format(slot.startsAt)}
-                        </button>
-                      </BookingDialog>
+                        label={new Intl.DateTimeFormat(undefined, {
+                          hour: "numeric",
+                          minute: "2-digit",
+                        }).format(slot.startsAt)}
+                      />
                     ))}
                   </div>
                 </div>

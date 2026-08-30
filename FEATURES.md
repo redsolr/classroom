@@ -161,7 +161,7 @@
 - **Dark by default** (2026-08-29) — `DEFAULT_THEME_MODE` in `src/lib/theme.ts` flipped from light. It was light on the reasoning that the audience is teachers rather than developers; what shipped since is a product whose visual identity IS artwork (generated covers, tankōbon spines, the liked tile, language-tinted review cards), and cover art on a white page looks like a spreadsheet with pictures in it. Light and system stay one tap away in Settings → Appearance, a stored preference always wins, and both the SSR fallback and the pre-hydration script derive from that one constant
 - **PWA** — installable, manifest start_url `/chat`
 - **Auth** — own WorkOS project (email+password, Google, Apple); learner role auto-provisioned on first visit; per-app cookie name
-- **Ops** — Neon Postgres (sin1), migrate-on-deploy; CI/CD: main → classroom.jurisimus.com, develop → dev-classroom.jurisimus.com; two e2e tiers (mocked + real-auth 6/6 incl. anonymous-401 sweeps); seeds: `db:seed`, `db:seed:study`, `db:seed:packs`, `db:seed:paths`, `db:seed:tutors`
+- **Ops** — Neon Postgres (sin1), migrate-on-deploy; CI/CD: main → classroom.jurisimus.com, develop → dev-classroom.jurisimus.com; two e2e tiers (mocked 97/97 + real-auth 6/6 incl. anonymous-401 sweeps); seeds: `db:seed`, `db:seed:study`, `db:seed:packs`, `db:seed:paths`, `db:seed:tutors`
 
 ## Residuals / known gaps
 
