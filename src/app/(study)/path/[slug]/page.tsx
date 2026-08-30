@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { requireLearner } from "@/lib/auth";
 import { loadPathForLearner } from "@/lib/study-path-queries";
 import { followStudyPath, unfollowStudyPath } from "@/lib/actions/paths";
-import { PathSteps } from "@/components/study/path-steps";
+import { PathTree } from "@/components/study/path-tree";
 import { SubmitButton } from "@/components/ui/button";
 import { BackLink, PageHeader, PageShell } from "@/components/ui/page-header";
 
@@ -18,7 +18,7 @@ export async function generateMetadata({
   return { title: path?.name ?? "Learning path" };
 }
 
-/** One path on its own page — the same spine the index leads with, for
+/** One path on its own page — the same tree the index leads with, for
  * the paths that did not get to be the lead. */
 export default async function StudyPathDetailPage({
   params,
@@ -31,7 +31,7 @@ export default async function StudyPathDetailPage({
   if (!path) notFound();
 
   return (
-    <PageShell>
+    <PageShell width="wide">
       <BackLink href="/path">Learning path</BackLink>
       <PageHeader
         title={path.name}
@@ -51,14 +51,17 @@ export default async function StudyPathDetailPage({
         }
       >
         <p className="mt-2 text-[0.8125rem] text-fg-tertiary">
-          {path.language} · {path.completedSteps} of {path.steps.length} steps
+          {path.language} · {path.completedSteps} of {path.steps.length} nodes
           done
         </p>
       </PageHeader>
 
-      <div className="max-w-3xl">
-        <PathSteps steps={path.steps} nextId={path.next?.id} />
-      </div>
+      <PathTree
+        pathSlug={path.slug}
+        pathName={path.name}
+        steps={path.steps}
+        nextId={path.next?.id}
+      />
     </PageShell>
   );
 }

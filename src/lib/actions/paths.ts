@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db, studyPathEnrollments, studyPaths } from "@/db";
 import { requireLearner } from "@/lib/auth";
+import { loadStepDetail, type StepDetail } from "@/lib/study-path-queries";
 
 /**
  * Learning-path actions.
@@ -21,6 +22,29 @@ import { requireLearner } from "@/lib/auth";
  */
 
 const slugSchema = z.string().trim().min(1).max(80);
+
+/**
+ * What one node on the tree is made of — the book's words, the words
+ * still missing a card, the messages left to send.
+ *
+ * A read through a server action rather than the page load, because the
+ * tree renders every node at once and a learner opens one or two: paying
+ * for all of them up front would be several hundred rows fetched to
+ * decide the colour of eleven circles. The learner id comes from the
+ * session here and is never a parameter — the panel asks for a step, not
+ * for somebody's progress through it.
+ */
+export async function loadPathStepDetail(
+  slug: string,
+  stepId: string,
+): Promise<StepDetail | null> {
+  const learner = await requireLearner();
+  return loadStepDetail(
+    learner.id,
+    slugSchema.parse(slug),
+    z.string().uuid().parse(stepId),
+  );
+}
 
 export async function followStudyPath(slug: string): Promise<void> {
   const learner = await requireLearner();

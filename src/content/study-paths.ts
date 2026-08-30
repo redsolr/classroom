@@ -11,15 +11,29 @@
  * why `nextStep` finds the first INCOMPLETE step rather than the one
  * after the last completed one.
  *
- * Steps deliberately mix card work with human work. A path that is only
- * flashcards teaches someone to recognise words they have never once
- * said out loud, and every learner who has done that knows the feeling
- * of freezing in a real conversation. So: learn the words, drill them in
- * context, use them with the tutor, then use them with a person.
+ * ── The three limbs ────────────────────────────────────────────────
  *
- * `packSlug` must match a slug in `study-packs.ts` — `seed-paths.ts`
- * fails loudly on a typo rather than shipping a step that points at
- * nothing.
+ * `/path` draws these as a skill tree with three branches, and the
+ * branch a step lands on is DERIVED FROM ITS KIND (see
+ * `lib/study-path-tree.ts`) rather than declared here:
+ *
+ *   pack        → VOCABULARY
+ *   sentences   → GRAMMAR
+ *   chat/lesson → CONVERSATION
+ *
+ * So authoring a path is authoring three limbs at once, and the thing to
+ * watch when editing this file is BALANCE: a path with six pack steps
+ * and one chat step draws as a lopsided tree, which is an accurate
+ * picture of a curriculum that would leave someone unable to speak.
+ *
+ * Steps deliberately mix card work with human work for that reason. A
+ * path that is only flashcards teaches someone to recognise words they
+ * have never once said out loud, and every learner who has done that
+ * knows the feeling of freezing in a real conversation.
+ *
+ * `packSlug` must match a slug in `study-packs.ts`, and `target` must be
+ * reachable from that pack's own word count — `seed-paths.ts` fails
+ * loudly on either rather than shipping a node that can never light up.
  */
 
 export type PathStepContent = {
@@ -30,8 +44,13 @@ export type PathStepContent = {
   packSlug?: string;
   /**
    * What counts as done, in the step's own unit — words known for a
-   * pack, cards reviewed for sentences, messages for a chat, lessons
+   * pack, cards known for sentences, messages for a chat, lessons
    * attended for a lesson. Completion is derived from that evidence.
+   *
+   * For pack and sentence steps this must be ≤ the pack's word count:
+   * a target of 20 against a 15-word book is a node the learner can
+   * never complete, which is worse than no node at all. The seed
+   * enforces it.
    */
   target: number;
 };
@@ -58,7 +77,7 @@ export const STUDY_PATH_CATALOG: PathContent[] = [
         detail:
           "Anime essentials is the fastest honest start — these are the words that appear in almost everything, so every one you learn pays off immediately.",
         packSlug: "anime-essentials-japanese",
-        target: 20,
+        target: 10,
       },
       {
         kind: "sentences",
@@ -66,7 +85,7 @@ export const STUDY_PATH_CATALOG: PathContent[] = [
         detail:
           "Recognising a word is not knowing it. Cloze cards ask whether you can still supply it when a sentence needs it — which is the thing that transfers to speaking.",
         packSlug: "anime-essentials-japanese",
-        target: 10,
+        target: 8,
       },
       {
         kind: "chat",
@@ -79,16 +98,62 @@ export const STUDY_PATH_CATALOG: PathContent[] = [
         kind: "pack",
         title: "Widen into what you actually watch",
         detail:
-          "Pick a title book — Dragon Ball, Death Note, One Piece. Vocabulary sticks when it comes from something you care about, and this is where studying stops feeling like studying.",
+          "Dragon Ball, or any title book you like better. Vocabulary sticks when it comes from something you care about, and this is where studying stops feeling like studying.",
         packSlug: "dragon-ball-japanese",
-        target: 20,
+        target: 12,
+      },
+      {
+        kind: "sentences",
+        title: "Same words, harder sentences",
+        detail:
+          "The second round of cloze cards is where the gap shows: words you were sure of at the flashcard stage go missing the moment a sentence has to be finished around them.",
+        packSlug: "dragon-ball-japanese",
+        target: 8,
+      },
+      {
+        kind: "chat",
+        title: "Hold a longer conversation",
+        detail:
+          "Ten messages is a demo; forty is a conversation. Ask the tutor to stop switching to English and to correct you as you go rather than at the end.",
+        target: 40,
       },
       {
         kind: "lesson",
         title: "Take a lesson with a tutor",
         detail:
-          "A person will hear the things a model cannot: what you avoid saying, what you say too slowly, what you are afraid to try. One lesson at this point is worth a month of cards.",
+          "A person hears what a model cannot: what you avoid saying, what you say too slowly, what you are afraid to try. One lesson at this point is worth a month of cards.",
         target: 1,
+      },
+      {
+        kind: "pack",
+        title: "Add the words you meet in games",
+        detail:
+          "Menus, saves, items, damage. Unglamorous and constantly on screen, which makes them some of the highest-frequency words you will ever learn.",
+        packSlug: "gaming-japanese",
+        target: 10,
+      },
+      {
+        kind: "sentences",
+        title: "Produce them without the prompt",
+        detail:
+          "Cards from the gaming book, drilled the hard way round. By now the point is not new words — it is closing the gap between recognising and reaching for.",
+        packSlug: "gaming-japanese",
+        target: 8,
+      },
+      {
+        kind: "pack",
+        title: "Take on a full title book",
+        detail:
+          "One Piece, with nothing propping it up. A whole book at this stage is the honest test of whether the first three stuck.",
+        packSlug: "one-piece-japanese",
+        target: 12,
+      },
+      {
+        kind: "lesson",
+        title: "Make the lessons a habit",
+        detail:
+          "Four lessons, not one. The first tells you where you are; it is the fourth that changes how you sound, because by then someone knows your habits well enough to interrupt them.",
+        target: 4,
       },
     ],
   },
@@ -105,7 +170,7 @@ export const STUDY_PATH_CATALOG: PathContent[] = [
         detail:
           "The phrases you need before you need anything else. Small, concrete, and immediately usable — which is what makes the first week stick.",
         packSlug: "cafe-french",
-        target: 15,
+        target: 8,
       },
       {
         kind: "sentences",
@@ -113,14 +178,37 @@ export const STUDY_PATH_CATALOG: PathContent[] = [
         detail:
           "French word order and liaison are where beginners come apart. Cloze cards make you produce the word inside a real sentence instead of recognising it alone.",
         packSlug: "cafe-french",
-        target: 10,
+        target: 8,
       },
       {
         kind: "chat",
         title: "Order something, in French",
         detail:
-          "Tell the tutor to be the waiter and refuse to switch to English. Ten messages of this is worth an hour of review.",
+          "Tell the tutor to be the waiter and to refuse to switch to English. Ten messages of this is worth an hour of review.",
         target: 10,
+      },
+      {
+        kind: "pack",
+        title: "Finish the book",
+        detail:
+          "Every word in Café survival French, not just the ones that came easily. A book you half-know is the one that fails you at the counter.",
+        packSlug: "cafe-french",
+        target: 12,
+      },
+      {
+        kind: "sentences",
+        title: "Every word you own, in a sentence",
+        detail:
+          "The second pass over the same book. Same words, and the only thing being tested is whether you can supply them under a little pressure.",
+        packSlug: "cafe-french",
+        target: 12,
+      },
+      {
+        kind: "chat",
+        title: "Keep going past the first exchange",
+        detail:
+          "The hard part of a real café is not the order, it is the reply you did not plan for. Thirty messages is roughly where that stops being alarming.",
+        target: 30,
       },
       {
         kind: "lesson",

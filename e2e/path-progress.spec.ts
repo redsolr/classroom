@@ -16,32 +16,118 @@ test.beforeAll(async () => {
   await resetMockLearner();
 });
 
-test("the path guides an order without locking anything", async ({ page }) => {
+test("the tree grows one limb per kind of evidence", async ({ page }) => {
   await page.goto("/path");
 
-  await expect(page.getByRole("heading", { name: "Learning path" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Learning path" }),
+  ).toBeVisible();
 
-  // Exactly ONE step is marked as the next thing. A path where every row
-  // is emphasised has no next step.
-  await expect(page.getByText("Start here")).toHaveCount(1);
-
-  // And every step is reachable, including ones "ahead" of it — the
-  // brief was "they can jump around but we guide the foundation", so a
-  // padlock would be the opposite product.
-  const steps = page.locator(".path-step a");
-  const count = await steps.count();
-  expect(count).toBeGreaterThan(1);
-  for (let i = 0; i < count; i += 1) {
-    await expect(steps.nth(i)).toHaveAttribute("href", /.+/);
+  // Three hubs, and their names are the three kinds of work — a
+  // curriculum is not one queue, which is the whole reason the numbered
+  // spine this replaced could not show what a learner was avoiding.
+  await expect(page.locator(".path-hub")).toHaveCount(3);
+  for (const limb of ["Vocabulary", "Grammar", "Conversation"]) {
+    await expect(page.locator(".path-hub").getByText(limb)).toBeVisible();
   }
+
+  // Exactly ONE node is marked as the next thing. A tree where every
+  // circle is emphasised has no next step.
+  await expect(page.getByText("Start here")).toHaveCount(1);
 });
 
-test("a fresh learner's steps read 0 of N, not 0%", async ({ page }) => {
+test("nothing on the tree is locked", async ({ page }) => {
+  await page.goto("/path");
+
+  const nodes = page.locator(".path-node");
+  const count = await nodes.count();
+  expect(count).toBeGreaterThan(3);
+
+  // No node is ever disabled — "they can jump around but we guide the
+  // foundation", so a padlock would be the opposite product.
+  await expect(page.locator(".path-node[disabled]")).toHaveCount(0);
+
+  // The node at the FAR end of a limb — the one a gated tree would have
+  // locked — opens, and its panel offers the way in. Fit first, because
+  // the canvas opens framed on the learner's next node and a node three
+  // tiers up is genuinely off-frame until you pan or fit; that control
+  // existing is part of the claim.
+  await page.getByRole("button", { name: "Fit the whole tree" }).click();
+  await nodes.last().click();
+  const panel = page.locator(".path-panel");
+  await expect(panel).toBeVisible();
+  await expect(panel.locator("a")).toHaveAttribute("href", /.+/);
+});
+
+test("opening a node shows what it is made of, and counts nothing it cannot see", async ({
+  page,
+}) => {
+  await page.goto("/path");
+  await page.locator(".path-node").first().click();
+
+  const panel = page.locator(".path-panel");
+  await expect(panel).toBeVisible();
+
+  // The micro-nodes are the book's real words, one square each.
+  const micro = panel.locator(".path-micro-grid .micro-node");
+  await expect(micro.first()).toBeVisible();
+  expect(await micro.count()).toBeGreaterThan(5);
+
+  // A fresh learner knows none of them, and the panel says so in the
+  // step's own words rather than as a bare percentage.
+  await expect(
+    panel.getByText(/0 of \d+ recalled on a later day/),
+  ).toBeVisible();
+
+  // Tapping a micro-node names it — hover captions do not exist on a
+  // phone, so the caption is a real element under the grid.
+  await micro.first().click();
+  await expect(panel.locator(".path-micro-caption")).toContainText(
+    "not saved yet",
+  );
+});
+
+test("a fresh learner's nodes read 0 of N, not 0%", async ({ page }) => {
   await page.goto("/path");
   // The count is the honest sentence: what you've done over what the
   // step asks for, in the step's own unit. A bare percentage of a thing
   // you cannot name is not something anyone can act on.
   await expect(page.getByText(/0 \/ \d+ words known/).first()).toBeVisible();
+});
+
+test("the node panel is a right-hand sheet on desktop and a bottom sheet on a phone", async ({
+  page,
+}) => {
+  // Two viewport branches, two different pieces of chrome — so both get
+  // measured rather than assumed. A sheet that renders off-screen still
+  // reports "visible".
+  // The sheet SLIDES in, so every measurement retries until it settles
+  // — a box read mid-animation is a rect the learner never sees.
+  const panel = page.locator(".path-panel");
+
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/path");
+  await page.locator(".path-node").first().click();
+  await expect(async () => {
+    const box = await panel.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.width).toBeLessThan(600);
+    expect(box!.x + box!.width).toBeCloseTo(1280, -1);
+  }).toPass();
+
+  await page.keyboard.press("Escape");
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/path");
+  // On a phone the tree opens framed on the learner's next node, so
+  // that is the one under the thumb.
+  await page.locator('.path-node[data-state="next"]').click();
+  await expect(async () => {
+    const box = await panel.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.width).toBeCloseTo(390, -1);
+    expect(box!.y + box!.height).toBeCloseTo(844, -1);
+  }).toPass();
 });
 
 test("following a path is a bookmark, and Home then points at it", async ({

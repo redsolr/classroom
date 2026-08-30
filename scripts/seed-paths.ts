@@ -14,8 +14,14 @@
  * instead of waiting on someone to remember a manual seed per
  * environment.
  */
-import { eq } from "drizzle-orm";
-import { db, studyPacks, studyPathSteps, studyPaths } from "../src/db";
+import { eq, sql } from "drizzle-orm";
+import {
+  db,
+  studyPackItems,
+  studyPacks,
+  studyPathSteps,
+  studyPaths,
+} from "../src/db";
 import { STUDY_PATH_CATALOG } from "../src/content/study-paths";
 
 async function main() {
@@ -23,17 +29,39 @@ async function main() {
   // dead link and, worse, could never be completed — so this fails the
   // seed rather than shipping it. Checked against the DATABASE, not the
   // catalog file, because the packs seed is what makes them real.
-  const packSlugs = new Set(
-    (await db.select({ slug: studyPacks.slug }).from(studyPacks)).map(
-      (row) => row.slug,
-    ),
+  //
+  // The SIZE check is the same guard one level down, and it is here
+  // because we shipped the bug it catches: "learn 20 words" against a
+  // 15-word book. Nothing about that is visible in a list of steps —
+  // the row just sits at 15/20 forever — and on a tree it is a node
+  // that can never light up, which reads as the app being broken.
+  const packSizes = new Map(
+    (
+      await db
+        .select({
+          slug: studyPacks.slug,
+          size: sql<number>`count(${studyPackItems.id})::int`,
+        })
+        .from(studyPacks)
+        .leftJoin(studyPackItems, eq(studyPackItems.packId, studyPacks.id))
+        .groupBy(studyPacks.slug)
+    ).map((row) => [row.slug, row.size] as const),
   );
   for (const path of STUDY_PATH_CATALOG) {
     for (const step of path.steps) {
-      if (step.packSlug && !packSlugs.has(step.packSlug)) {
+      if (!step.packSlug) continue;
+      const size = packSizes.get(step.packSlug);
+      if (size === undefined) {
         throw new Error(
           `Path "${path.slug}" step "${step.title}" points at unknown pack "${step.packSlug}". ` +
             `Run db:seed:packs first, or fix the slug in src/content/study-paths.ts.`,
+        );
+      }
+      if (step.target > size) {
+        throw new Error(
+          `Path "${path.slug}" step "${step.title}" asks for ${step.target} from "${step.packSlug}", ` +
+            `which only has ${size} words. Lower the target in src/content/study-paths.ts — ` +
+            `a step nobody can finish is worse than no step.`,
         );
       }
     }
