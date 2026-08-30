@@ -9,6 +9,20 @@ import type { PathStepProgress } from "@/lib/study-progress";
 type Kind = PathStepProgress["kind"];
 
 /**
+ * What the learner has banked toward this step, in its own unit —
+ * capped at the target, because overshooting is not extra credit and
+ * "14 / 10 words known" is a number nobody believes.
+ *
+ * One helper because five places were writing `Math.min(done, target)`
+ * by hand: the node's rank pill, the tree's inspector, both halves of
+ * the panel, and the hub's headline sum. A cap that is re-derived per
+ * call site is a cap that eventually disagrees with itself.
+ */
+export function banked(step: { done: number; target: number }): number {
+  return Math.min(step.done, step.target);
+}
+
+/**
  * Where a step sends you: the surface it is about, already scoped. A
  * step that lands you on a page you then have to navigate out of is a
  * description of work, not a way into it.

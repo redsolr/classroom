@@ -9,8 +9,9 @@ import type {
   MicroNode,
   MicroNodeState,
   StepDetail,
-} from "@/lib/study-path-queries";
+} from "@/lib/study-path-micro";
 import {
+  banked,
   stepCta,
   stepHref,
   stepKindLabel,
@@ -179,7 +180,7 @@ function NodePanelBody({
         <div className="path-panel-progress mt-4">
           <div className="flex items-baseline justify-between gap-3">
             <span className="text-[0.9375rem] font-semibold tabular-nums">
-              {Math.min(step.done, step.target)}{" "}
+              {banked(step)}{" "}
               <span className="text-fg-tertiary">/ {step.target}</span>{" "}
               <span className="text-[0.8125rem] font-normal text-fg-tertiary">
                 {unit}
@@ -392,7 +393,7 @@ function BranchPanelBody({
                     {node.step.title}
                   </span>
                   <span className="block text-[0.78rem] text-fg-tertiary tabular-nums">
-                    {Math.min(node.step.done, node.step.target)} /{" "}
+                    {banked(node.step)} /{" "}
                     {node.step.target} {stepUnit(node.step.kind)}
                   </span>
                 </span>

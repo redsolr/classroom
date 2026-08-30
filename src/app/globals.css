@@ -691,22 +691,38 @@ body {
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
-.path-node[data-state="complete"] .path-node-disc {
+/* ANY node you own is FILLED, glyph in near-black. That is where the
+ * reference gets its vibrancy: colour arrives as a solid disc, not as a
+ * ring around a dark one, and the icon reads as a cut-out. A node with
+ * three of ten words in it is still yours — a tinted outline said
+ * "almost" about work the learner has genuinely started. */
+.path-node[data-state="complete"] .path-node-disc,
+.path-node[data-state="started"] .path-node-disc {
   background: var(--branch);
   border-color: var(--branch);
   color: var(--on-brand);
-  box-shadow: 0 0 26px color-mix(in oklab, var(--branch) 42%, transparent);
 }
+.path-node[data-state="complete"] .path-node-disc {
+  box-shadow: 0 0 30px color-mix(in oklab, var(--branch) 50%, transparent);
+}
+.path-node[data-state="started"] .path-node-disc {
+  box-shadow: 0 0 18px color-mix(in oklab, var(--branch) 30%, transparent);
+}
+/* The one we point at stays a RING — the only node that is loud without
+ * being finished, which is exactly what "start here" means. */
 .path-node[data-state="next"] .path-node-disc {
-  background: color-mix(in oklab, var(--branch) 22%, var(--surface-hover));
+  background: color-mix(in oklab, var(--branch) 24%, var(--surface-hover));
   border-color: var(--branch);
   color: var(--branch);
   animation: path-node-pulse 2.4s ease-in-out infinite;
 }
-.path-node[data-state="started"] .path-node-disc {
-  background: color-mix(in oklab, var(--branch) 12%, var(--surface-hover));
-  border-color: color-mix(in oklab, var(--branch) 60%, var(--border-strong));
-  color: color-mix(in oklab, var(--branch) 75%, var(--text-secondary));
+
+/* "Start here" wears the limb's own colour rather than the app accent:
+ * one violet chip in a tree of green, amber and rose read as a piece of
+ * a different design. */
+.path-node-chip-fill {
+  background: var(--branch);
+  color: var(--on-brand);
 }
 
 /* The rank pill — how far through this node you are, in its own unit,
@@ -750,10 +766,13 @@ body {
 .path-hub-disc {
   background: color-mix(in oklab, var(--branch) 10%, var(--surface));
 }
+/* A limb with anything banked in it fills its hub too — the biggest
+ * circle on the tree is the one that should carry the most colour. */
 .path-hub[data-state="lit"] .path-hub-disc {
+  background: var(--branch);
   border-color: var(--branch);
-  color: var(--branch);
-  box-shadow: 0 0 30px color-mix(in oklab, var(--branch) 26%, transparent);
+  color: var(--on-brand);
+  box-shadow: 0 0 40px color-mix(in oklab, var(--branch) 38%, transparent);
 }
 
 

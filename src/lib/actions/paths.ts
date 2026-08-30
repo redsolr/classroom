@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db, studyPathEnrollments, studyPaths } from "@/db";
 import { requireLearner } from "@/lib/auth";
-import { loadStepDetail, type StepDetail } from "@/lib/study-path-queries";
+import { loadStepDetail, type StepDetail } from "@/lib/study-path-micro";
 
 /**
  * Learning-path actions.

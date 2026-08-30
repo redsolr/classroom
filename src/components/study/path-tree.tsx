@@ -3,11 +3,13 @@
 import * as React from "react";
 import { Check, Maximize2, Minus, Plus, Route } from "lucide-react";
 import {
+  branchColor,
   buildPathTree,
   type TreeBranch,
   type TreeNode,
 } from "@/lib/study-path-tree";
-import { stepKindLabel, stepUnit } from "@/lib/study-path-steps";
+import { banked, stepKindLabel, stepUnit } from "@/lib/study-path-steps";
+import { usePanZoom } from "@/lib/use-pan-zoom";
 import type { PathStepProgress } from "@/lib/study-progress";
 import { BRANCH_ICON, STEP_ICON } from "@/components/study/path-icons";
 import {
@@ -36,34 +38,24 @@ import { cn } from "@/lib/utils";
  * meant. `e2e/path-progress.spec.ts` holds us to it by opening a node
  * from the far end of a limb.
  *
- * ── Pan, zoom, and the one thing that must not break ───────────────
+ * ── The camera is not this component's job ─────────────────────────
  *
- * The canvas is bigger than a phone, so it pans and pinches. Wheel
- * panning deliberately DOES NOT trap the page: when the canvas is
- * already at its edge the event goes through, because a box that eats
- * your scroll is how a fun page becomes a hostile one (the same scroll-
- * chaining lesson the mobile drawer learned the hard way). When the tree
- * fits the viewport it is locked centred — there is nothing to pan to.
+ * Drag, pinch, wheel, fit and "bring that into view" live in
+ * `lib/use-pan-zoom.ts`, which knows about a rectangle inside a smaller
+ * rectangle and nothing else. This file is about the TREE. The one rule
+ * worth repeating here because it is easy to break from the outside:
+ * wheel panning does not trap the page — at the canvas edge the event
+ * goes through and the page keeps scrolling.
  */
 
-const MIN_SCALE = 0.3;
-const MAX_SCALE = 1.6;
 /**
- * Below this, a fitted tree is too small to READ — the labels are the
- * point, and at half scale they are 6px — so instead of shrinking the
- * whole thing to fit a card, we frame the learner's next node at a
- * usable size and let them drag, which is what every game tree does.
- * The fit button is still there for the overview.
+ * Below this fitted scale a node stops being a target worth aiming at,
+ * so the canvas frames the learner's NEXT node and pans instead of
+ * shrinking the whole tree into illegibility. Measured: every desktop
+ * and tablet width clears it; only a phone does not.
  */
 const FIT_FLOOR = 0.45;
 const FOCUS_SCALE = 0.66;
-
-type View = { scale: number; x: number; y: number };
-
-function clampAxis(value: number, viewport: number, content: number): number {
-  if (content <= viewport) return (viewport - content) / 2;
-  return Math.min(0, Math.max(viewport - content, value));
-}
 
 export function PathTree({
   pathSlug,
@@ -82,8 +74,6 @@ export function PathTree({
     () => buildPathTree(steps, nextId),
     [steps, nextId],
   );
-  const viewportRef = React.useRef<HTMLDivElement>(null);
-  const [view, setView] = React.useState<View>({ scale: 1, x: 0, y: 0 });
   const [selection, setSelection] = React.useState<TreeSelection | null>(null);
   /**
    * The node under the pointer (or under keyboard focus), named in the
@@ -97,244 +87,22 @@ export function PathTree({
    */
   const [inspected, setInspected] = React.useState<TreeNode | null>(null);
 
-  /** Once the learner has moved the view, resizes stop re-framing it. */
-  const touched = React.useRef(false);
-  const pointers = React.useRef(new Map<number, { x: number; y: number }>());
-  const pinchDist = React.useRef<number | null>(null);
 
   const nextNode = React.useMemo(
     () =>
       layout.branches
         .flatMap((branch) => branch.nodes)
-        .find((node) => node.state === "next"),
+        .find((node) => node.state === 'next'),
     [layout],
   );
 
-  const commit = React.useCallback(
-    (next: View) => {
-      const el = viewportRef.current;
-      if (!el) return next;
-      const rect = el.getBoundingClientRect();
-      const clamped = {
-        scale: next.scale,
-        x: clampAxis(next.x, rect.width, layout.width * next.scale),
-        y: clampAxis(next.y, rect.height, layout.height * next.scale),
-      };
-      setView(clamped);
-      return clamped;
-    },
-    [layout],
-  );
-
-  const frame = React.useCallback(
-    (mode: "fit" | "auto") => {
-      const el = viewportRef.current;
-      if (!el) return;
-      const rect = el.getBoundingClientRect();
-      if (rect.width === 0) return;
-      const fit = Math.min(
-        rect.width / layout.width,
-        rect.height / layout.height,
-      );
-
-      // Fit the whole tree when the whole tree is worth looking at;
-      // otherwise open on the node the path is pointing at, which is
-      // the one question the learner came with.
-      const target = mode === "auto" && fit < FIT_FLOOR ? nextNode : undefined;
-      if (!target) {
-        const scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, fit));
-        commit({
-          scale,
-          x: (rect.width - layout.width * scale) / 2,
-          y: (rect.height - layout.height * scale) / 2,
-        });
-        return;
-      }
-      const scale = FOCUS_SCALE;
-      commit({
-        scale,
-        x: rect.width / 2 - target.x * scale,
-        y: rect.height / 2 - target.y * scale,
-      });
-    },
-    [commit, layout, nextNode],
-  );
-
-  React.useEffect(() => {
-    const el = viewportRef.current;
-    if (!el) return;
-    frame("auto");
-    const observer = new ResizeObserver(() => {
-      if (!touched.current) frame("auto");
+  const { viewportRef, handlers, transform, zoomBy, fit, revealPoint } =
+    usePanZoom({
+      content: layout,
+      fitFloor: FIT_FLOOR,
+      focusScale: FOCUS_SCALE,
+      focus: nextNode,
     });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [frame]);
-
-  const zoomAt = React.useCallback(
-    (factor: number, client?: { x: number; y: number }) => {
-      const el = viewportRef.current;
-      if (!el) return;
-      const rect = el.getBoundingClientRect();
-      const px = client ? client.x - rect.left : rect.width / 2;
-      const py = client ? client.y - rect.top : rect.height / 2;
-      setView((current) => {
-        const scale = Math.min(
-          MAX_SCALE,
-          Math.max(MIN_SCALE, current.scale * factor),
-        );
-        const k = scale / current.scale;
-        const next = {
-          scale,
-          x: px - (px - current.x) * k,
-          y: py - (py - current.y) * k,
-        };
-        return {
-          scale,
-          x: clampAxis(next.x, rect.width, layout.width * scale),
-          y: clampAxis(next.y, rect.height, layout.height * scale),
-        };
-      });
-    },
-    [layout],
-  );
-
-  // Wheel is a native non-passive listener because it has to be able to
-  // decide, per event, whether to preventDefault — React's synthetic
-  // wheel handler cannot.
-  React.useEffect(() => {
-    const el = viewportRef.current;
-    if (!el) return;
-    const onWheel = (event: WheelEvent) => {
-      if (event.ctrlKey || event.metaKey) {
-        event.preventDefault();
-        touched.current = true;
-        zoomAt(Math.exp(-event.deltaY * 0.0022), {
-          x: event.clientX,
-          y: event.clientY,
-        });
-        return;
-      }
-      const rect = el.getBoundingClientRect();
-      setView((current) => {
-        const contentH = layout.height * current.scale;
-        const contentW = layout.width * current.scale;
-        const wanted = {
-          scale: current.scale,
-          x: current.x - event.deltaX,
-          y: current.y - event.deltaY,
-        };
-        const next = {
-          scale: current.scale,
-          x: clampAxis(wanted.x, rect.width, contentW),
-          y: clampAxis(wanted.y, rect.height, contentH),
-        };
-        // Only claim the gesture if it actually moved something. At the
-        // edge of the canvas the page keeps its scroll.
-        if (next.x !== current.x || next.y !== current.y) {
-          event.preventDefault();
-          touched.current = true;
-          return next;
-        }
-        return current;
-      });
-    };
-    el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener("wheel", onWheel);
-  }, [layout, zoomAt]);
-
-  function onPointerDown(event: React.PointerEvent<HTMLDivElement>) {
-    // Nodes are buttons and hubs are buttons; a press on one is a press,
-    // never the start of a drag.
-    if ((event.target as HTMLElement).closest("button, a")) return;
-    event.currentTarget.setPointerCapture(event.pointerId);
-    pointers.current.set(event.pointerId, {
-      x: event.clientX,
-      y: event.clientY,
-    });
-    touched.current = true;
-  }
-
-  function onPointerMove(event: React.PointerEvent<HTMLDivElement>) {
-    const previous = pointers.current.get(event.pointerId);
-    if (!previous) return;
-    pointers.current.set(event.pointerId, {
-      x: event.clientX,
-      y: event.clientY,
-    });
-
-    if (pointers.current.size === 1) {
-      const dx = event.clientX - previous.x;
-      const dy = event.clientY - previous.y;
-      const el = viewportRef.current;
-      if (!el) return;
-      const rect = el.getBoundingClientRect();
-      setView((current) => ({
-        scale: current.scale,
-        x: clampAxis(current.x + dx, rect.width, layout.width * current.scale),
-        y: clampAxis(
-          current.y + dy,
-          rect.height,
-          layout.height * current.scale,
-        ),
-      }));
-      return;
-    }
-
-    const [a, b] = [...pointers.current.values()];
-    if (!a || !b) return;
-    const distance = Math.hypot(a.x - b.x, a.y - b.y);
-    if (pinchDist.current !== null && pinchDist.current > 0) {
-      zoomAt(distance / pinchDist.current, {
-        x: (a.x + b.x) / 2,
-        y: (a.y + b.y) / 2,
-      });
-    }
-    pinchDist.current = distance;
-  }
-
-  function endPointer(event: React.PointerEvent<HTMLDivElement>) {
-    pointers.current.delete(event.pointerId);
-    if (pointers.current.size < 2) pinchDist.current = null;
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
-  }
-
-  /** Keyboard walking has to move the camera, or tabbing focuses nodes
-   * that are off-screen and the tree looks broken. Pointer clicks do
-   * not — nothing is more disorienting than the view jumping under the
-   * thing you just aimed at. */
-  function onNodeFocus(node: { x: number; y: number }) {
-    const el = viewportRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    setView((current) => {
-      const sx = node.x * current.scale + current.x;
-      const sy = node.y * current.scale + current.y;
-      const margin = 90;
-      const inside =
-        sx > margin &&
-        sx < rect.width - margin &&
-        sy > margin &&
-        sy < rect.height - margin;
-      if (inside) return current;
-      touched.current = true;
-      return {
-        scale: current.scale,
-        x: clampAxis(
-          rect.width / 2 - node.x * current.scale,
-          rect.width,
-          layout.width * current.scale,
-        ),
-        y: clampAxis(
-          rect.height / 2 - node.y * current.scale,
-          rect.height,
-          layout.height * current.scale,
-        ),
-      };
-    });
-  }
 
   const completeNodes = layout.branches.reduce(
     (sum, branch) => sum + branch.completeNodes,
@@ -359,17 +127,14 @@ export function PathTree({
         // short window keeps a usable canvas and a tall one does not
         // stretch the tree into a poster.
         className="path-tree-viewport relative h-[clamp(26rem,calc(100svh-22rem),46rem)] touch-none select-none"
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={endPointer}
-        onPointerCancel={endPointer}
+        {...handlers}
       >
         <div
           className="path-tree-canvas absolute top-0 left-0 origin-top-left"
           style={{
             width: layout.width,
             height: layout.height,
-            transform: `translate3d(${view.x}px, ${view.y}px, 0) scale(${view.scale})`,
+            transform,
           }}
         >
           <TreeLinks layout={layout} />
@@ -401,7 +166,7 @@ export function PathTree({
               <HubButton
                 branch={branch}
                 onOpen={() => setSelection({ kind: "branch", branch })}
-                onFocusNode={onNodeFocus}
+                onFocusNode={revealPoint}
               />
               {branch.nodes.map((node) => (
                 <NodeButton
@@ -411,7 +176,7 @@ export function PathTree({
                   onOpen={() =>
                     setSelection({ kind: "node", node, spec: branch.spec })
                   }
-                  onFocusNode={onNodeFocus}
+                  onFocusNode={revealPoint}
                   onInspect={setInspected}
                 />
               ))}
@@ -433,11 +198,7 @@ export function PathTree({
           <>
             <p
               className="text-[0.7rem] font-semibold tracking-[0.14em] uppercase"
-              style={{
-                color:
-                  layout.branches.find((b) => b.spec.key === inspected.branch)
-                    ?.spec.color ?? "var(--text-tertiary)",
-              }}
+              style={{ color: branchColor(inspected.branch) }}
             >
               {stepKindLabel(inspected.step.kind)}
             </p>
@@ -445,7 +206,7 @@ export function PathTree({
               {inspected.step.title}
             </p>
             <p className="text-[0.78rem] text-fg-tertiary tabular-nums">
-              {Math.min(inspected.step.done, inspected.step.target)} of{" "}
+              {banked(inspected.step)} of{" "}
               {inspected.step.target} {stepUnit(inspected.step.kind)}
               {inspected.state === "complete" ? " · done" : ""}
             </p>
@@ -463,8 +224,7 @@ export function PathTree({
           type="button"
           className="grid size-9 place-items-center text-fg-secondary transition-colors hover:bg-surface-hover hover:text-fg"
           onClick={() => {
-            touched.current = true;
-            zoomAt(1.2);
+            zoomBy(1.2);
           }}
           aria-label="Zoom in"
         >
@@ -474,8 +234,7 @@ export function PathTree({
           type="button"
           className="grid size-9 place-items-center text-fg-secondary transition-colors hover:bg-surface-hover hover:text-fg"
           onClick={() => {
-            touched.current = true;
-            zoomAt(1 / 1.2);
+            zoomBy(1 / 1.2);
           }}
           aria-label="Zoom out"
         >
@@ -485,8 +244,7 @@ export function PathTree({
           type="button"
           className="grid size-9 place-items-center text-fg-secondary transition-colors hover:bg-surface-hover hover:text-fg"
           onClick={() => {
-            touched.current = false;
-            frame("fit");
+            fit();
           }}
           aria-label="Fit the whole tree"
         >
@@ -512,10 +270,6 @@ function TreeLinks({
 }: {
   layout: ReturnType<typeof buildPathTree>;
 }) {
-  const colorOf = (key: string) =>
-    layout.branches.find((branch) => branch.spec.key === key)?.spec.color ??
-    "var(--border-strong)";
-
   return (
     <svg
       className="path-tree-links pointer-events-none absolute top-0 left-0"
@@ -532,11 +286,11 @@ function TreeLinks({
           // limb. Three identical grey curves is a diagram of a tree
           // rather than a picture of one.
           style={{
-            stroke: `color-mix(in oklab, ${colorOf(link.branch)} 34%, var(--border-strong))`,
+            stroke: `color-mix(in oklab, ${branchColor(link.branch)} 34%, var(--border-strong))`,
           }}
           // Heavy enough to read as a limb. At 3px against 90px discs
           // the tree looked like circles connected by hairlines.
-          strokeWidth={5}
+          strokeWidth={4}
           strokeLinecap="round"
         />
       ))}
@@ -548,8 +302,8 @@ function TreeLinks({
             className="path-tree-link-lit"
             d={link.d}
             fill="none"
-            stroke={colorOf(link.branch)}
-            strokeWidth={7}
+            stroke={branchColor(link.branch)}
+            strokeWidth={8}
             strokeLinecap="round"
           />
         ))}
@@ -576,7 +330,7 @@ function HubButton({
       type="button"
       className="path-hub absolute size-[128px]"
       data-branch={branch.spec.key}
-      data-state={branch.completeNodes > 0 ? "lit" : "dim"}
+      data-state={branch.done > 0 ? "lit" : "dim"}
       style={
         {
           left: branch.hub.x,
@@ -639,7 +393,7 @@ function NodeButton({
   onInspect: (node: TreeNode | null) => void;
 }) {
   const Icon = STEP_ICON[node.step.kind];
-  const done = Math.min(node.step.done, node.step.target);
+  const done = banked(node.step);
   const size = node.radius * 2;
   return (
     <button
@@ -673,7 +427,7 @@ function NodeButton({
       aria-label={`${node.step.title} — ${done} of ${node.step.target} ${stepUnit(node.step.kind)}${node.state === "next" ? ", start here" : ""}`}
     >
       {node.state === "next" && (
-        <span className="path-node-chip absolute -top-7 left-1/2 -translate-x-1/2 rounded-full bg-accent px-2 py-px text-[0.62rem] font-semibold tracking-wide whitespace-nowrap text-white uppercase">
+        <span className="path-node-chip absolute -top-7 left-1/2 -translate-x-1/2 path-node-chip-fill rounded-full px-2 py-px text-[0.62rem] font-semibold tracking-wide whitespace-nowrap uppercase">
           Start here
         </span>
       )}

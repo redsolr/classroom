@@ -1,3 +1,4 @@
+import { banked } from "@/lib/study-path-steps";
 import type { PathStepProgress } from "@/lib/study-progress";
 
 /**
@@ -96,6 +97,23 @@ export const BRANCHES: BranchSpec[] = [
   },
 ];
 
+const BRANCH_BY_KEY = new Map(BRANCHES.map((branch) => [branch.key, branch]));
+
+/** The limb itself, by key — so nothing has to scan `BRANCHES` (or worse,
+ * a laid-out tree's branches) to answer "what colour is this". */
+export function branchSpec(key: BranchKey): BranchSpec {
+  const spec = BRANCH_BY_KEY.get(key);
+  if (!spec) throw new Error(`Unknown learning-path branch: ${key}`);
+  return spec;
+}
+
+/** A limb's colour. Two call sites were each finding it by scanning a
+ * laid-out tree, which meant the LAYOUT had to be in hand to answer a
+ * question about the catalog. */
+export function branchColor(key: BranchKey): string {
+  return branchSpec(key).color;
+}
+
 export function branchOf(kind: PathStepProgress["kind"]): BranchKey {
   const spec = BRANCHES.find((branch) => branch.kinds.includes(kind));
   // Every kind in the enum is mapped above; a kind added later without a
@@ -134,7 +152,7 @@ const BRANCH_SPREAD = 440;
 // Room for the trunk to split between the root and the hubs, and for
 // the root's own caption below it. The hubs' captions need no vertical
 // room here: they sit BESIDE their disc, off the trunk.
-const HUB_FROM_BOTTOM = 264;
+const HUB_FROM_BOTTOM = 330;
 const ROOT_FROM_BOTTOM = 104;
 /** Hub → first node. Longer than a tier gap so the hub reads as a base. */
 const FIRST_NODE_GAP = 132;
@@ -154,8 +172,13 @@ const TOP_MARGIN = 84;
 /** Corner radius where an elbow turns. Big enough to read as a cable
  * bend, small enough that it never becomes a curve. */
 const BEND = 24;
-/** How far above the root the three limbs peel off the trunk. */
-const TRUNK_SPLIT = 62;
+/**
+ * How far above the root the three limbs peel off the trunk. LONG on
+ * purpose: in the reference the stem runs most of the screen before it
+ * splits, and that single unbroken cable is what makes the thing read as
+ * one tree rather than three columns that happen to share a bottom edge.
+ */
+const TRUNK_SPLIT = 150;
 
 export type NodeState = "complete" | "next" | "started" | "untouched";
 
@@ -298,7 +321,7 @@ export function buildPathTree(
     });
 
     const done = nodes.reduce(
-      (sum, node) => sum + Math.min(node.step.done, node.step.target),
+      (sum, node) => sum + banked(node.step),
       0,
     );
     const target = nodes.reduce((sum, node) => sum + node.step.target, 0);
