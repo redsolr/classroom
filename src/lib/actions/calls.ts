@@ -12,12 +12,12 @@ import {
 import { requireLearner } from "@/lib/auth";
 import {
   bothConsented,
+  ensureCall,
   findCall,
   requireCallParticipant,
 } from "@/lib/call-guards";
 import {
   addParticipant,
-  createMeeting,
   listActiveParticipants,
   realtimeKitConfigured,
   startTrackRecording,
@@ -70,24 +70,9 @@ export async function joinLessonCall(rawBookingId: string): Promise<JoinedCall> 
     );
   }
 
-  let call = await findCall(bookingId);
-  if (!call) {
-    const meetingId = await createMeeting(`lesson-${bookingId}`);
-    const [created] = await db
-      .insert(lessonCalls)
-      .values({
-        bookingId,
-        teacherId: me.booking.teacherId,
-        learnerId: me.booking.learnerId,
-        providerMeetingId: meetingId,
-      })
-      // Two people can press Join in the same second. The unique index
-      // settles it; whoever loses reads the winner's row rather than
-      // failing, and the orphaned provider meeting is simply never used.
-      .onConflictDoNothing({ target: lessonCalls.bookingId })
-      .returning();
-    call = created ?? (await findCall(bookingId));
-  }
+  // Usually already open — the page opens it on load, so that consent
+  // (which comes BEFORE joining) has something to attach to.
+  const call = await ensureCall(me.booking);
   if (!call) throw new Error("Could not open the lesson room");
 
   const { token } = await addParticipant({

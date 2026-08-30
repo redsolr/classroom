@@ -6,7 +6,7 @@ import { requireLearner } from "@/lib/auth";
 import {
   bookingLearner,
   bothConsented,
-  findCall,
+  ensureCall,
   requireCallParticipant,
 } from "@/lib/call-guards";
 import { realtimeKitConfigured } from "@/lib/realtimekit";
@@ -50,7 +50,11 @@ export default async function LessonCallPage({
     bookingLearner(me.booking),
   ]);
 
-  const call = await findCall(bookingId);
+  // Opened on LOAD, not on join: consent comes before joining, and it has
+  // to be recorded against a room that exists. Returns null when the
+  // provider is unconfigured, which the client renders as a plain
+  // explanation rather than a failure at the join button.
+  const call = await ensureCall(me.booking);
   const otherName =
     me.role === "teacher"
       ? (student?.name ?? student?.email ?? "Your student")

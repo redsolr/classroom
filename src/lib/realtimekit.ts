@@ -129,25 +129,47 @@ export async function addParticipant(args: {
   return { token: body.data.token, participantId: body.data.id };
 }
 
-/** Everyone currently or previously in the live session. */
+/**
+ * Who is actually connected right now.
+ *
+ * Deliberately the LIVE SESSION's participants, not the meeting's.
+ * `/meetings/{id}/participants` lists everyone ever ADDED to the room —
+ * it answers "who has a token", which is true of someone who never
+ * opened the tab. Recording is gated on both people being present, and
+ * that question only the session can answer.
+ *
+ * Returns empty when no session is live, which is the correct answer to
+ * "who is in the call" when nobody is.
+ */
 export async function listActiveParticipants(
   meetingId: string,
 ): Promise<{ participantId: string; customParticipantId: string | null }[]> {
+  const session = await rtk<{ data?: { id?: string; status?: string } }>(
+    `/meetings/${meetingId}/active-session`,
+  ).catch(() => null);
+  const sessionId = session?.data?.id;
+  if (!sessionId) return [];
+
   const body = await rtk<{
     data: {
       participants?: {
         id: string;
         user_id?: string;
         custom_participant_id?: string | null;
+        left_at?: string | null;
       }[];
     };
-  }>(`/meetings/${meetingId}/participants`);
-  return (body.data.participants ?? []).map((p) => ({
-    // `user_id` is the id the recording allowlist keys on; fall back to
-    // `id` only when the API omits it.
-    participantId: p.user_id ?? p.id,
-    customParticipantId: p.custom_participant_id ?? null,
-  }));
+  }>(`/sessions/${sessionId}/participants`);
+
+  return (body.data.participants ?? [])
+    .filter((p) => !p.left_at)
+    .map((p) => ({
+      // `user_id` is what the recording allowlist keys on — the same id
+      // `addParticipant` returned. `id` here is the SESSION row's id and
+      // is a different value; using it would silently record nothing.
+      participantId: p.user_id ?? p.id,
+      customParticipantId: p.custom_participant_id ?? null,
+    }));
 }
 
 /**

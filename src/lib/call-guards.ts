@@ -10,7 +10,11 @@ import {
   type LessonCall,
   type TutorBooking,
 } from "@/db";
-import type { CallRole } from "@/lib/realtimekit";
+import {
+  createMeeting,
+  realtimeKitConfigured,
+  type CallRole,
+} from "@/lib/realtimekit";
 
 /**
  * WHO MAY ENTER A LESSON ROOM.
@@ -95,6 +99,40 @@ export async function findCall(bookingId: string): Promise<LessonCall | null> {
     where: eq(lessonCalls.bookingId, bookingId),
   });
   return row ?? null;
+}
+
+/**
+ * The room for this booking, created if it does not exist yet.
+ *
+ * Opened when someone OPENS the lesson, not when they join it, because
+ * consent comes before joining — that is the whole point of the order —
+ * and consent has to be recorded against something. Making the room on
+ * join meant the consent button on the pre-call screen could only ever
+ * fail.
+ *
+ * Safe to call from a page render: `booking_id` is unique, so two people
+ * arriving at once produce one room and the loser reads the winner's.
+ * The provider meeting created by the loser is simply never used.
+ */
+export async function ensureCall(
+  booking: TutorBooking,
+): Promise<LessonCall | null> {
+  const existing = await findCall(booking.id);
+  if (existing) return existing;
+  if (!realtimeKitConfigured()) return null;
+
+  const providerMeetingId = await createMeeting(`lesson-${booking.id}`);
+  const [created] = await db
+    .insert(lessonCalls)
+    .values({
+      bookingId: booking.id,
+      teacherId: booking.teacherId,
+      learnerId: booking.learnerId,
+      providerMeetingId,
+    })
+    .onConflictDoNothing({ target: lessonCalls.bookingId })
+    .returning();
+  return created ?? (await findCall(booking.id));
 }
 
 /** Both people have said yes, in the record, with times. */

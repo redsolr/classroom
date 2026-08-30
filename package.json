@@ -27,7 +27,8 @@
     "test:e2e:real-auth": "cross-env E2E_MODE=real-auth playwright test",
     "e2e:user": "tsx --env-file=.env.local scripts/e2e-workos-user.ts",
     "db:seed:paths": "tsx --env-file=.env.local scripts/seed-paths.ts",
-    "db:seed:tutors": "tsx --env-file=.env.local scripts/seed-tutors.ts"
+    "db:seed:tutors": "tsx --env-file=.env.local scripts/seed-tutors.ts",
+    "db:seed:call": "tsx --env-file=.env.local scripts/seed-call.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.111.0",
