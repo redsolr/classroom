@@ -10,11 +10,11 @@ import {
   studySentences,
   studyThreads,
   studyVocab,
-  studyVocabListItems,
-  studyVocabLists,
+  studyDeckItems,
+  studyDecks,
 } from "@/db";
 import { requireLearner } from "@/lib/auth";
-import { dueIds, membersByList } from "@/lib/study-shelves";
+import { dueIds, membersByDeck } from "@/lib/study-shelves";
 import { suggestedPath } from "@/lib/study-path-queries";
 import { threadTitle } from "@/lib/study-display";
 import { Greeting } from "@/components/study/greeting";
@@ -80,25 +80,25 @@ export default async function StudyHomePage() {
         .where(eq(studyVocab.learnerId, learner.id)),
       db
         .select({
-          id: studyVocabLists.id,
-          name: studyVocabLists.name,
-          isDefault: studyVocabLists.isDefault,
-          updatedAt: studyVocabLists.updatedAt,
+          id: studyDecks.id,
+          name: studyDecks.name,
+          isDefault: studyDecks.isDefault,
+          updatedAt: studyDecks.updatedAt,
         })
-        .from(studyVocabLists)
-        .where(eq(studyVocabLists.learnerId, learner.id))
-        .orderBy(desc(studyVocabLists.updatedAt)),
+        .from(studyDecks)
+        .where(eq(studyDecks.learnerId, learner.id))
+        .orderBy(desc(studyDecks.updatedAt)),
       db
         .select({
-          listId: studyVocabListItems.listId,
-          vocabId: studyVocabListItems.vocabId,
+          deckId: studyDeckItems.deckId,
+          vocabId: studyDeckItems.vocabId,
         })
-        .from(studyVocabListItems)
+        .from(studyDeckItems)
         .innerJoin(
-          studyVocabLists,
-          eq(studyVocabListItems.listId, studyVocabLists.id),
+          studyDecks,
+          eq(studyDeckItems.deckId, studyDecks.id),
         )
-        .where(eq(studyVocabLists.learnerId, learner.id)),
+        .where(eq(studyDecks.learnerId, learner.id)),
       db
         .select({
           id: studySentences.id,
@@ -106,7 +106,7 @@ export default async function StudyHomePage() {
           // Which book the card was generated from — Home groups sentence
           // cards into their own decks the way /decks does, so a sentence
           // book is reachable without going through a second page.
-          listId: studySentences.listId,
+          deckId: studySentences.deckId,
         })
         .from(studySentences)
         .where(eq(studySentences.learnerId, learner.id)),
@@ -147,7 +147,7 @@ export default async function StudyHomePage() {
   const sentencesDue = dueIds(sentenceRows, now).size;
   const totalDue = wordsDue + sentencesDue;
 
-  const members = membersByList(listItemRows);
+  const members = membersByDeck(listItemRows);
   const books = listRows.map((list) => {
     const memberIds = members.get(list.id) ?? [];
     return {
@@ -170,7 +170,7 @@ export default async function StudyHomePage() {
               wordsDue > 0
                 ? `${wordsDue} due`
                 : `${words.length} word${words.length === 1 ? "" : "s"}`,
-            href: wordsDue > 0 ? "/decks?book=all" : "/books?book=all",
+            href: wordsDue > 0 ? "/decks?book=all" : "/decks/all",
             art: "liked" as const,
             playable: wordsDue > 0,
           },
@@ -193,7 +193,7 @@ export default async function StudyHomePage() {
         href:
           book.dueCount > 0
             ? `/decks?book=${book.id}`
-            : `/books?book=${book.id}`,
+            : `/decks/${book.id}`,
         art: "book" as const,
         playable: book.dueCount > 0,
       })),
@@ -234,10 +234,10 @@ export default async function StudyHomePage() {
   const sentenceDueIds = dueIds(sentenceRows, now);
   const sentencesByBook = new Map<string, typeof sentenceRows>();
   for (const row of sentenceRows) {
-    if (!row.listId) continue;
-    const bucket = sentencesByBook.get(row.listId);
+    if (!row.deckId) continue;
+    const bucket = sentencesByBook.get(row.deckId);
     if (bucket) bucket.push(row);
-    else sentencesByBook.set(row.listId, [row]);
+    else sentencesByBook.set(row.deckId, [row]);
   }
 
   const sentenceDecks: QuickPick[] = [

@@ -9,7 +9,7 @@ import {
   studySentences,
   studyThreads,
   studyVocab,
-  studyVocabLists,
+  studyDecks,
 } from "@/db";
 import { requireLearner } from "@/lib/auth";
 import { clozeToPlain } from "@/lib/cloze";
@@ -110,12 +110,12 @@ export default async function StudySearchPage({
         )
         .limit(LIMIT),
       db
-        .select({ id: studyVocabLists.id, name: studyVocabLists.name })
-        .from(studyVocabLists)
+        .select({ id: studyDecks.id, name: studyDecks.name })
+        .from(studyDecks)
         .where(
           and(
-            eq(studyVocabLists.learnerId, learner.id),
-            ilike(studyVocabLists.name, like),
+            eq(studyDecks.learnerId, learner.id),
+            ilike(studyDecks.name, like),
           ),
         )
         .limit(LIMIT),
@@ -194,11 +194,11 @@ export default async function StudySearchPage({
 
       <div className="max-w-3xl space-y-8">
         {words.length > 0 && (
-          <ResultGroup title="Words" href="/books?book=all" hrefLabel="All words">
+          <ResultGroup title="Words" href="/decks/all" hrefLabel="All words">
             {words.map((word) => (
               <ResultRow
                 key={word.id}
-                href="/books?book=all"
+                href="/decks/all"
                 title={word.term}
                 // The meaning IS the answer for a dictionary lookup —
                 // it's shown, not hidden behind the click.
@@ -229,7 +229,7 @@ export default async function StudySearchPage({
             {books.map((book) => (
               <ResultRow
                 key={book.id}
-                href={`/books?book=${book.id}`}
+                href={`/decks/${book.id}`}
                 title={book.name}
                 detail=""
               />
