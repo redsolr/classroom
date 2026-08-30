@@ -6,7 +6,9 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   BookMarked,
   BookOpenCheck,
+  Compass,
   Folder,
+  GraduationCap,
   House,
   Layers,
   LibraryBig,
@@ -18,10 +20,12 @@ import {
   Pin,
   PinOff,
   Plus,
+  Route,
   Settings,
   Sparkles,
   SquarePen,
   Trash2,
+  TrendingUp,
 } from "lucide-react";
 import {
   createStudyThread,
@@ -87,6 +91,10 @@ import { cn } from "@/lib/utils";
  * it was a third synonym for Vocabulary / All words.
  */
 const PRIMARY_ITEMS = [
+  // The guided order comes FIRST, above the places you keep things: it
+  // is the only row that answers "what should I learn", and a learner
+  // who needs that answer will not find it four rows down.
+  { href: "/path", label: "Learning path", icon: Route, exact: false },
   { href: "/books", label: "Books", icon: Layers, exact: true },
   { href: "/decks", label: "Decks", icon: BookOpenCheck, exact: false },
   // The SECOND card type gets its own row, not a filter inside Decks:
@@ -106,6 +114,13 @@ const PRIMARY_ITEMS = [
 ];
 
 const MORE_ITEMS = [
+  // Progress and Tutors are real destinations, but not DAILY ones: you
+  // check whether it's working every few weeks, and you book a human
+  // when you decide to. Putting them in the top cluster would push the
+  // things people open every morning further down for no gain.
+  { href: "/progress", label: "Progress", icon: TrendingUp, exact: false },
+  { href: "/tutors", label: "Tutors", icon: GraduationCap, exact: false },
+  { href: "/browse", label: "Browse", icon: Compass, exact: false },
   { href: "/reading", label: "Reading list", icon: LibraryBig, exact: false },
   { href: "/notes", label: "Notes", icon: NotebookPen, exact: false },
 ];

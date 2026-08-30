@@ -105,6 +105,48 @@ export const studyPlanStatusEnum = pgEnum("study_plan_status", [
   "canceled",
 ]);
 
+/** Whether a tutor is visible in the learner-facing directory. */
+export const tutorListingStatusEnum = pgEnum("tutor_listing_status", [
+  "draft",
+  "listed",
+  "paused",
+]);
+
+export const bookingStatusEnum = pgEnum("booking_status", [
+  /** Held, not paid. Expires — see BOOKING_HOLD_MINUTES. */
+  "pending_payment",
+  "confirmed",
+  "cancelled",
+  "completed",
+]);
+
+/** One lesson, or a standing weekly slot billed monthly at a discount. */
+export const bookingPlanEnum = pgEnum("booking_plan", ["single", "recurring"]);
+
+export const tutorPaymentStatusEnum = pgEnum("tutor_payment_status", [
+  "pending",
+  "succeeded",
+  "refunded",
+  "failed",
+]);
+
+export const tutorSubscriptionStatusEnum = pgEnum(
+  "tutor_subscription_status",
+  ["active", "past_due", "canceled"],
+);
+
+/** What a path step asks the learner to do. */
+export const pathStepKindEnum = pgEnum("path_step_kind", [
+  /** Learn an official book's words. */
+  "pack",
+  /** Drill the sentence cards built from a book. */
+  "sentences",
+  /** Have a conversation with the tutor about something. */
+  "chat",
+  /** Book a lesson with a human tutor. */
+  "lesson",
+]);
+
 export const insightTypeEnum = pgEnum("insight_type", [
   "recurringMistake",
   "learningPreference",
@@ -906,6 +948,381 @@ export const studyPackItems = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// STUDY REVIEWS — the learner's practice log, and the evidence every
+// progress number is derived from.
+//
+// The roster side has had `vocabulary_reviews` since the teaching loop
+// shipped; the learner side never did, because the card row itself
+// carried enough state to schedule the next repetition. Scheduling is
+// not the same question as PROGRESS: the card knows when it is next due,
+// and nothing knew whether the learner showed up on Tuesday, or whether
+// they are getting more of them right than they were a month ago.
+//
+// So: one row per graded answer, written by the single grading funnel
+// (`lib/srs-review.ts`) so a card type cannot be added that forgets to
+// log. Retention, streaks and the activity trend all read from here and
+// from nowhere else — which is what lets every one of them be traced
+// back to something the learner actually did.
+//
+// Both card FKs are nullable and SET NULL: deleting a word must not
+// erase the fact that you practised that day. `kind` is stored so the
+// row still says what it was after its card is gone.
+// ---------------------------------------------------------------------------
+
+export const studyCardKindEnum = pgEnum("study_card_kind", [
+  "word",
+  "sentence",
+]);
+
+export const studyReviews = pgTable(
+  "study_reviews",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    learnerId: uuid("learner_id")
+      .notNull()
+      .references(() => learners.id, { onDelete: "cascade" }),
+    kind: studyCardKindEnum("kind").notNull(),
+    vocabId: uuid("vocab_id").references(() => studyVocab.id, {
+      onDelete: "set null",
+    }),
+    sentenceId: uuid("sentence_id").references(() => studySentences.id, {
+      onDelete: "set null",
+    }),
+    grade: reviewGradeEnum("grade").notNull(),
+    /** The interval the answer earned — the shape of the learning curve. */
+    intervalDays: real("interval_days").notNull(),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("study_reviews_learner_time_idx").on(t.learnerId, t.reviewedAt),
+  ],
+);
+
+// ---------------------------------------------------------------------------
+// LEARNING PATHS — the guided foundation.
+//
+// The product could already answer "what is due" and "what could I
+// start", and had no answer at all for "what should I learn FIRST".
+// Every self-directed learner hits the same wall: they can add words
+// forever and never know whether they are building anything. A path is
+// the curated order — first these 60 words, then their sentences, then
+// a conversation that uses them, then a lesson with a human.
+//
+// Product-shipped content like packs, not learner-authored: no learner
+// FK on the path or its steps. The learner's relationship to it is the
+// ENROLMENT below.
+//
+// Steps do NOT gate each other. "They can jump around but we guide the
+// foundation" — every step is open from day one, and the path's job is
+// to say which one is next, not to lock the others.
+// ---------------------------------------------------------------------------
+
+export const studyPaths = pgTable(
+  "study_paths",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    slug: text("slug").notNull(),
+    name: text("name").notNull(),
+    language: text("language").notNull(),
+    /** One sentence: who this is for and where it ends. */
+    description: text("description"),
+    /** Curated order in the catalog. */
+    position: integer("position").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [uniqueIndex("study_paths_slug_idx").on(t.slug)],
+);
+
+export const studyPathSteps = pgTable(
+  "study_path_steps",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    pathId: uuid("path_id")
+      .notNull()
+      .references(() => studyPaths.id, { onDelete: "cascade" }),
+    position: integer("position").notNull(),
+    kind: pathStepKindEnum("kind").notNull(),
+    title: text("title").notNull(),
+    /** Why this step is here — shown under the title. */
+    detail: text("detail"),
+    /** The official book a `pack`/`sentences` step is about. */
+    packSlug: text("pack_slug"),
+    /**
+     * How much counts as done, in the step's own unit: words at
+     * `reviewing` or better for a pack step, cards reviewed for a
+     * sentence step, messages for a chat step, lessons for a lesson
+     * step. Completion is DERIVED from that evidence and never
+     * asserted — the same rule the vocabulary pipeline follows.
+     */
+    target: integer("target").notNull().default(1),
+  },
+  (t) => [
+    uniqueIndex("study_path_steps_path_position_idx").on(t.pathId, t.position),
+  ],
+);
+
+export const studyPathEnrollments = pgTable(
+  "study_path_enrollments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    learnerId: uuid("learner_id")
+      .notNull()
+      .references(() => learners.id, { onDelete: "cascade" }),
+    pathId: uuid("path_id")
+      .notNull()
+      .references(() => studyPaths.id, { onDelete: "cascade" }),
+    startedAt: timestamp("started_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("study_path_enrollments_learner_path_idx").on(
+      t.learnerId,
+      t.pathId,
+    ),
+  ],
+);
+
+// ---------------------------------------------------------------------------
+// TUTOR PILOT — the first bridge between the two halves of the app.
+//
+// The teacher workspace has had the schedule, the lesson loop and the
+// student record since day one; the study surface has had a learner with
+// no way to reach a human. This is that door, opened for a HAND-PICKED
+// few tutors: a listing they opt into, the hours they will take, and a
+// booking that lands as a real lesson on the teacher's own agenda.
+//
+// Deliberately not a marketplace (FEATURES.md cuts that until teacher
+// density exists): no ratings, no search ranking, no payouts league
+// table. A pilot is a directory of people we chose, and the shape stays
+// honest about that.
+// ---------------------------------------------------------------------------
+
+export const tutorProfiles = pgTable(
+  "tutor_profiles",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    teacherId: uuid("teacher_id")
+      .notNull()
+      .references(() => teachers.id, { onDelete: "cascade" }),
+    /** One line under the name — what they actually teach. */
+    headline: text("headline").notNull(),
+    bio: text("bio"),
+    languages: text("languages").array().notNull(),
+    /** Where they are, for the learner's "who teaches from where". */
+    country: text("country"),
+    timezone: text("timezone"),
+    /** The price of ONE lesson, in the smallest currency unit. */
+    rateCents: integer("rate_cents").notNull(),
+    currency: text("currency").notNull().default("usd"),
+    lessonMinutes: integer("lesson_minutes").notNull().default(50),
+    status: tutorListingStatusEnum("status").notNull().default("draft"),
+    /**
+     * The tutor's own Stripe CONNECTED account (Express). Money moves
+     * tutor-first: the learner's charge is created ON this account with
+     * our cut taken as an application fee, so funds never sit in our
+     * balance pretending to be ours.
+     */
+    stripeAccountId: text("stripe_account_id"),
+    /** Stripe's answer, mirrored from the account.updated webhook — never
+     * our own guess. A tutor with payouts disabled cannot be booked. */
+    payoutsEnabled: boolean("payouts_enabled").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("tutor_profiles_teacher_id_idx").on(t.teacherId),
+    uniqueIndex("tutor_profiles_stripe_account_idx").on(t.stripeAccountId),
+    index("tutor_profiles_status_idx").on(t.status),
+  ],
+);
+
+/**
+ * The hours a tutor will take, as a weekly pattern in THEIR timezone.
+ * Minutes-from-midnight rather than a time column: slot maths is
+ * arithmetic, and a `time` value drags a date into every comparison.
+ */
+export const tutorAvailability = pgTable(
+  "tutor_availability",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    teacherId: uuid("teacher_id")
+      .notNull()
+      .references(() => teachers.id, { onDelete: "cascade" }),
+    /** 0 = Sunday, matching JS `getDay()`. */
+    weekday: integer("weekday").notNull(),
+    startMinute: integer("start_minute").notNull(),
+    endMinute: integer("end_minute").notNull(),
+  },
+  (t) => [index("tutor_availability_teacher_idx").on(t.teacherId, t.weekday)],
+);
+
+/**
+ * A standing weekly slot, billed monthly at a discount. The discount is
+ * not generosity: a booked recurring hour is a tutor's scarcest asset,
+ * and the learner is paying for the certainty as much as the lesson.
+ */
+export const tutorSubscriptions = pgTable(
+  "tutor_subscriptions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    teacherId: uuid("teacher_id")
+      .notNull()
+      .references(() => teachers.id, { onDelete: "cascade" }),
+    learnerId: uuid("learner_id")
+      .notNull()
+      .references(() => learners.id, { onDelete: "cascade" }),
+    stripeSubscriptionId: text("stripe_subscription_id"),
+    status: tutorSubscriptionStatusEnum("status").notNull().default("active"),
+    /** The standing slot, in the TUTOR's timezone (see availability). */
+    weekday: integer("weekday").notNull(),
+    startMinute: integer("start_minute").notNull(),
+    lessonsPerMonth: integer("lessons_per_month").notNull().default(4),
+    /** Stamped at signup so a later repricing never rewrites history. */
+    discountPercent: integer("discount_percent").notNull(),
+    currentPeriodEnd: timestamp("current_period_end", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("tutor_subscriptions_learner_idx").on(t.learnerId),
+    index("tutor_subscriptions_teacher_idx").on(t.teacherId),
+    uniqueIndex("tutor_subscriptions_stripe_id_idx").on(t.stripeSubscriptionId),
+  ],
+);
+
+export const tutorBookings = pgTable(
+  "tutor_bookings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    teacherId: uuid("teacher_id")
+      .notNull()
+      .references(() => teachers.id, { onDelete: "cascade" }),
+    learnerId: uuid("learner_id")
+      .notNull()
+      .references(() => learners.id, { onDelete: "cascade" }),
+    /**
+     * The roster row this learner occupies in the tutor's own workspace.
+     * The first booking creates it, and from then on the whole existing
+     * teacher loop — agenda, prep sheet, records, homework, the student
+     * portal — works on this booking with no special-casing, because it
+     * is just another student.
+     */
+    studentId: uuid("student_id")
+      .notNull()
+      .references(() => students.id, { onDelete: "cascade" }),
+    /** The teacher-side lesson. Written when the booking is CONFIRMED —
+     * an unpaid hold must never appear on someone's agenda. */
+    lessonId: uuid("lesson_id").references(() => lessons.id, {
+      onDelete: "set null",
+    }),
+    subscriptionId: uuid("subscription_id").references(
+      () => tutorSubscriptions.id,
+      { onDelete: "set null" },
+    ),
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+    endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+    plan: bookingPlanEnum("plan").notNull().default("single"),
+    status: bookingStatusEnum("status").notNull().default("pending_payment"),
+    /** What the learner wants out of it — grammar, conversation, … The
+     * answers prefill the next booking, so the second one is one tap. */
+    focus: text("focus").array().notNull().default(sql`'{}'::text[]`),
+    notes: text("notes"),
+    /** Price agreed at BOOKING time. A tutor raising their rate must not
+     * silently reprice an hour someone already holds. */
+    priceCents: integer("price_cents").notNull(),
+    currency: text("currency").notNull().default("usd"),
+    /** When an unpaid hold stops holding the slot. */
+    holdExpiresAt: timestamp("hold_expires_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("tutor_bookings_teacher_start_idx").on(t.teacherId, t.startsAt),
+    index("tutor_bookings_learner_start_idx").on(t.learnerId, t.startsAt),
+    index("tutor_bookings_student_idx").on(t.studentId),
+  ],
+);
+
+/**
+ * THE MONEY LEDGER — one row per payment, and the same row is what both
+ * sides read as their history.
+ *
+ * Every party's share is stored, not derived at render time: what the
+ * learner paid, what Stripe took, what we took, what the tutor nets.
+ * Fees change, and a history that recomputes itself from today's rates
+ * is a history that lies about last month.
+ *
+ * `stripeFeeCents` is NULLABLE on purpose. Stripe's actual fee lives on
+ * the balance transaction, which does not exist at the moment the charge
+ * succeeds; the webhook fills it in when it does. Until then the UI says
+ * "estimated" and means it, rather than storing a guess as though it
+ * were the number.
+ */
+export const tutorPayments = pgTable(
+  "tutor_payments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    teacherId: uuid("teacher_id")
+      .notNull()
+      .references(() => teachers.id, { onDelete: "cascade" }),
+    learnerId: uuid("learner_id")
+      .notNull()
+      .references(() => learners.id, { onDelete: "cascade" }),
+    bookingId: uuid("booking_id").references(() => tutorBookings.id, {
+      onDelete: "set null",
+    }),
+    subscriptionId: uuid("subscription_id").references(
+      () => tutorSubscriptions.id,
+      { onDelete: "set null" },
+    ),
+    stripePaymentIntentId: text("stripe_payment_intent_id"),
+    stripeChargeId: text("stripe_charge_id"),
+    currency: text("currency").notNull().default("usd"),
+    /** What the learner was charged. */
+    grossCents: integer("gross_cents").notNull(),
+    /** Stripe's processing fee — null until the balance transaction lands. */
+    stripeFeeCents: integer("stripe_fee_cents"),
+    /** Our application fee. */
+    platformFeeCents: integer("platform_fee_cents").notNull(),
+    /** What reaches the tutor's Stripe balance. */
+    tutorNetCents: integer("tutor_net_cents").notNull(),
+    status: tutorPaymentStatusEnum("status").notNull().default("pending"),
+    paidAt: timestamp("paid_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("tutor_payments_teacher_idx").on(t.teacherId, t.createdAt),
+    index("tutor_payments_learner_idx").on(t.learnerId, t.createdAt),
+    uniqueIndex("tutor_payments_intent_idx").on(t.stripePaymentIntentId),
+  ],
+);
+
+// ---------------------------------------------------------------------------
 // Study memories — durable facts the tutor saves about the learner from
 // conversations (ChatGPT-memory shape): goals, level, exam dates, interests,
 // how they like to learn. Injected into every chat's context; the learner
@@ -963,3 +1380,12 @@ export type VocabularyBook = typeof vocabularyBooks.$inferSelect;
 export type StudyPack = typeof studyPacks.$inferSelect;
 export type StudyPackItem = typeof studyPackItems.$inferSelect;
 export type StudyMemory = typeof studyMemories.$inferSelect;
+export type StudyReview = typeof studyReviews.$inferSelect;
+export type StudyPath = typeof studyPaths.$inferSelect;
+export type StudyPathStep = typeof studyPathSteps.$inferSelect;
+export type StudyPathEnrollment = typeof studyPathEnrollments.$inferSelect;
+export type TutorProfile = typeof tutorProfiles.$inferSelect;
+export type TutorAvailability = typeof tutorAvailability.$inferSelect;
+export type TutorBooking = typeof tutorBookings.$inferSelect;
+export type TutorSubscription = typeof tutorSubscriptions.$inferSelect;
+export type TutorPayment = typeof tutorPayments.$inferSelect;

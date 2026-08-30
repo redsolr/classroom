@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import {
+  Banknote,
   BookOpenText,
   CalendarClock,
   CalendarDays,
@@ -33,6 +34,9 @@ const TEACHING_ITEMS: NavEntry[] = [
   { href: "/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/students", label: "Students", icon: Users },
   { href: "/lessons", label: "Lessons", icon: BookOpenText },
+  // Last in the teaching cluster: it's where a tutor sets things up once
+  // and then checks earnings, not somewhere they go between lessons.
+  { href: "/teaching/payouts", label: "Teaching & payouts", icon: Banknote },
 ];
 
 export function Sidebar({

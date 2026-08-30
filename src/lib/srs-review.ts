@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
-import { db, studySentences, studyVocab } from "@/db";
+import { db, studyReviews, studySentences, studyVocab } from "@/db";
 import { srsReviewPatch, type ReviewGrade } from "@/lib/srs";
 
 /**
@@ -66,4 +66,25 @@ export async function gradeOwnedCard(
     .update(table)
     .set({ ...patch, updatedAt: now })
     .where(owned);
+
+  /**
+   * LOG THE ANSWER. The card row now knows when it is next due; only
+   * this row knows that the learner showed up today and got it right.
+   * Every progress number the learner is shown — retention, streak, the
+   * activity trend — reads from here, which is what lets each of them be
+   * traced back to something they actually did.
+   *
+   * Written inside the same funnel as the schedule update, not beside
+   * it at the call sites, so a third card type cannot be added that
+   * quietly stops logging.
+   */
+  const isSentence = table === studySentences;
+  await db.insert(studyReviews).values({
+    learnerId,
+    kind: isSentence ? "sentence" : "word",
+    vocabId: isSentence ? null : id,
+    sentenceId: isSentence ? id : null,
+    grade: parsedGrade,
+    intervalDays: patch.srsIntervalDays,
+  });
 }

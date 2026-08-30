@@ -7,6 +7,7 @@ import {
   planStatusFromStripe,
   stripeWebhookSecret,
 } from "@/lib/billing";
+import { handleTutorEvent, isTutorSubscription } from "@/lib/tutor-webhook";
 
 /**
  * Stripe → learner plan state. The webhook is the single writer of
@@ -69,6 +70,34 @@ export async function POST(req: Request) {
     return Response.json({ error: "invalid_signature" }, { status: 400 });
   }
 
+  /**
+   * MARKETPLACE FIRST, and the order matters.
+   *
+   * Two products now share one endpoint: Study Pro (our subscription)
+   * and tutor lessons (money passing through us to someone else). They
+   * emit the same event TYPES, so the handler below has to be able to
+   * tell them apart — and the dangerous direction is the one where a
+   * tutor subscription reaches `applySubscription`, which matches a
+   * learner by customer id and would hand out Study Pro to somebody who
+   * bought a weekly lesson.
+   *
+   * `handleTutorEvent` returns true when it owned the event, and the
+   * Study Pro path is skipped. Its own `isTutorSubscription` /
+   * `isTutorCheckout` guards are what make that call, keyed on metadata
+   * the tutor flows stamp at creation and Study Pro never has.
+   */
+  try {
+    if (await handleTutorEvent(event)) {
+      return Response.json({ received: true });
+    }
+  } catch (error) {
+    console.error(`stripe webhook: tutor handler failed on ${event.type}`, error);
+    // 500 so Stripe RETRIES. Swallowing this would leave a learner
+    // charged for a lesson that never reached a tutor's calendar —
+    // exactly the state this endpoint exists to prevent.
+    return Response.json({ error: "handler_failed" }, { status: 500 });
+  }
+
   switch (event.type) {
     case "checkout.session.completed": {
       const session = event.data.object;
@@ -78,14 +107,17 @@ export async function POST(req: Request) {
             ? session.subscription
             : session.subscription.id;
         const sub = await stripe.subscriptions.retrieve(subId);
-        await applySubscription(sub);
+        if (!isTutorSubscription(sub)) await applySubscription(sub);
       }
       break;
     }
     case "customer.subscription.created":
     case "customer.subscription.updated":
     case "customer.subscription.deleted": {
-      await applySubscription(event.data.object);
+      const sub = event.data.object;
+      // Belt and braces: `handleTutorEvent` already claimed the tutor
+      // ones, and `created` never reaches it at all.
+      if (!isTutorSubscription(sub)) await applySubscription(sub);
       break;
     }
     default:

@@ -55,6 +55,18 @@ const PROTECTED_ROUTES = [
   "/decks",
   "/sentences",
   "/account",
+  // The 2026-08-30 surfaces. The money ones matter most: a tutor
+  // directory serving anonymous callers would leak who teaches for us
+  // and what they charge, and `/teaching/payouts` renders a tutor's own
+  // earnings. Added in the SAME commit as the routes, because the CRM's
+  // nine-day hole happened exactly where this discipline lived in prose
+  // with nothing enforcing it.
+  "/path",
+  "/progress",
+  "/browse",
+  "/tutors",
+  "/tutors/bookings",
+  "/teaching/payouts",
 ];
 
 function sql() {

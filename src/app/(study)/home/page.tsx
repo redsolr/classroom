@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { and, asc, desc, eq, isNotNull, sql } from "drizzle-orm";
-import { House, Play, SquarePen } from "lucide-react";
+import { House, Play, Route, SquarePen } from "lucide-react";
 import {
   db,
   studyMessages,
@@ -15,6 +15,7 @@ import {
 } from "@/db";
 import { requireLearner } from "@/lib/auth";
 import { dueIds, membersByList } from "@/lib/study-shelves";
+import { suggestedPath } from "@/lib/study-path-queries";
 import { threadTitle } from "@/lib/study-display";
 import { Greeting } from "@/components/study/greeting";
 import { SearchBar } from "@/components/study/search-bar";
@@ -293,6 +294,10 @@ export default async function StudyHomePage() {
     .sort((a, b) => b.wordCount - a.wordCount)
     .slice(0, MAX_PICKS);
 
+  // ONE path, resolved after the shelves so a learner with nothing yet
+  // still gets a suggestion rather than an empty page.
+  const path = await suggestedPath(learner.id);
+
   const firstRun = words.length === 0 && sentenceRows.length === 0;
 
   // The covers the spotlight fans out: the decks that actually have
@@ -478,6 +483,40 @@ export default async function StudyHomePage() {
               />
             ))}
           </Shelf>
+        )}
+
+          {/* THE GUIDED NEXT THING — one path, never a menu of them.
+            Placed under the decks rather than above: what is DUE beats
+            what is next, because a card you already learned and are
+            about to forget is worth more than a new one. But it sits
+            above every recommendation, because "keep going on the thing
+            you started" beats "here is something else". */}
+        {path?.next && (
+          <section className="home-path">
+            <Link
+              href={`/path/${path.slug}`}
+              className="flex flex-wrap items-center gap-4 rounded-xl bg-surface p-4 shadow-card transition-colors hover:bg-surface-hover"
+            >
+              <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-accent-soft text-accent-text">
+                <Route className="size-5" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[0.78rem] font-semibold tracking-wide text-fg-tertiary uppercase">
+                  {path.enrolled ? path.name : `Suggested · ${path.name}`}
+                </span>
+                <span className="mt-0.5 block text-[1rem] font-semibold">
+                  {path.next.title}
+                </span>
+                <span className="mt-0.5 block text-[0.875rem] text-fg-secondary">
+                  Step {path.steps.indexOf(path.next) + 1} of{" "}
+                  {path.steps.length} · {path.completedSteps} done
+                </span>
+              </span>
+              <span className="shrink-0 text-[0.875rem] font-medium text-accent-text">
+                Continue →
+              </span>
+            </Link>
+          </section>
         )}
 
         {/* ROW 2 — SENTENCE DECKS. Its own shelf, right under the word

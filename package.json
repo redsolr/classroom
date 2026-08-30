@@ -8,7 +8,7 @@
     "predev:mock": "node scripts/ensure-dev-port.mjs",
     "dev:mock": "cross-env MOCK_AUTH=true NODE_OPTIONS=--max-http-header-size=65536 next dev --turbopack -p 3020",
     "build": "next build",
-    "vercel-build": "node scripts/migrate-deploy.mjs && npx tsx scripts/seed-packs.ts && next build",
+    "vercel-build": "node scripts/migrate-deploy.mjs && npx tsx scripts/seed-packs.ts && npx tsx scripts/seed-paths.ts && next build",
     "start": "next start -p 3020",
     "lint": "eslint src --cache --cache-location node_modules/.cache/eslint/ --cache-strategy content",
     "lint:fix": "eslint src --fix --cache --cache-location node_modules/.cache/eslint/ --cache-strategy content",
@@ -25,10 +25,13 @@
     "docker:down": "docker compose down",
     "test:e2e": "playwright test",
     "test:e2e:real-auth": "cross-env E2E_MODE=real-auth playwright test",
-    "e2e:user": "tsx --env-file=.env.local scripts/e2e-workos-user.ts"
+    "e2e:user": "tsx --env-file=.env.local scripts/e2e-workos-user.ts",
+    "db:seed:paths": "tsx --env-file=.env.local scripts/seed-paths.ts",
+    "db:seed:tutors": "tsx --env-file=.env.local scripts/seed-tutors.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.111.0",
+    "@date-fns/tz": "^1.5.0",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",

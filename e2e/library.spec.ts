@@ -119,7 +119,7 @@ test("the library index rides into EVERY chat, and add book works from conversat
   // The first send hands the draft off to the server-rendered thread
   // view (a remount that resets the composer) — the chat header is its
   // mount marker; type message #2 only after it lands.
-  await expect(page.locator("main header")).toBeVisible();
+  await expect(page.locator(".chat-header")).toBeVisible();
 
   await sendMessage(
     page,

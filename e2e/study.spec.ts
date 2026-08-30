@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { resetMockLearner, sendMessage } from "./helpers";
 
 /**
@@ -117,7 +117,7 @@ test("pin from the chat header floats the chat into Pinned; unpin returns it hom
   // Scoped to the desktop header — the same ⋯ menu also exists in the
   // (hidden) mobile navbar slot.
   await page
-    .locator("main header")
+    .locator(".chat-header")
     .getByRole("button", { name: "Chat options" })
     .click();
   await page.getByRole("menuitem", { name: "Pin chat" }).click();
@@ -227,7 +227,7 @@ test("memory: the tutor remembers across chats; the learner manages it on Accoun
   // The first send hands the draft off to the server-rendered thread
   // view (a remount that resets the composer) — wait for its header
   // before typing message #2.
-  await expect(page.locator("main header")).toBeVisible();
+  await expect(page.locator(".chat-header")).toBeVisible();
   await send("remember: Prefers short drills over long explanations");
   await expect(
     page.getByText("Got it — I'll remember that.").nth(1),
@@ -307,7 +307,7 @@ test("About-you instructions inject everywhere; pausing memory stops saving AND 
     page.getByText(/Following your standing instructions/),
   ).toBeVisible();
   // Draft → thread remount marker (see the memory test above).
-  await expect(page.locator("main header")).toBeVisible();
+  await expect(page.locator(".chat-header")).toBeVisible();
 
   await send("remember: Collects mechanical watches");
   await expect(page.getByText("Got it — I'll remember that.")).toBeVisible();
@@ -370,7 +370,7 @@ test("deleting a chat removes it after the confirm dialog", async ({
   // Scoped to the desktop header — the same ⋯ menu also exists in the
   // (hidden) mobile navbar slot.
   await page
-    .locator("main header")
+    .locator(".chat-header")
     .getByRole("button", { name: "Chat options" })
     .click();
   await page.getByRole("menuitem", { name: "Delete chat" }).click();
@@ -448,7 +448,7 @@ test("desktop: chat chrome spans the pane while the column stays readable", asyn
   await page.waitForURL(/\/chat\?t=[0-9a-f-]{36}/);
 
   const main = await page.getByRole("main").boundingBox();
-  const header = await page.locator("main header").boundingBox();
+  const header = await page.locator(".chat-header").boundingBox();
   const composer = await page.getByLabel("Message").boundingBox();
   expect(main && header && composer).toBeTruthy();
 
@@ -939,7 +939,7 @@ test("chat→vocab bulk extraction: review dialog, bulk save, dedup", async ({
   // Scoped to the desktop header — the same ⋯ menu also exists in the
   // (hidden) mobile navbar slot.
   await page
-    .locator("main header")
+    .locator(".chat-header")
     .getByRole("button", { name: "Chat options" })
     .click();
   await page
@@ -967,7 +967,7 @@ test("chat→vocab bulk extraction: review dialog, bulk save, dedup", async ({
   // Scoped to the desktop header — the same ⋯ menu also exists in the
   // (hidden) mobile navbar slot.
   await page
-    .locator("main header")
+    .locator(".chat-header")
     .getByRole("button", { name: "Chat options" })
     .click();
   await page
@@ -1023,7 +1023,7 @@ test("move to project: sidebar row menu files a loose chat; header menu pulls it
   // offers the way back out.
   await chatLink.click();
   await page.waitForURL(/\/chat\?t=[0-9a-f-]{36}/);
-  const header = page.locator("main header");
+  const header = page.locator(".chat-header");
   await expect(
     header.getByRole("link", { name: "Filing Cabinet" }),
   ).toBeVisible();
@@ -1459,6 +1459,22 @@ test("urls: the old names still resolve, query strings intact", async ({
   await expect(page.getByText(/Café survival French/).first()).toBeVisible();
 });
 
+/**
+ * The search field is a VIEWPORT BRANCH, not one element: pinned in the
+ * desktop top bar, in the page body on phones (see `StudyTopbar`). Both
+ * are rendered and CSS hides one, so a DOM-based `getByLabel("Search")`
+ * resolves two nodes and fails strict mode — while `getByRole` sees only
+ * one, because `display:none` is out of the accessibility tree.
+ *
+ * Resolving by ROLE is therefore both the fix and the more honest
+ * assertion: it targets the field a real user can actually reach at this
+ * viewport. This suite runs at desktop width, so it exercises the top
+ * bar; `study-mobile.spec.ts` covers the phone branch at 390px.
+ */
+function searchField(page: Page) {
+  return page.getByRole("searchbox", { name: "Search" });
+}
+
 test("search: one field over words, books, sentences and the catalog", async ({
   page,
 }) => {
@@ -1475,7 +1491,7 @@ test("search: one field over words, books, sentences and the catalog", async ({
 
   // From Home — the field is at the top of the page, and it navigates.
   await page.goto("/home");
-  await page.getByRole("search").getByLabel("Search").fill("図書館");
+  await searchField(page).fill("図書館");
   await page.keyboard.press("Enter");
   await page.waitForURL(/\/search\?q=/);
 
@@ -1487,7 +1503,7 @@ test("search: one field over words, books, sentences and the catalog", async ({
 
   // Matching on the MEANING finds it too — half the time you remember
   // the English, not the word.
-  await page.getByLabel("Search").fill("library building");
+  await searchField(page).fill("library building");
   await page.keyboard.press("Enter");
   await page.waitForURL(/q=library/);
   await expect(
@@ -1496,7 +1512,7 @@ test("search: one field over words, books, sentences and the catalog", async ({
 
   // The useful half of catalog search: find the official book that
   // TEACHES a word, not just ones whose title contains it.
-  await page.getByLabel("Search").fill("treasure chest");
+  await searchField(page).fill("treasure chest");
   await page.keyboard.press("Enter");
   await page.waitForURL(/q=treasure/);
   await expect(
@@ -1504,7 +1520,7 @@ test("search: one field over words, books, sentences and the catalog", async ({
   ).toBeVisible();
 
   // A miss says so rather than rendering an empty page.
-  await page.getByLabel("Search").fill("zzzznotathing");
+  await searchField(page).fill("zzzznotathing");
   await page.keyboard.press("Enter");
   await expect(page.getByText(/Nothing matches/)).toBeVisible();
 });

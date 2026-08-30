@@ -109,6 +109,8 @@ overridable via `CLASSROOM_AI_MODEL`).
 | `npm run db:generate` | Generate a Drizzle migration from `src/db/schema.ts` |
 | `npm run db:migrate` | Apply migrations |
 | `npm run db:seed` | Seed demo data (idempotent — re-wipes the demo teacher) |
+| `npm run db:seed:paths` | Sync the learning-path catalog (`src/content/study-paths.ts`). Also runs on every deploy, right after the packs; fails loudly on a step pointing at a pack that doesn't exist |
+| `npm run db:seed:tutors` | Three listed pilot tutors with weekly hours. **Local/dev only** — it sets `payouts_enabled`, which only Stripe may set for real money, and refuses to run against a remote database |
 | `npm run docker:up` / `docker:down` | Local Postgres |
 
 ## Architecture notes
