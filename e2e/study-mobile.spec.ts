@@ -179,3 +179,27 @@ test("the bar never covers the chat composer or the Ask button", async ({
   if (!bar || !ask) throw new Error("study chrome not measurable");
   expect(ask.y + ask.height).toBeLessThanOrEqual(bar.y + 1);
 });
+
+test("search lives in the page on phones, not in a top bar", async ({
+  page,
+}) => {
+  // The other half of the branch `study.spec.ts` covers at desktop
+  // width: the pinned bar is lg-only, so at 390px the field a learner
+  // can reach is the one in the page body. Asserting the pair here is
+  // what stops "hidden on the wrong side of the breakpoint" — a field
+  // that exists in the DOM at both sizes and is reachable at neither.
+  await page.goto("/home");
+  await expect(page.locator(".study-topbar")).toBeHidden();
+
+  const field = page.getByRole("searchbox", { name: "Search" });
+  await expect(field).toBeVisible();
+  await field.fill("chien");
+  await page.keyboard.press("Enter");
+  await page.waitForURL(/\/search\?q=/);
+
+  // And the phone field carries the query on the results page, so the
+  // control reflects what is being shown under it.
+  await expect(
+    page.getByRole("searchbox", { name: "Search" }),
+  ).toHaveValue("chien");
+});

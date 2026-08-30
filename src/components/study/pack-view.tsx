@@ -10,7 +10,7 @@ import {
   Trash2,
 } from "lucide-react";
 import type { StudyPack, StudyPackItem } from "@/db";
-import { removeFromStudyVocabList } from "@/lib/actions/books";
+import { removeFromStudyDeck } from "@/lib/actions/decks";
 import {
   addStudyPackItem,
   importStudyPack,
@@ -49,7 +49,7 @@ export type PackBook = { id: string; name: string };
  * library taught everyone to expect:
  *
  *   ♥                 — the word is in your vocabulary. Tap to toggle.
- *   "⋯ → Add to book" — file it into any of your books (✓ = it's there)
+ *   "⋯ → Add to deck" — file it into any of your decks (✓ = it's there)
  *   "Save as my book" — copy every missing word AND save this as a book
  *   "Practice"        — drill it as a deck, saving nothing
  *
@@ -129,9 +129,9 @@ export function PackView({
     });
   };
 
-  /** Book name for a toast; the id is never what a learner recognises. */
-  const bookName = (listId: string | null | undefined) =>
-    listId ? books.find((b) => b.id === listId)?.name : undefined;
+  /** Deck name for a toast; the id is never what a learner recognises. */
+  const bookName = (deckId: string | null | undefined) =>
+    deckId ? books.find((b) => b.id === deckId)?.name : undefined;
 
   const addToVocabulary = (item: StudyPackItem) => {
     let filedInto: string | undefined;
@@ -141,7 +141,7 @@ export function PackView({
         // No target = the action files it into the default book too,
         // if the learner has set one.
         const result = await addStudyPackItem(item.id);
-        filedInto = bookName(result.listId);
+        filedInto = bookName(result.deckId);
         setSaved((prev) => {
           const bookIds = prev[key(item)]?.bookIds ?? [];
           return {
@@ -150,8 +150,8 @@ export function PackView({
               vocabId: result.vocabId,
               reviewed: prev[key(item)]?.reviewed ?? false,
               bookIds:
-                result.listId && !bookIds.includes(result.listId)
-                  ? [...bookIds, result.listId]
+                result.deckId && !bookIds.includes(result.deckId)
+                  ? [...bookIds, result.deckId]
                   : bookIds,
             },
           };
@@ -165,11 +165,11 @@ export function PackView({
     );
   };
 
-  const addToBook = (item: StudyPackItem, listId: string) =>
+  const addToBook = (item: StudyPackItem, deckId: string) =>
     run(
       item,
       async () => {
-        const result = await addStudyPackItem(item.id, { listId });
+        const result = await addStudyPackItem(item.id, { deckId });
         setSaved((prev) => {
           const existing = prev[key(item)];
           const bookIds = existing?.bookIds ?? [];
@@ -178,13 +178,13 @@ export function PackView({
             [key(item)]: {
               vocabId: result.vocabId,
               reviewed: existing?.reviewed ?? false,
-              bookIds: bookIds.includes(listId) ? bookIds : [...bookIds, listId],
+              bookIds: bookIds.includes(deckId) ? bookIds : [...bookIds, deckId],
             },
           };
         });
       },
       "file",
-      () => `“${item.term}” → ${bookName(listId) ?? "book"}`,
+      () => `“${item.term}” → ${bookName(deckId) ?? "book"}`,
     );
 
   const createBookWith = (item: StudyPackItem, name: string) =>
@@ -192,8 +192,8 @@ export function PackView({
       item,
       async () => {
         const result = await addStudyPackItem(item.id, { newListName: name });
-        if (result.listId) {
-          const created = { id: result.listId, name: result.listName ?? name };
+        if (result.deckId) {
+          const created = { id: result.deckId, name: result.listName ?? name };
           setBooks((prev) => [...prev, created]);
           setSaved((prev) => ({
             ...prev,
@@ -209,13 +209,13 @@ export function PackView({
       `Created ${name} with “${item.term}”`,
     );
 
-  const removeFromBook = (item: StudyPackItem, listId: string) => {
+  const removeFromBook = (item: StudyPackItem, deckId: string) => {
     const entry = saved[key(item)];
     if (!entry) return;
     run(
       item,
       async () => {
-        await removeFromStudyVocabList(listId, entry.vocabId);
+        await removeFromStudyDeck(deckId, entry.vocabId);
         setSaved((prev) => {
           const current = prev[key(item)];
           if (!current) return prev;
@@ -223,13 +223,13 @@ export function PackView({
             ...prev,
             [key(item)]: {
               ...current,
-              bookIds: current.bookIds.filter((id) => id !== listId),
+              bookIds: current.bookIds.filter((id) => id !== deckId),
             },
           };
         });
       },
       "remove from the book",
-      () => `Removed “${item.term}” from ${bookName(listId) ?? "the book"}`,
+      () => `Removed “${item.term}” from ${bookName(deckId) ?? "the book"}`,
     );
   };
 
@@ -284,9 +284,9 @@ export function PackView({
         // rebuild saved-state from the ids the action handed back — no
         // reload, which would discard the banner above.
         setBooks((prev) =>
-          prev.some((b) => b.id === result.listId)
+          prev.some((b) => b.id === result.deckId)
             ? prev
-            : [...prev, { id: result.listId, name: result.list }],
+            : [...prev, { id: result.deckId, name: result.list }],
         );
         setSaved((prev) => {
           const next = { ...prev };
@@ -295,9 +295,9 @@ export function PackView({
             next[term] = {
               vocabId,
               reviewed: next[term]?.reviewed ?? false,
-              bookIds: bookIds.includes(result.listId)
+              bookIds: bookIds.includes(result.deckId)
                 ? bookIds
-                : [...bookIds, result.listId],
+                : [...bookIds, result.deckId],
             };
           }
           return next;
@@ -477,8 +477,8 @@ export function PackView({
         onOpenChange={(open) => !open && setNewBookFor(null)}
       >
         <DialogContent
-          title="New book"
-          description="A collection of words inside your vocabulary — this word goes in as its first entry."
+          title="New deck"
+          description="A list of words you can drill — this word goes in as its first entry."
         >
           <form
             onSubmit={(event) => {
@@ -498,7 +498,7 @@ export function PackView({
               autoFocus
               maxLength={80}
               placeholder="FF7 vocab · Boss fights · …"
-              aria-label="Book name"
+              aria-label="Deck name"
             />
             <Button type="submit" variant="primary">
               Create

@@ -9,7 +9,7 @@ import {
   studyProjects,
   studyThreads,
   studyVocab,
-  studyVocabListItems,
+  studyDeckItems,
 } from "@/db";
 import { STUDY_VOCAB_CATEGORIES } from "@/lib/study-vocab-categories";
 import {
@@ -18,11 +18,11 @@ import {
   type VocabCandidate,
 } from "@/lib/ai/vocab-extract";
 import { requireLearner } from "@/lib/auth";
-import { languageSchema } from "@/lib/study-books";
+import { languageSchema } from "@/lib/study-decks";
 import { dailyCapFor } from "@/lib/billing";
 import type { ReviewGrade } from "@/lib/srs";
 import { gradeOwnedCard } from "@/lib/srs-review";
-import { requireOwnVocabList } from "@/lib/study-guards";
+import { requireOwnDeck } from "@/lib/study-guards";
 import { countTutorMessagesLast24h } from "@/lib/study-usage";
 
 /**
@@ -39,7 +39,7 @@ import { countTutorMessagesLast24h } from "@/lib/study-usage";
  * derived from real due reviews only, so the caller must not grade
  * these through reviewStudyVocab.
  */
-export async function loadStudyPracticeDeck(listId?: string | null) {
+export async function loadStudyPracticeDeck(deckId?: string | null) {
   const learner = await requireLearner();
   const columns = {
     id: studyVocab.id,
@@ -53,19 +53,19 @@ export async function loadStudyPracticeDeck(listId?: string | null) {
   // A cram round has to stay inside whatever the session was scoped to —
   // practising a book must not deal cards from the rest of the
   // vocabulary.
-  if (listId) {
-    const list = await requireOwnVocabList(learner.id, listId);
+  if (deckId) {
+    const list = await requireOwnDeck(learner.id, deckId);
     return db
       .select(columns)
       .from(studyVocab)
       .innerJoin(
-        studyVocabListItems,
-        eq(studyVocabListItems.vocabId, studyVocab.id),
+        studyDeckItems,
+        eq(studyDeckItems.vocabId, studyVocab.id),
       )
       .where(
         and(
           eq(studyVocab.learnerId, learner.id),
-          eq(studyVocabListItems.listId, list.id),
+          eq(studyDeckItems.deckId, list.id),
         ),
       )
       .orderBy(sql`random()`)

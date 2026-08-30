@@ -221,11 +221,11 @@ function GenerateButton({ books }: { books: SentenceBook[] }) {
   const [pending, startTransition] = React.useTransition();
   const [result, setResult] = React.useState<string | null>(null);
 
-  const generate = (listId: string | null) => {
+  const generate = (deckId: string | null) => {
     setResult(null);
     startTransition(async () => {
       try {
-        const { created } = await generateStudySentences(listId);
+        const { created } = await generateStudySentences(deckId);
         setResult(
           created === 0
             ? // True whether the learner has no words at all or every

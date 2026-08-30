@@ -8,7 +8,7 @@ import {
   createStudyNote,
   deleteStudyNote,
   updateStudyNote,
-} from "@/lib/actions/library";
+} from "@/lib/actions/notes";
 import { Button } from "@/components/ui/button";
 import { ConfirmButton } from "@/components/ui/confirm-button";
 import { Textarea } from "@/components/ui/field";

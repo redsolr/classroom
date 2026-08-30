@@ -11,7 +11,7 @@ import {
   studyThreads,
 } from "@/db";
 import { requireLearner } from "@/lib/auth";
-import { languageSchema } from "@/lib/study-books";
+import { languageSchema } from "@/lib/study-decks";
 import { revalidateStudyTree } from "@/lib/study-revalidate";
 
 /**

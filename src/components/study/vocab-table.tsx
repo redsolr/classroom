@@ -32,11 +32,11 @@ import {
 } from "lucide-react";
 import type { StudyVocabItem } from "@/db";
 import {
-  addToStudyVocabList,
-  createStudyVocabList,
-  removeFromStudyVocabList,
-  reorderStudyVocabListItem,
-} from "@/lib/actions/books";
+  addToStudyDeck,
+  createStudyDeck,
+  removeFromStudyDeck,
+  reorderStudyDeckItem,
+} from "@/lib/actions/decks";
 import {
   deleteStudyVocab,
   updateStudyVocab,
@@ -56,7 +56,7 @@ import { WordFormDialog } from "@/components/study/word-form-dialog";
 import { cn } from "@/lib/utils";
 
 /** A book with its member ids in the learner's manual order. */
-export type VocabListSummary = {
+export type DeckSummaryRow = {
   id: string;
   name: string;
   pinned: boolean;
@@ -155,7 +155,7 @@ export function VocabTable({
   view,
 }: {
   items: StudyVocabItem[];
-  lists: VocabListSummary[];
+  lists: DeckSummaryRow[];
   view: "all" | { id: string; name: string };
 }) {
   const book = view === "all" ? null : view;
@@ -292,7 +292,7 @@ export function VocabTable({
     if (!name || visible.length === 0) return;
     const ids = visible.map((i) => i.id);
     run(null, async () => {
-      await createStudyVocabList(name, ids);
+      await createStudyDeck(name, ids);
       setSaveBookOpen(false);
       setSaveBookName("");
     }, "save as book");
@@ -308,7 +308,7 @@ export function VocabTable({
     setLocalOrder(arrayMove(ids, from, to));
     run(
       String(active.id),
-      () => reorderStudyVocabListItem(book.id, String(active.id), to),
+      () => reorderStudyDeckItem(book.id, String(active.id), to),
       "reorder",
     );
   };
@@ -422,11 +422,11 @@ export function VocabTable({
                   setSaveBookOpen(true);
                 }}
                 disabled={visible.length === 0}
-                title="Save the current view as a book"
+                title="Save the current view as a deck"
                 className={toolbarButtonClass}
               >
                 <ListPlus className="size-3.5" />
-                Save as book
+                Save as deck
               </button>
               <a
                 href="/books/export.csv"
@@ -452,11 +452,11 @@ export function VocabTable({
         </p>
       )}
 
-      {/* Save-as-book: names the CURRENT view (filters + sort applied),
-          keeping its order as the book's starting order. */}
+      {/* Save-as-deck: names the CURRENT view (filters + sort applied),
+          keeping its order as the deck's starting order. */}
       <Dialog open={saveBookOpen} onOpenChange={setSaveBookOpen}>
         <DialogContent
-          title="Save as book"
+          title="Save as deck"
           description={`The ${visible.length} word${visible.length === 1 ? "" : "s"} in the current view, in this order.`}
         >
           <form
@@ -472,7 +472,7 @@ export function VocabTable({
               onChange={(e) => setSaveBookName(e.target.value)}
               maxLength={80}
               placeholder="Common French verbs"
-              aria-label="Book name"
+              aria-label="Deck name"
             />
             <Button
               type="submit"
@@ -619,7 +619,7 @@ export function VocabTable({
                                 run(
                                   item.id,
                                   () =>
-                                    removeFromStudyVocabList(
+                                    removeFromStudyDeck(
                                       book!.id,
                                       item.id,
                                     ),
@@ -643,7 +643,7 @@ export function VocabTable({
                                   run(
                                     item.id,
                                     () =>
-                                      addToStudyVocabList(list.id, item.id),
+                                      addToStudyDeck(list.id, item.id),
                                     "add to book",
                                   )
                                 }

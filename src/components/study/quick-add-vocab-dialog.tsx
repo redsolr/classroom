@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { addStudyVocabToBook } from "@/lib/actions/books";
+import { addStudyVocabToDeck } from "@/lib/actions/decks";
 import { WordFormDialog } from "@/components/study/word-form-dialog";
 
 /**
@@ -27,7 +27,7 @@ export function QuickAddVocabDialog({
       trigger={children}
       defaultLanguage={defaultLanguage}
       showExample={false}
-      action={(fd) => addStudyVocabToBook(bookId, fd)}
+      action={(fd) => addStudyVocabToDeck(bookId, fd)}
     />
   );
 }

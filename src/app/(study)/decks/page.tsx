@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { BookOpenCheck, MessageSquareQuote } from "lucide-react";
+import { BookOpenCheck, MessageSquareQuote, Undo2 } from "lucide-react";
 import { and, asc, eq, isNull, lte, or, sql } from "drizzle-orm";
 import {
   db,
@@ -9,12 +9,13 @@ import {
   studyPacks,
   studySentences,
   studyVocab,
-  studyVocabListItems,
-  studyVocabLists,
+  studyDeckItems,
+  studyDecks,
 } from "@/db";
 import { requireLearner } from "@/lib/auth";
+import { loadErrorDeck } from "@/lib/error-deck";
 import { isCardDue } from "@/lib/srs";
-import { dueIds, membersByList } from "@/lib/study-shelves";
+import { dueIds, membersByDeck } from "@/lib/study-shelves";
 import {
   DeckShelf,
   DeckShelfEmpty,
@@ -43,10 +44,50 @@ export const metadata: Metadata = { title: "Decks" };
 export default async function StudyReviewPage({
   searchParams,
 }: {
-  searchParams: Promise<{ book?: string; pack?: string; sentences?: string }>;
+  searchParams: Promise<{
+    book?: string;
+    pack?: string;
+    sentences?: string;
+    errors?: string;
+  }>;
 }) {
   const learner = await requireLearner();
-  const { book, pack, sentences } = await searchParams;
+  const { book, pack, sentences, errors } = await searchParams;
+
+  /**
+   * ── The ERROR deck ──
+   *
+   * Only the cards whose most recent answer was "again". The single
+   * highest-value drill there is, and the one Anki makes you build a
+   * filtered deck by hand for: a due deck is mostly cards arriving on
+   * schedule that you already know, and the ones you actually failed are
+   * scattered through it.
+   *
+   * Graded for REAL, not as a cram round — the schedule has already been
+   * told about these cards, and the whole point of drilling them is that
+   * getting one right now moves it.
+   */
+  if (errors) {
+    const cards = await loadErrorDeck(
+      learner.id,
+      errors === "all" ? null : errors,
+    );
+    return (
+      <PageShell>
+        <BackLink href="/decks">All decks</BackLink>
+        <PageHeader
+          icon={BookOpenCheck}
+          title="Cards you got wrong"
+          subtitle="The ones you missed most recently. Getting one right here moves it back into the schedule."
+        />
+        <StudyReview
+          deck={toWordCards(cards)}
+          totalWords={cards.length}
+          deckId={errors === "all" ? null : errors}
+        />
+      </PageShell>
+    );
+  }
 
   // ── Sentence deck ──
   // The same stack, the same swipes, the same scheduler — a different
@@ -55,10 +96,10 @@ export default async function StudyReviewPage({
   if (sentences) {
     const list =
       sentences !== "all"
-        ? await db.query.studyVocabLists.findFirst({
+        ? await db.query.studyDecks.findFirst({
             where: and(
-              eq(studyVocabLists.id, sentences),
-              eq(studyVocabLists.learnerId, learner.id),
+              eq(studyDecks.id, sentences),
+              eq(studyDecks.learnerId, learner.id),
             ),
           })
         : null;
@@ -66,7 +107,7 @@ export default async function StudyReviewPage({
 
     const scope = and(
       eq(studySentences.learnerId, learner.id),
-      list ? eq(studySentences.listId, list.id) : undefined,
+      list ? eq(studySentences.deckId, list.id) : undefined,
     );
     const [cards, [{ total }]] = await Promise.all([
       db
@@ -115,7 +156,7 @@ export default async function StudyReviewPage({
           <StudyReview
             deck={toSentenceCards(cards)}
             totalWords={total}
-            listId={list?.id ?? null}
+            deckId={list?.id ?? null}
             deckKind="sentence"
           />
         </div>
@@ -179,25 +220,25 @@ export default async function StudyReviewPage({
           .from(studyVocab)
           .where(eq(studyVocab.learnerId, learner.id)),
         db
-          .select({ id: studyVocabLists.id, name: studyVocabLists.name })
-          .from(studyVocabLists)
-          .where(eq(studyVocabLists.learnerId, learner.id))
-          .orderBy(asc(studyVocabLists.createdAt)),
+          .select({ id: studyDecks.id, name: studyDecks.name })
+          .from(studyDecks)
+          .where(eq(studyDecks.learnerId, learner.id))
+          .orderBy(asc(studyDecks.createdAt)),
         db
           .select({
-            listId: studyVocabListItems.listId,
-            vocabId: studyVocabListItems.vocabId,
+            deckId: studyDeckItems.deckId,
+            vocabId: studyDeckItems.vocabId,
           })
-          .from(studyVocabListItems)
+          .from(studyDeckItems)
           .innerJoin(
-            studyVocabLists,
-            eq(studyVocabListItems.listId, studyVocabLists.id),
+            studyDecks,
+            eq(studyDeckItems.deckId, studyDecks.id),
           )
-          .where(eq(studyVocabLists.learnerId, learner.id)),
+          .where(eq(studyDecks.learnerId, learner.id)),
         db
           .select({
             id: studySentences.id,
-            listId: studySentences.listId,
+            deckId: studySentences.deckId,
             srsDueAt: studySentences.srsDueAt,
           })
           .from(studySentences)
@@ -218,7 +259,8 @@ export default async function StudyReviewPage({
 
     const dueWordIds = dueIds(words, now);
     const totalDue = dueWordIds.size;
-    const members = membersByList(listItemRows);
+    const errorCards = await loadErrorDeck(learner.id);
+    const members = membersByDeck(listItemRows);
 
     const decks: DeckSummary[] = [
       {
@@ -262,7 +304,7 @@ export default async function StudyReviewPage({
             },
             ...listRows
               .map((list) => {
-                const scoped = sentenceRows.filter((s) => s.listId === list.id);
+                const scoped = sentenceRows.filter((s) => s.deckId === list.id);
                 return {
                   id: `sentences-${list.id}`,
                   name: list.name,
@@ -294,6 +336,33 @@ export default async function StudyReviewPage({
             { href: "/official", label: "Official", active: false },
           ]}
         />
+
+        {/* Above the shelves, because when it has anything in it, it is
+            the most useful thing on the page — and because it empties
+            itself, so it is absent far more often than not. */}
+        {errorCards.length > 0 && (
+          <Link
+            href="/decks?errors=all"
+            className="deck-error-entry mb-6 flex items-center gap-3 rounded-xl bg-surface px-4 py-3.5 shadow-card transition-colors hover:bg-surface-hover"
+          >
+            <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-danger-soft text-danger">
+              <Undo2 className="size-5" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[0.9375rem] font-semibold">
+                Cards you got wrong
+              </span>
+              <span className="block text-[0.8125rem] text-fg-tertiary">
+                {errorCards.length} card
+                {errorCards.length === 1 ? "" : "s"} you missed recently —
+                the ones worth another look
+              </span>
+            </span>
+            <span className="shrink-0 rounded-full bg-danger-soft px-2.5 py-1 text-[0.75rem] font-semibold text-danger">
+              {errorCards.length}
+            </span>
+          </Link>
+        )}
 
         <div>
           {words.length === 0 ? (
@@ -348,10 +417,10 @@ export default async function StudyReviewPage({
   // draw. `?book=all` draws from the whole vocabulary.
   const list =
     book !== "all"
-      ? await db.query.studyVocabLists.findFirst({
+      ? await db.query.studyDecks.findFirst({
           where: and(
-            eq(studyVocabLists.id, book),
-            eq(studyVocabLists.learnerId, learner.id),
+            eq(studyDecks.id, book),
+            eq(studyDecks.learnerId, learner.id),
           ),
         })
       : null;
@@ -376,13 +445,13 @@ export default async function StudyReviewPage({
         .select(deckColumns)
         .from(studyVocab)
         .innerJoin(
-          studyVocabListItems,
-          eq(studyVocabListItems.vocabId, studyVocab.id),
+          studyDeckItems,
+          eq(studyDeckItems.vocabId, studyVocab.id),
         )
         .where(
           and(
             eq(studyVocab.learnerId, learner.id),
-            eq(studyVocabListItems.listId, list.id),
+            eq(studyDeckItems.deckId, list.id),
             due,
           ),
         )
@@ -402,13 +471,13 @@ export default async function StudyReviewPage({
         .select({ totalWords: sql<number>`count(*)::int` })
         .from(studyVocab)
         .innerJoin(
-          studyVocabListItems,
-          eq(studyVocabListItems.vocabId, studyVocab.id),
+          studyDeckItems,
+          eq(studyDeckItems.vocabId, studyVocab.id),
         )
         .where(
           and(
             eq(studyVocab.learnerId, learner.id),
-            eq(studyVocabListItems.listId, list.id),
+            eq(studyDeckItems.deckId, list.id),
           ),
         )
     : db
@@ -432,7 +501,7 @@ export default async function StudyReviewPage({
         actions={
           list ? (
             <Link
-              href={`/books?book=${list.id}`}
+              href={`/decks/${list.id}`}
               className="inline-flex h-9 items-center rounded-md bg-surface px-3.5 text-[0.9375rem] font-medium shadow-card transition-colors hover:bg-surface-hover"
             >
               Open book
@@ -447,7 +516,7 @@ export default async function StudyReviewPage({
         <StudyReview
           deck={toWordCards(deck)}
           totalWords={totalWords}
-          listId={list?.id ?? null}
+          deckId={list?.id ?? null}
         />
       </div>
     </PageShell>

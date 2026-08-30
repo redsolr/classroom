@@ -1,6 +1,6 @@
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
-import { db, studyVocabListItems } from "@/db";
+import { db, studyDeckItems } from "@/db";
 
 /**
  * Shared pieces the study ACTIONS need but cannot own between them.
@@ -8,7 +8,7 @@ import { db, studyVocabListItems } from "@/db";
  * Both of these were private to the old monolithic `study.ts`, where
  * "shared" cost nothing because everything lived in one file. The split
  * turned each into a genuine cross-module dependency — `languageSchema`
- * is used by threads, words and books; `nextListPosition` by books and
+ * is used by threads, words and books; `nextDeckPosition` by books and
  * by importing an official pack — and the only two ways to handle that
  * are a shared home or a copy per file. A copy is how two validators
  * drift until one accepts a language the other rejects.
@@ -24,12 +24,12 @@ import { db, studyVocabListItems } from "@/db";
 export const languageSchema = z.string().trim().min(2).max(40);
 
 /** Append slot at the end of a book — max(position) + 1. */
-export async function nextListPosition(listId: string): Promise<number> {
+export async function nextDeckPosition(deckId: string): Promise<number> {
   const [{ max }] = await db
     .select({
-      max: sql<number>`coalesce(max(${studyVocabListItems.position}), -1)`,
+      max: sql<number>`coalesce(max(${studyDeckItems.position}), -1)`,
     })
-    .from(studyVocabListItems)
-    .where(eq(studyVocabListItems.listId, listId));
+    .from(studyDeckItems)
+    .where(eq(studyDeckItems.deckId, deckId));
   return Number(max) + 1;
 }

@@ -6,15 +6,15 @@ import { DropdownItem, DropdownSeparator } from "@/components/ui/dropdown";
 
 export type BookOption = { id: string; name: string };
 
-/** Above this many books, the list grows a filter field. Below it, a
+/** Above this many decks, the list grows a filter field. Below it, a
  * search box is more chrome than help. */
 const FILTER_THRESHOLD = 6;
 
 /**
- * "Add to book" — the add-to-playlist picker, as a SECTION of the ⋯ menu
+ * "Add to deck" — the add-to-playlist picker, as a SECTION of the ⋯ menu
  * rather than a submenu behind it.
  *
- * A find-a-book field, a "New book…" escape hatch, then every book with
+ * A find-a-book field, a "New deck…" escape hatch, then every book with
  * a ✓ on the ones already holding this word. Selecting a book TOGGLES
  * membership, which is why one control covers both filing and unfiling
  * instead of the two separate lists this replaced.
@@ -25,7 +25,7 @@ const FILTER_THRESHOLD = 6;
  * eight items, not two.
  *
  * One deliberate difference from the thing it's modeled on: picking a
- * book does NOT close the menu. Filing a word into three books is the
+ * deck does NOT close the menu. Filing a word into three decks is the
  * common case here, and re-opening the ⋯ twice to do it is the kind of
  * small tax that makes people stop bothering.
  */
@@ -51,7 +51,7 @@ export function AddToBookMenu({
   return (
     <>
       <p className="px-2 pt-1 pb-1.5 text-[0.72rem] font-semibold tracking-wider text-fg-tertiary uppercase">
-        Add to book
+        Add to deck
       </p>
 
       {books.length > FILTER_THRESHOLD && (
@@ -60,8 +60,8 @@ export function AddToBookMenu({
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Find a book"
-            aria-label="Find a book"
+            placeholder="Find a deck"
+            aria-label="Find a deck"
             // Radix menus swallow keystrokes for typeahead, which makes
             // any field inside one unusable without this.
             onKeyDown={(e) => e.stopPropagation()}
@@ -101,7 +101,7 @@ export function AddToBookMenu({
 
       <DropdownItem disabled={disabled} onSelect={onCreate}>
         <BookPlus className="size-4 text-fg-tertiary" />
-        New book…
+        New deck…
       </DropdownItem>
     </>
   );

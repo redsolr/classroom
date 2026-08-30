@@ -5,7 +5,10 @@ import { and, desc, eq } from "drizzle-orm";
 import { format } from "date-fns";
 import { MessageCircle } from "lucide-react";
 import { db, studyBooks, studyNotes, studyThreads } from "@/db";
-import { deleteStudyBook, updateStudyBook } from "@/lib/actions/library";
+import {
+  deleteStudyBook,
+  updateStudyBookDetails,
+} from "@/lib/actions/books";
 import { createStudyThread } from "@/lib/actions/threads";
 import { requireLearner } from "@/lib/auth";
 import { BookCover } from "@/components/study/book-cover";
@@ -143,7 +146,7 @@ export default async function LibraryBookPage({
 
         <section className="book-settings mb-6 rounded-lg bg-surface p-4 shadow-card sm:p-5">
           <h2 className="mb-3 text-[0.9375rem] font-semibold">Book details</h2>
-          <form action={updateStudyBook.bind(null, book.id)} className="space-y-4">
+          <form action={updateStudyBookDetails.bind(null, book.id)} className="space-y-4">
             <BookFields defaults={book} />
             <SubmitButton>Save book</SubmitButton>
           </form>

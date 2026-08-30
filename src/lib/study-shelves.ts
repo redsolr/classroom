@@ -12,14 +12,14 @@ import { isCardDue } from "@/lib/srs";
  */
 
 /** vocab ids grouped by the book holding them, in the learner's order. */
-export function membersByList(
-  rows: { listId: string; vocabId: string }[],
+export function membersByDeck(
+  rows: { deckId: string; vocabId: string }[],
 ): Map<string, string[]> {
   const byList = new Map<string, string[]>();
   for (const row of rows) {
-    const current = byList.get(row.listId);
+    const current = byList.get(row.deckId);
     if (current) current.push(row.vocabId);
-    else byList.set(row.listId, [row.vocabId]);
+    else byList.set(row.deckId, [row.vocabId]);
   }
   return byList;
 }

@@ -7,13 +7,13 @@ import {
   db,
   studySentences,
   studyVocab,
-  studyVocabListItems,
+  studyDeckItems,
 } from "@/db";
 import { requireLearner } from "@/lib/auth";
 import { hasSingleCloze } from "@/lib/cloze";
 import type { ReviewGrade } from "@/lib/srs";
 import { gradeOwnedCard } from "@/lib/srs-review";
-import { requireOwnVocabList } from "@/lib/study-guards";
+import { requireOwnDeck } from "@/lib/study-guards";
 import { STUDY_LANGUAGES } from "@/lib/study-languages";
 import {
   generateSentenceCards,
@@ -150,7 +150,7 @@ export async function reviewStudySentence(
 
 /** Cram round over the same scope the session was drilling — a practice
  * deck must never silently widen past the book it was opened on. */
-export async function loadStudySentencePracticeDeck(listId?: string | null) {
+export async function loadStudySentencePracticeDeck(deckId?: string | null) {
   const learner = await requireLearner();
   const columns = {
     id: studySentences.id,
@@ -160,15 +160,15 @@ export async function loadStudySentencePracticeDeck(listId?: string | null) {
     note: studySentences.note,
   };
 
-  if (listId) {
-    const list = await requireOwnVocabList(learner.id, listId);
+  if (deckId) {
+    const list = await requireOwnDeck(learner.id, deckId);
     return db
       .select(columns)
       .from(studySentences)
       .where(
         and(
           eq(studySentences.learnerId, learner.id),
-          eq(studySentences.listId, list.id),
+          eq(studySentences.deckId, list.id),
         ),
       )
       .orderBy(sql`random()`)
@@ -196,10 +196,10 @@ const GENERATE_BATCH = 8;
  * it — the same idea as the pack import's dedup.
  */
 export async function generateStudySentences(
-  listId?: string | null,
+  deckId?: string | null,
 ): Promise<{ created: number; skipped: number }> {
   const learner = await requireLearner();
-  const list = listId ? await requireOwnVocabList(learner.id, listId) : null;
+  const list = deckId ? await requireOwnDeck(learner.id, deckId) : null;
 
   // LEFT JOIN + IS NULL rather than a NOT IN subquery: it stays one
   // index-friendly scan as the deck grows.
@@ -218,7 +218,7 @@ export async function generateStudySentences(
         eq(studyVocab.learnerId, learner.id),
         isNull(studySentences.id),
         list
-          ? sql`exists (select 1 from ${studyVocabListItems} where ${studyVocabListItems.vocabId} = ${studyVocab.id} and ${studyVocabListItems.listId} = ${list.id})`
+          ? sql`exists (select 1 from ${studyDeckItems} where ${studyDeckItems.vocabId} = ${studyVocab.id} and ${studyDeckItems.deckId} = ${list.id})`
           : undefined,
       ),
     )
@@ -261,7 +261,7 @@ export async function generateStudySentences(
         translation: card.translation,
         note: card.note,
         vocabId: seed?.id ?? null,
-        listId: list?.id ?? null,
+        deckId: list?.id ?? null,
       };
     });
     await db.insert(studySentences).values(values);

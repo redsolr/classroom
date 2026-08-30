@@ -17,6 +17,11 @@ import {
 } from "@/components/students/profile-sections";
 import { StudentHeader } from "@/components/students/student-header";
 import { ProgressSection } from "@/components/students/progress-section";
+import { AccountabilityCard } from "@/components/students/accountability-card";
+import {
+  accountabilityFor,
+  learnerForStudent,
+} from "@/lib/accountability";
 import { TimelineSection } from "@/components/students/timeline-section";
 import {
   CorrectionsSection,
@@ -239,6 +244,17 @@ export default async function StudentProfilePage({
   const profile = await getStudentProfile(teacher.id, studentId);
   if (!profile) notFound();
 
+  /**
+   * The learner account behind this roster row, if there is one.
+   *
+   * A student the tutor typed in by hand has no self-study evidence, and
+   * that is a normal state rather than an error — the card simply
+   * doesn't render. `learnerForStudent` scopes the lookup to this
+   * teacher's own roster before it goes anywhere near a learner id.
+   */
+  const learnerId = await learnerForStudent(profile.student.id, teacher.id);
+  const between = learnerId ? await accountabilityFor(learnerId) : null;
+
   return (
     <div>
       <StudentHeader student={profile.student} />
@@ -271,7 +287,18 @@ export default async function StudentProfilePage({
         <TabsContent value="timeline" className="pt-5">
           <TimelineSection profile={profile} />
         </TabsContent>
-        <TabsContent value="progress" className="pt-5">
+        <TabsContent value="progress" className="pt-5 space-y-4">
+          {/* BETWEEN lessons comes before DURING them. The model already
+              teaches well; what a person adds is noticing whether the
+              work actually happened. */}
+          {between && (
+            <div className="mx-auto max-w-3xl">
+              <AccountabilityCard
+                window={between}
+                name={profile.student.name}
+              />
+            </div>
+          )}
           <ProgressSection profile={profile} />
         </TabsContent>
         <TabsContent value="lessons" className="pt-5">
