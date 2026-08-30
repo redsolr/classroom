@@ -102,10 +102,28 @@ export function usePanZoom({
     [clampTo, content.height, content.width, fitFloor, focus, focusScale, max, min],
   );
 
+  /**
+   * Whether the camera has framed the content at least once.
+   *
+   * Published because until it has, everything on the canvas is about to
+   * MOVE. Nothing inside this hook needs to know; it exists so a caller
+   * can say "the tree has settled" out loud — the same reason the phone
+   * tab bar publishes its height instead of leaving callers to guess it.
+   *
+   * It is load-bearing for the e2e suite in a way that is easy to
+   * under-rate: a click dispatched while the camera is still framing
+   * lands where the target USED to be, the handler never runs, and
+   * Playwright reports no error because the click itself succeeded. That
+   * failed twice on CI — where this suite runs about six times slower —
+   * and never once locally.
+   */
+  const [framed, setFramed] = React.useState(false);
+
   React.useEffect(() => {
     const el = viewportRef.current;
     if (!el) return;
     frame("auto");
+    setFramed(true);
     const observer = new ResizeObserver(() => {
       if (!touched.current) frame("auto");
     });
@@ -267,6 +285,7 @@ export function usePanZoom({
 
   return {
     viewportRef,
+    framed,
     view,
     handlers,
     zoomAt,

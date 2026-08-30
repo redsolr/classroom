@@ -33,6 +33,12 @@ test.beforeAll(async () => {
 async function gotoPath(page: Page): Promise<void> {
   await page.goto("/path");
   await expect(page.locator(".path-hub")).toHaveCount(3);
+  // And wait for the CAMERA. The hubs existing is not the same as them
+  // having stopped moving: the tree frames itself to the viewport, and a
+  // click fired before that lands where the node used to be. The handler
+  // never runs and Playwright reports nothing, because the click itself
+  // succeeded.
+  await expect(page.locator("[data-framed='true']")).toBeVisible();
 }
 
 test("the tree grows one limb per kind of evidence", async ({ page }) => {

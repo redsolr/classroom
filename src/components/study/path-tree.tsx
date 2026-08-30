@@ -97,7 +97,7 @@ export function PathTree({
     [layout],
   );
 
-  const { viewportRef, handlers, transform, zoomBy, fit, revealPoint } =
+  const { viewportRef, framed, handlers, transform, zoomBy, fit, revealPoint } =
     usePanZoom({
       content: layout,
       fitFloor: FIT_FLOOR,
@@ -121,6 +121,9 @@ export function PathTree({
 
       <div
         ref={viewportRef}
+        // Says out loud that the camera has framed the tree. Until it
+        // has, every node is about to move — see `framed` in usePanZoom.
+        data-framed={framed ? "true" : undefined}
         // Sized to what is LEFT of the window under the page header
         // rather than to a fraction of it: at 74vh the card's own bottom
         // edge sat below the fold on a laptop, so the tree was complete
