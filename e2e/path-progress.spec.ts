@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { resetMockLearner } from "./helpers";
 
 /**
@@ -16,8 +16,27 @@ test.beforeAll(async () => {
   await resetMockLearner();
 });
 
-test("the tree grows one limb per kind of evidence", async ({ page }) => {
+/**
+ * Go to the path and wait for the TREE, not just the document.
+ *
+ * The tree lays itself out and fits to the viewport on mount, so a click
+ * fired the instant navigation resolves can land on a node that is still
+ * moving — the click is swallowed and the panel never opens. It passes
+ * every time on a fast machine and failed twice on CI, where this suite
+ * runs about six times slower, taking nine unrelated study.spec tests
+ * down with it each time (a failure hands the file a fresh worker, whose
+ * `beforeAll` wipes the learner the other specs are mid-way through).
+ *
+ * The three hubs are the tree's own readiness signal — the first test in
+ * this file already asserts them.
+ */
+async function gotoPath(page: Page): Promise<void> {
   await page.goto("/path");
+  await expect(page.locator(".path-hub")).toHaveCount(3);
+}
+
+test("the tree grows one limb per kind of evidence", async ({ page }) => {
+  await gotoPath(page);
 
   await expect(
     page.getByRole("heading", { name: "Learning path" }),
@@ -37,7 +56,7 @@ test("the tree grows one limb per kind of evidence", async ({ page }) => {
 });
 
 test("nothing on the tree is locked", async ({ page }) => {
-  await page.goto("/path");
+  await gotoPath(page);
 
   const nodes = page.locator(".path-node");
   const count = await nodes.count();
@@ -62,7 +81,7 @@ test("nothing on the tree is locked", async ({ page }) => {
 test("opening a node shows what it is made of, and counts nothing it cannot see", async ({
   page,
 }) => {
-  await page.goto("/path");
+  await gotoPath(page);
   await page.locator(".path-node").first().click();
 
   const panel = page.locator(".path-panel");
@@ -90,7 +109,7 @@ test("opening a node shows what it is made of, and counts nothing it cannot see"
 test("a node counts in its own unit, and never in bare percent", async ({
   page,
 }) => {
-  await page.goto("/path");
+  await gotoPath(page);
 
   // Every node wears a rank pill: done over target, no percentage. A
   // bare "60%" of a thing you cannot name is not something anyone can
@@ -118,7 +137,7 @@ test("the node panel is a right-hand sheet on desktop and a bottom sheet on a ph
   const panel = page.locator(".path-panel");
 
   await page.setViewportSize({ width: 1280, height: 800 });
-  await page.goto("/path");
+  await gotoPath(page);
   await page.locator(".path-node").first().click();
   await expect(async () => {
     const box = await panel.boundingBox();
@@ -130,7 +149,7 @@ test("the node panel is a right-hand sheet on desktop and a bottom sheet on a ph
   await page.keyboard.press("Escape");
 
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/path");
+  await gotoPath(page);
   // On a phone the tree opens framed on the learner's next node, so
   // that is the one under the thumb.
   await page.locator('.path-node[data-state="next"]').click();
@@ -145,7 +164,7 @@ test("the node panel is a right-hand sheet on desktop and a bottom sheet on a ph
 test("following a path is a bookmark, and Home then points at it", async ({
   page,
 }) => {
-  await page.goto("/path");
+  await gotoPath(page);
   await page.getByRole("button", { name: "Follow this path" }).click();
   await expect(
     page.getByRole("button", { name: "Stop following" }),
@@ -158,7 +177,7 @@ test("following a path is a bookmark, and Home then points at it", async ({
   await expect(pathCard).toHaveCount(1);
   await expect(pathCard).toContainText("Continue");
 
-  await page.goto("/path");
+  await gotoPath(page);
   await page.getByRole("button", { name: "Stop following" }).click();
   await expect(
     page.getByRole("button", { name: "Follow this path" }),
