@@ -77,6 +77,16 @@ jobs:
       # Curated packs are DB CONTENT, not schema — the packs e2e needs
       # the catalog synced.
       - run: npx tsx scripts/seed-packs.ts
+      # So is the learning-path catalog, and for the same reason. Deploy
+      # already runs both (`vercel-build` = migrate + packs + paths); CI
+      # ran only packs, so `/path` rendered an empty tree and every
+      # path-progress spec failed on `.path-hub` count 0. The damage did
+      # not stop there: that file's `beforeAll` calls `resetMockLearner()`,
+      # and Playwright re-runs `beforeAll` on the fresh worker it takes
+      # after any failure — so each retry wiped the learner study.spec was
+      # working with, and nine specs in another file went red for a reason
+      # that was never in them.
+      - run: npx tsx scripts/seed-paths.ts
       - run: npm run test:e2e
 
   e2e-real-auth:
