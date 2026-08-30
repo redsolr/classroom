@@ -49,9 +49,6 @@ export type NoteBlock = {
   checked?: boolean;
 };
 
-/** Blocks that hold no text — Enter past them makes a paragraph. */
-export const EMPTY_BLOCKS: ReadonlySet<BlockKind> = new Set(["divider"]);
-
 let seq = 0;
 /**
  * Ids are a render concern, not data.
@@ -159,27 +156,46 @@ function lineFor(block: NoteBlock, numberedIndex: number): string {
 }
 
 /**
- * Blocks → markdown.
+ * The number each block SHOWS, for the whole list in one pass.
  *
- * Numbered lists are renumbered from their RUN, not from the document:
- * a list that follows a paragraph starts at 1 again, and dragging an
- * item never leaves a gap in the sequence. The number is presentation
- * derived from position, never something the learner maintains.
+ * Numbered lists count from their RUN, not from the document: a list
+ * that follows a paragraph starts at 1 again, and dragging an item never
+ * leaves a gap. The number is presentation derived from position, never
+ * something the learner maintains.
+ *
+ * ONE definition, because there were three — the serialiser counted a
+ * run inline while the editor and the reader each had their own
+ * `runIndex`. Three answers to "what number is this item" in a feature
+ * whose promise is that the thing on screen IS the thing stored: the
+ * moment they disagree, editing a note silently renumbers it.
+ *
+ * Non-numbered blocks get 0.
  */
-export function toMarkdown(blocks: NoteBlock[]): string {
-  const lines: string[] = [];
+export function numberedPositions(blocks: NoteBlock[]): number[] {
   let run = 0;
+  return blocks.map((block) => {
+    if (block.kind !== "numbered") {
+      run = 0;
+      return 0;
+    }
+    run += 1;
+    return run;
+  });
+}
 
-  for (const block of blocks) {
-    if (block.kind === "numbered") run += 1;
-    else run = 0;
+/** Blocks → markdown. */
+export function toMarkdown(blocks: NoteBlock[]): string {
+  const numbers = numberedPositions(blocks);
+  const lines: string[] = [];
+
+  blocks.forEach((block, i) => {
     // An empty paragraph is a block the learner made and then left
     // blank; it carries no text and would serialise to a blank line
     // that `parseBlocks` then throws away, so drop it here instead of
     // letting the round-trip do it silently.
-    if (block.kind === "paragraph" && block.text.trim() === "") continue;
-    lines.push(lineFor(block, run));
-  }
+    if (block.kind === "paragraph" && block.text.trim() === "") return;
+    lines.push(lineFor(block, numbers[i]));
+  });
 
   return lines.join("\n");
 }

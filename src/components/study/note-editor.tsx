@@ -15,12 +15,14 @@ import { Check, GripVertical, Plus, Trash2 } from "lucide-react";
 import {
   BLOCK_MENU,
   emptyBlock,
+  numberedPositions,
   parseBlocks,
   shortcutFor,
   toMarkdown,
   type BlockKind,
   type NoteBlock,
 } from "@/lib/notes/blocks";
+import { BLOCK_TEXT } from "@/lib/notes/block-styles";
 import { cn } from "@/lib/utils";
 
 /**
@@ -296,6 +298,9 @@ export function NoteBlockEditor({
       ];
     });
 
+  /** One pass for the whole list, not one scan per row. */
+  const numbers = numberedPositions(blocks);
+
   const onDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
@@ -318,10 +323,9 @@ export function NoteBlockEditor({
             <BlockRow
               key={block.id}
               block={block}
-              /* Numbering is derived from the RUN, exactly as the
-                 serialiser derives it — so what you see is what is
-                 stored, and dragging never leaves a gap. */
-              number={runIndex(blocks, index)}
+              /* The SAME function the serialiser uses, so what you see
+                 is literally what is stored. */
+              number={numbers[index]}
               placeholder={index === 0 ? placeholder : undefined}
               menuOpen={menuFor === block.id}
               onOpenMenu={(open) => setMenuFor(open ? block.id : null)}
@@ -350,27 +354,6 @@ export function NoteBlockEditor({
 }
 
 /** Position within the current run of numbered blocks (1-based). */
-function runIndex(blocks: NoteBlock[], index: number): number {
-  let n = 0;
-  for (let i = 0; i <= index; i += 1) {
-    if (blocks[i].kind === "numbered") n += 1;
-    else n = 0;
-  }
-  return n;
-}
-
-const TEXT_STYLES: Record<BlockKind, string> = {
-  paragraph: "text-[0.9375rem] leading-relaxed",
-  heading: "text-[1.25rem] font-semibold leading-snug",
-  subheading: "text-[1.0625rem] font-semibold leading-snug",
-  bullet: "text-[0.9375rem] leading-relaxed",
-  numbered: "text-[0.9375rem] leading-relaxed",
-  todo: "text-[0.9375rem] leading-relaxed",
-  quote: "text-[0.9375rem] leading-relaxed italic text-fg-secondary",
-  code: "font-mono text-[0.875rem] leading-relaxed",
-  divider: "",
-};
-
 function BlockRow({
   block,
   number,
@@ -491,7 +474,7 @@ function BlockRow({
               }}
               className={cn(
                 "w-full resize-none overflow-hidden border-0 bg-transparent p-0 outline-none placeholder:text-fg-tertiary focus:ring-0",
-                TEXT_STYLES[block.kind],
+                BLOCK_TEXT[block.kind],
                 block.kind === "todo" &&
                   block.checked &&
                   "text-fg-tertiary line-through",

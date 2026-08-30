@@ -106,8 +106,3 @@ export async function loadErrorDeck(
     );
 }
 
-/** How many cards the error deck would deal — for the badge. */
-export async function countErrorCards(learnerId: string): Promise<number> {
-  const cards = await loadErrorDeck(learnerId);
-  return cards.length;
-}

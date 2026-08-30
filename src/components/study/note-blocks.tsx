@@ -1,5 +1,10 @@
 import { Check } from "lucide-react";
-import { parseBlocks, type NoteBlock } from "@/lib/notes/blocks";
+import {
+  numberedPositions,
+  parseBlocks,
+  type NoteBlock,
+} from "@/lib/notes/blocks";
+import { BLOCK_TEXT } from "@/lib/notes/block-styles";
 import { cn } from "@/lib/utils";
 
 /**
@@ -28,42 +33,34 @@ export function NoteBlocks({
   className?: string;
 }) {
   const blocks = parseBlocks(content);
+  const numbers = numberedPositions(blocks);
 
   return (
     <div className={cn("note-blocks space-y-1.5", className)}>
       {blocks.map((block, i) => (
-        <BlockView key={i} block={block} number={runIndex(blocks, i)} />
+        <BlockView key={i} block={block} number={numbers[i]} />
       ))}
     </div>
   );
-}
-
-function runIndex(blocks: NoteBlock[], index: number): number {
-  let n = 0;
-  for (let i = 0; i <= index; i += 1) {
-    if (blocks[i].kind === "numbered") n += 1;
-    else n = 0;
-  }
-  return n;
 }
 
 function BlockView({ block, number }: { block: NoteBlock; number: number }) {
   switch (block.kind) {
     case "heading":
       return (
-        <h3 className="text-[1.25rem] font-semibold tracking-tight">
+        <h3 className={cn(BLOCK_TEXT.heading, "tracking-tight")}>
           {block.text}
         </h3>
       );
     case "subheading":
       return (
-        <h4 className="text-[1.0625rem] font-semibold tracking-tight">
+        <h4 className={cn(BLOCK_TEXT.subheading, "tracking-tight")}>
           {block.text}
         </h4>
       );
     case "bullet":
       return (
-        <div className="flex gap-2.5 text-[0.9375rem] leading-relaxed">
+        <div className={cn("flex gap-2.5", BLOCK_TEXT.bullet)}>
           <span
             aria-hidden
             className="mt-[0.55rem] block size-1.5 shrink-0 rounded-full bg-fg-tertiary"
@@ -73,7 +70,7 @@ function BlockView({ block, number }: { block: NoteBlock; number: number }) {
       );
     case "numbered":
       return (
-        <div className="flex gap-2 text-[0.9375rem] leading-relaxed">
+        <div className={cn("flex gap-2", BLOCK_TEXT.numbered)}>
           <span aria-hidden className="shrink-0 tabular-nums text-fg-tertiary">
             {number}.
           </span>
@@ -82,7 +79,7 @@ function BlockView({ block, number }: { block: NoteBlock; number: number }) {
       );
     case "todo":
       return (
-        <div className="flex gap-2.5 text-[0.9375rem] leading-relaxed">
+        <div className={cn("flex gap-2.5", BLOCK_TEXT.todo)}>
           <span
             role="checkbox"
             aria-checked={block.checked ?? false}
@@ -109,13 +106,23 @@ function BlockView({ block, number }: { block: NoteBlock; number: number }) {
       );
     case "quote":
       return (
-        <blockquote className="border-l-2 border-border-strong pl-3 text-[0.9375rem] leading-relaxed whitespace-pre-wrap text-fg-secondary italic">
+        <blockquote
+          className={cn(
+            "border-l-2 border-border-strong pl-3 whitespace-pre-wrap",
+            BLOCK_TEXT.quote,
+          )}
+        >
           {block.text}
         </blockquote>
       );
     case "code":
       return (
-        <pre className="overflow-x-auto rounded-md bg-surface-hover px-3 py-2 font-mono text-[0.875rem] leading-relaxed">
+        <pre
+          className={cn(
+            "overflow-x-auto rounded-md bg-surface-hover px-3 py-2",
+            BLOCK_TEXT.code,
+          )}
+        >
           {block.text}
         </pre>
       );
@@ -123,7 +130,7 @@ function BlockView({ block, number }: { block: NoteBlock; number: number }) {
       return <hr className="my-3 border-border" />;
     default:
       return (
-        <p className="text-[0.9375rem] leading-relaxed whitespace-pre-wrap">
+        <p className={cn(BLOCK_TEXT.paragraph, "whitespace-pre-wrap")}>
           {block.text}
         </p>
       );
