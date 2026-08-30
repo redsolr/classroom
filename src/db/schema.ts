@@ -1465,6 +1465,200 @@ export const studyMemories = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// LIVE LESSONS — the call, and the recording it produces.
+//
+// The call is the input; the learning context is the product. We rent the
+// pipes (Cloudflare RealtimeKit) and own the artifact.
+//
+// Two tables, not one, because they have different lifetimes: a booking has
+// exactly one room that outlives any single connection (a dropped call must
+// rejoin the SAME room, not create a second lesson), while one room can
+// produce several recordings — the spike produced two before anyone
+// intended it to. Collapsing them would make "the recording" ambiguous the
+// first time a call is stopped and restarted.
+// ---------------------------------------------------------------------------
+
+/**
+ * The recording pipeline's states, explicit rather than inferred from which
+ * nullable columns happen to be filled in.
+ *
+ * `ingesting`/`ingested` sit between the provider finishing and any
+ * transcription starting, and they are the reason this enum is not simply
+ * the provider's own status. RealtimeKit keeps track files in ITS bucket
+ * behind presigned URLs that expire after seven days; until we have copied
+ * them into our own R2 and checked the bytes, the artifact is not ours and
+ * the lesson is one outage away from being lost. Nothing downstream may
+ * start before `ingested`.
+ */
+export const lessonRecordingStateEnum = pgEnum("lesson_recording_state", [
+  "awaiting_consent",
+  "recording",
+  "recording_complete",
+  "ingesting",
+  "ingested",
+  "transcription_queued",
+  "transcribing",
+  "transcribed",
+  "extracting",
+  "awaiting_teacher_review",
+  "completed",
+  "failed",
+  "deleted",
+]);
+
+/** Which side of the lesson a track or a consent belongs to. */
+export const lessonCallRoleEnum = pgEnum("lesson_call_role", [
+  "teacher",
+  "learner",
+]);
+
+/**
+ * One room per booking. `bookingId` is UNIQUE: a reconnect must land back
+ * in the room it left, and "the call for this lesson" must never be a
+ * question with two answers.
+ */
+export const lessonCalls = pgTable(
+  "lesson_calls",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    bookingId: uuid("booking_id")
+      .notNull()
+      .references(() => tutorBookings.id, { onDelete: "cascade" }),
+    /** Denormalised from the booking so authorization is one read, and so
+     * a call still names its people if the booking is ever reshaped. */
+    teacherId: uuid("teacher_id")
+      .notNull()
+      .references(() => teachers.id, { onDelete: "cascade" }),
+    learnerId: uuid("learner_id")
+      .notNull()
+      .references(() => learners.id, { onDelete: "cascade" }),
+    /** RealtimeKit's meeting id. */
+    providerMeetingId: text("provider_meeting_id").notNull(),
+    /**
+     * Consent is per person and time-stamped, because "both agreed" is a
+     * claim we may have to stand behind later. Recording may not start
+     * while either is null — enforced in the action, not by a boolean
+     * someone can flip.
+     */
+    teacherConsentAt: timestamp("teacher_consent_at", { withTimezone: true }),
+    learnerConsentAt: timestamp("learner_consent_at", { withTimezone: true }),
+    endedAt: timestamp("ended_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("lesson_calls_booking_idx").on(t.bookingId),
+    index("lesson_calls_teacher_idx").on(t.teacherId),
+    index("lesson_calls_learner_idx").on(t.learnerId),
+  ],
+);
+
+/**
+ * One row per provider recording.
+ *
+ * `expectedTrackCount` exists because of the most dangerous thing the
+ * provider spike found: a track recording whose participant allowlist
+ * matches nobody still reports `UPLOADED`, with a real duration and no
+ * error — and zero files. Status is not evidence that a lesson was
+ * captured. Comparing files received against tracks expected is.
+ */
+export const lessonRecordings = pgTable(
+  "lesson_recordings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    callId: uuid("call_id")
+      .notNull()
+      .references(() => lessonCalls.id, { onDelete: "cascade" }),
+    /** RealtimeKit's recording id — the webhook's only join key. */
+    providerRecordingId: text("provider_recording_id").notNull(),
+    state: lessonRecordingStateEnum("state").notNull().default("recording"),
+    expectedTrackCount: integer("expected_track_count").notNull().default(2),
+    /** When the provider's own copy stops being fetchable. Stored so the
+     * reconciler can find recordings running out of time, rather than
+     * discovering it after they have. */
+    providerExpiresAt: timestamp("provider_expires_at", { withTimezone: true }),
+    durationSeconds: integer("duration_seconds"),
+    failureReason: text("failure_reason"),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    stoppedAt: timestamp("stopped_at", { withTimezone: true }),
+    ingestedAt: timestamp("ingested_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("lesson_recordings_provider_idx").on(t.providerRecordingId),
+    index("lesson_recordings_call_idx").on(t.callId),
+    index("lesson_recordings_state_idx").on(t.state),
+  ],
+);
+
+/**
+ * One row per participant audio track. Separate tracks are the entire
+ * reason to own the call: speaker identity that does not depend on a model
+ * guessing who was talking.
+ *
+ * `sha256` is recorded on ingest and re-checked, so "we copied it" means
+ * the bytes arrived, not that a request returned 200.
+ */
+export const lessonRecordingTracks = pgTable(
+  "lesson_recording_tracks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    recordingId: uuid("recording_id")
+      .notNull()
+      .references(() => lessonRecordings.id, { onDelete: "cascade" }),
+    role: lessonCallRoleEnum("role").notNull(),
+    /** RealtimeKit's participant id — what `user_ids` actually keys on
+     * (NOT our own participant id, which the docs' example resembles). */
+    providerParticipantId: text("provider_participant_id").notNull(),
+    providerFileName: text("provider_file_name").notNull(),
+    /** Key in OUR bucket. Null until ingest succeeds. */
+    storageKey: text("storage_key"),
+    bytes: integer("bytes"),
+    sha256: text("sha256"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("lesson_recording_tracks_file_idx").on(
+      t.recordingId,
+      t.providerFileName,
+    ),
+    index("lesson_recording_tracks_recording_idx").on(t.recordingId),
+  ],
+);
+
+/**
+ * Provider webhook deliveries, keyed on the provider's own delivery id.
+ *
+ * The unique index IS the idempotency: RealtimeKit retries, and a retried
+ * `UPLOADED` must not start a second ingest or create a second transcript.
+ * Insert-first, act-only-if-inserted.
+ */
+export const lessonCallWebhooks = pgTable(
+  "lesson_call_webhooks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    deliveryId: text("delivery_id").notNull(),
+    event: text("event").notNull(),
+    providerRecordingId: text("provider_recording_id"),
+    receivedAt: timestamp("received_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [uniqueIndex("lesson_call_webhooks_delivery_idx").on(t.deliveryId)],
+);
+
+// ---------------------------------------------------------------------------
 // Row types
 // ---------------------------------------------------------------------------
 
@@ -1503,3 +1697,6 @@ export type TutorAvailability = typeof tutorAvailability.$inferSelect;
 export type TutorBooking = typeof tutorBookings.$inferSelect;
 export type TutorSubscription = typeof tutorSubscriptions.$inferSelect;
 export type TutorPayment = typeof tutorPayments.$inferSelect;
+export type LessonCall = typeof lessonCalls.$inferSelect;
+export type LessonRecording = typeof lessonRecordings.$inferSelect;
+export type LessonRecordingTrack = typeof lessonRecordingTracks.$inferSelect;

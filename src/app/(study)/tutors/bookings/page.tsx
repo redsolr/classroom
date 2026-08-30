@@ -100,6 +100,17 @@ export default async function LearnerBookingsPage() {
                       {booking.plan === "recurring" && " · weekly"}
                     </p>
                   </div>
+                  {/* The room is always reachable, not only in the
+                      minutes around the start time. A tutor testing
+                      their camera an hour early is doing the right
+                      thing, and a lesson that starts late is exactly
+                      when a locked door is most expensive. */}
+                  <a
+                    href={`/call/${booking.id}`}
+                    className="rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-hover"
+                  >
+                    Join lesson
+                  </a>
                   {/* Cancelling frees the tutor's calendar and records
                       what happened. It does NOT refund: a pilot with a
                       handful of tutors wants a human deciding that, not

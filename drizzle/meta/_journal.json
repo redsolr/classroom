@@ -148,6 +148,13 @@
       "when": 1788051922058,
       "tag": "0020_legal_rage",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1788067066920,
+      "tag": "0021_amazing_wonder_man",
+      "breakpoints": true
     }
   ]
 }
