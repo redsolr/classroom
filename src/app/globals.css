@@ -601,22 +601,32 @@ body {
  * Dim is "not done yet", never "not allowed": no node is ever disabled,
  * and there is no padlock anywhere in this file.
  * ------------------------------------------------------------------ */
+/* The sky: three limb-coloured washes low down where the limbs actually
+ * are, plus a vignette that pulls the corners back toward the page
+ * ground. The first cut spread the washes across the whole panel and the
+ * result was a brown haze — the neon has to sit on something dark or it
+ * is not neon. */
 .path-tree-sky {
   background:
     radial-gradient(
-      120% 80% at 50% 100%,
-      color-mix(in oklab, var(--accent) 12%, transparent) 0%,
-      transparent 60%
+      90% 55% at 50% 104%,
+      color-mix(in oklab, var(--accent) 16%, transparent) 0%,
+      transparent 64%
     ),
     radial-gradient(
-      70% 50% at 12% 30%,
-      color-mix(in oklab, var(--success) 8%, transparent) 0%,
-      transparent 70%
+      55% 40% at 16% 78%,
+      color-mix(in oklab, var(--success) 12%, transparent) 0%,
+      transparent 72%
     ),
     radial-gradient(
-      70% 50% at 88% 30%,
-      color-mix(in oklab, var(--practice) 8%, transparent) 0%,
-      transparent 70%
+      55% 40% at 84% 78%,
+      color-mix(in oklab, var(--practice) 12%, transparent) 0%,
+      transparent 72%
+    ),
+    radial-gradient(
+      130% 95% at 50% 55%,
+      transparent 38%,
+      color-mix(in oklab, var(--bg) 62%, transparent) 100%
     );
 }
 
@@ -640,21 +650,18 @@ body {
   opacity: 0.95;
 }
 
+/* A node is a SOLID DISC with a glyph in it — filled in its limb's
+ * colour once it is yours, a flat dark puck until then. Outlined rings
+ * were the first cut and they read as thin: the reference gets its
+ * weight from fill, not from stroke. */
 .path-node-disc,
 .path-hub-disc {
   display: grid;
   place-items: center;
   border-radius: 9999px;
-  background: var(--surface);
-  /* Even an untouched node carries a WHISPER of its limb's colour. Pure
-   * grey was honest and unreadable: three limbs of identical grey
-   * circles is a diagram, and the whole point of the tree is that you
-   * can tell at a glance which kind of work a branch is. Dim still means
-   * "not done yet" — the gap between this and a completed node is a
-   * filled disc and a glow, which no one will mistake for the same
-   * state. */
-  border: 2px solid color-mix(in oklab, var(--branch) 22%, var(--border-strong));
-  color: color-mix(in oklab, var(--branch) 30%, var(--text-tertiary));
+  background: var(--surface-hover);
+  border: 2px solid color-mix(in oklab, var(--branch) 20%, var(--border-strong));
+  color: color-mix(in oklab, var(--branch) 26%, var(--text-tertiary));
   transition:
     transform 140ms ease,
     box-shadow 140ms ease,
@@ -662,9 +669,10 @@ body {
     border-color 140ms ease,
     color 140ms ease;
 }
-.path-node-disc {
-  width: 76px;
-  height: 76px;
+/* Node discs size themselves from the layout (keystones are bigger), so
+ * only the shared treatment lives here. */
+.path-node {
+  border-radius: 9999px;
 }
 
 .path-node:hover .path-node-disc,
@@ -684,30 +692,43 @@ body {
 }
 
 .path-node[data-state="complete"] .path-node-disc {
-  background: color-mix(in oklab, var(--branch) 24%, var(--surface));
+  background: var(--branch);
   border-color: var(--branch);
-  color: var(--branch);
-  box-shadow: 0 0 24px color-mix(in oklab, var(--branch) 34%, transparent);
+  color: var(--on-brand);
+  box-shadow: 0 0 26px color-mix(in oklab, var(--branch) 42%, transparent);
 }
 .path-node[data-state="next"] .path-node-disc {
+  background: color-mix(in oklab, var(--branch) 22%, var(--surface-hover));
   border-color: var(--branch);
   color: var(--branch);
   animation: path-node-pulse 2.4s ease-in-out infinite;
 }
 .path-node[data-state="started"] .path-node-disc {
-  border-color: color-mix(in oklab, var(--branch) 55%, var(--border-strong));
-  color: color-mix(in oklab, var(--branch) 70%, var(--text-secondary));
+  background: color-mix(in oklab, var(--branch) 12%, var(--surface-hover));
+  border-color: color-mix(in oklab, var(--branch) 60%, var(--border-strong));
+  color: color-mix(in oklab, var(--branch) 75%, var(--text-secondary));
 }
-/* The LABEL stays readable in every state. Dimming it along with the
- * disc made half the tree unreadable, which turns "you have not done
- * this yet" into "you may not read this" — the exact impression the
- * whole surface is built to avoid. */
-.path-node-label {
-  color: var(--text-secondary);
+
+/* The rank pill — how far through this node you are, in its own unit,
+ * hanging off the bottom edge like the reference's `1/5`. */
+.path-node-pill {
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  color: var(--text-tertiary);
+  line-height: 1.25;
 }
-.path-node[data-state="complete"] .path-node-label,
-.path-node[data-state="next"] .path-node-label {
-  color: var(--text);
+.path-node[data-state="complete"] .path-node-pill,
+.path-node[data-state="next"] .path-node-pill,
+.path-node[data-state="started"] .path-node-pill {
+  border-color: color-mix(in oklab, var(--branch) 70%, transparent);
+  color: var(--branch);
+}
+
+/* The inspector reads out whatever the pointer is on. It sits in the
+ * card's corner rather than floating on the node, because a tip on a
+ * node near the canvas edge gets clipped in half by the panel. */
+.path-tree-inspector {
+  text-shadow: 0 1px 6px var(--bg);
 }
 
 @keyframes path-node-pulse {
@@ -735,22 +756,6 @@ body {
   box-shadow: 0 0 30px color-mix(in oklab, var(--branch) 26%, transparent);
 }
 
-.path-pip {
-  width: 9px;
-  height: 9px;
-  /* Centred on the disc by margin, so the per-pip offset can be a plain
-   * integer translate rather than a calc() with a percentage in it. */
-  margin: -4.5px 0 0 -4.5px;
-  border-radius: 9999px;
-  background: color-mix(in oklab, var(--branch) 22%, var(--border-strong));
-  transition:
-    background 140ms ease,
-    box-shadow 140ms ease;
-}
-.path-pip[data-filled="true"] {
-  background: var(--branch);
-  box-shadow: 0 0 8px color-mix(in oklab, var(--branch) 55%, transparent);
-}
 
 /* Micro-nodes: one square per real item behind a node. Squares, not
  * circles — they read as a set at 18px where circles read as noise. */

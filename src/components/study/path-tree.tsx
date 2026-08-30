@@ -7,7 +7,7 @@ import {
   type TreeBranch,
   type TreeNode,
 } from "@/lib/study-path-tree";
-import { stepUnit } from "@/lib/study-path-steps";
+import { stepKindLabel, stepUnit } from "@/lib/study-path-steps";
 import type { PathStepProgress } from "@/lib/study-progress";
 import { BRANCH_ICON, STEP_ICON } from "@/components/study/path-icons";
 import {
@@ -55,7 +55,7 @@ const MAX_SCALE = 1.6;
  * usable size and let them drag, which is what every game tree does.
  * The fit button is still there for the overview.
  */
-const FIT_FLOOR = 0.62;
+const FIT_FLOOR = 0.45;
 const FOCUS_SCALE = 0.66;
 
 type View = { scale: number; x: number; y: number };
@@ -85,6 +85,17 @@ export function PathTree({
   const viewportRef = React.useRef<HTMLDivElement>(null);
   const [view, setView] = React.useState<View>({ scale: 1, x: 0, y: 0 });
   const [selection, setSelection] = React.useState<TreeSelection | null>(null);
+  /**
+   * The node under the pointer (or under keyboard focus), named in the
+   * card's corner rather than in a tooltip on the node itself. A
+   * floating tip gets CLIPPED by the canvas: a node near the left edge
+   * had half its title cut off by the panel border, and a tip that
+   * escapes the clip needs a portal and screen-space maths for something
+   * the reference solves by putting the readout in a fixed place. It
+   * also gives the "nothing is locked" note somewhere to live between
+   * hovers instead of a permanent corner of prose.
+   */
+  const [inspected, setInspected] = React.useState<TreeNode | null>(null);
 
   /** Once the learner has moved the view, resizes stop re-framing it. */
   const touched = React.useRef(false);
@@ -367,14 +378,14 @@ export function PathTree({
               a button. There is nothing behind it to open — you are
               standing on it. */}
           <div
-            className="path-root absolute flex w-44 flex-col items-center"
+            className="path-root absolute flex w-52 flex-col items-center"
             style={{
               left: layout.root.x,
               top: layout.root.y,
-              transform: "translate(-50%, -34px)",
+              transform: "translate(-50%, -42px)",
             }}
           >
-            <span className="path-root-disc grid size-[68px] place-items-center rounded-full border-2 border-accent bg-surface text-accent">
+            <span className="path-root-disc grid size-[84px] place-items-center rounded-full border-2 border-accent bg-surface text-accent">
               <Route className="size-6" aria-hidden />
             </span>
             <span className="mt-2 text-center text-[0.8125rem] font-semibold">
@@ -401,6 +412,7 @@ export function PathTree({
                     setSelection({ kind: "node", node, spec: branch.spec })
                   }
                   onFocusNode={onNodeFocus}
+                  onInspect={setInspected}
                 />
               ))}
             </React.Fragment>
@@ -413,12 +425,40 @@ export function PathTree({
           transformed canvas cannot have. */}
       <div className="path-tree-fade pointer-events-none absolute inset-x-0 top-0 h-14" />
 
-      <p className="path-tree-note pointer-events-none absolute bottom-3 left-3 max-w-[16rem] text-[0.72rem] text-fg-tertiary">
-        Nothing is locked — every node opens, whether it is next or three
-        ahead. Drag to look around.
-      </p>
+      {/* THE INSPECTOR — what the pointer is on, named in a fixed place.
+          Between hovers it carries the one thing the tree has to say
+          about itself. */}
+      <div className="path-tree-inspector pointer-events-none absolute bottom-3 left-4 hidden max-w-[18rem] sm:block">
+        {inspected ? (
+          <>
+            <p
+              className="text-[0.7rem] font-semibold tracking-[0.14em] uppercase"
+              style={{
+                color:
+                  layout.branches.find((b) => b.spec.key === inspected.branch)
+                    ?.spec.color ?? "var(--text-tertiary)",
+              }}
+            >
+              {stepKindLabel(inspected.step.kind)}
+            </p>
+            <p className="text-[0.95rem] leading-snug font-semibold">
+              {inspected.step.title}
+            </p>
+            <p className="text-[0.78rem] text-fg-tertiary tabular-nums">
+              {Math.min(inspected.step.done, inspected.step.target)} of{" "}
+              {inspected.step.target} {stepUnit(inspected.step.kind)}
+              {inspected.state === "complete" ? " · done" : ""}
+            </p>
+          </>
+        ) : (
+          <p className="text-[0.72rem] text-fg-tertiary">
+            Nothing is locked — every node opens, whether it is next or three
+            ahead. Hover to name one, click to open it, drag to look around.
+          </p>
+        )}
+      </div>
 
-      <div className="path-tree-controls absolute right-3 bottom-3 flex flex-col overflow-hidden rounded-xl bg-surface-raised shadow-card">
+      <div className="path-tree-controls absolute top-3 right-3 flex flex-col overflow-hidden rounded-xl bg-surface-raised shadow-card">
         <button
           type="button"
           className="grid size-9 place-items-center text-fg-secondary transition-colors hover:bg-surface-hover hover:text-fg"
@@ -492,9 +532,11 @@ function TreeLinks({
           // limb. Three identical grey curves is a diagram of a tree
           // rather than a picture of one.
           style={{
-            stroke: `color-mix(in oklab, ${colorOf(link.branch)} 26%, var(--border-strong))`,
+            stroke: `color-mix(in oklab, ${colorOf(link.branch)} 34%, var(--border-strong))`,
           }}
-          strokeWidth={3}
+          // Heavy enough to read as a limb. At 3px against 90px discs
+          // the tree looked like circles connected by hairlines.
+          strokeWidth={5}
           strokeLinecap="round"
         />
       ))}
@@ -507,7 +549,7 @@ function TreeLinks({
             d={link.d}
             fill="none"
             stroke={colorOf(link.branch)}
-            strokeWidth={4}
+            strokeWidth={7}
             strokeLinecap="round"
           />
         ))}
@@ -525,17 +567,21 @@ function HubButton({
   onFocusNode: (point: { x: number; y: number }) => void;
 }) {
   const Icon = BRANCH_ICON[branch.spec.key];
+  // Outward, so the caption always falls away from the trunk: the left
+  // limb reads right-to-left into its own hub, the other two the other
+  // way. The centre limb has no outward side, so it takes the right.
+  const side = branch.spec.lean === -1 ? "left" : "right";
   return (
     <button
       type="button"
-      className="path-hub absolute flex w-52 flex-col items-center"
+      className="path-hub absolute size-[128px]"
       data-branch={branch.spec.key}
       data-state={branch.completeNodes > 0 ? "lit" : "dim"}
       style={
         {
           left: branch.hub.x,
           top: branch.hub.y,
-          transform: "translate(-50%, -52px)",
+          transform: "translate(-50%, -50%)",
           "--branch": branch.spec.color,
         } as React.CSSProperties
       }
@@ -545,20 +591,35 @@ function HubButton({
       }}
       aria-label={`${branch.spec.label} branch — ${branch.done} of ${branch.target} ${branch.spec.unit}`}
     >
-      <span className="path-hub-disc grid size-[104px] place-items-center rounded-full">
-        <Icon className="size-8" aria-hidden />
+      <span className="path-hub-disc grid size-full place-items-center rounded-full">
+        <Icon className="size-11" aria-hidden />
       </span>
+
+      {/* The name and the headline number sit BESIDE the hub, on the
+          outward side. Under it they were centred on the trunk, which
+          runs vertically through that exact spot — the cable went
+          straight through the type. Nothing that reads as a caption may
+          share an axis with a cable. */}
       <span
-        className="mt-2 text-[0.72rem] font-semibold tracking-[0.14em] uppercase"
-        style={{ color: "var(--branch)" }}
+        className={cn(
+          "path-hub-caption absolute top-1/2 flex -translate-y-1/2 flex-col whitespace-nowrap",
+          side === "left"
+            ? "right-full mr-4 items-end text-right"
+            : "left-full ml-4 items-start text-left",
+        )}
       >
-        {branch.spec.label}
-      </span>
-      <span className="text-[1.75rem] leading-none font-bold tabular-nums">
-        {branch.done}
-      </span>
-      <span className="text-[0.72rem] text-fg-tertiary tabular-nums">
-        of {branch.target} {branch.spec.unit}
+        <span
+          className="text-[0.8rem] font-semibold tracking-[0.16em] uppercase"
+          style={{ color: "var(--branch)" }}
+        >
+          {branch.spec.label}
+        </span>
+        <span className="text-[2.5rem] leading-none font-bold tabular-nums">
+          {branch.done}
+        </span>
+        <span className="text-[0.74rem] text-fg-tertiary tabular-nums">
+          of {branch.target} {branch.spec.unit}
+        </span>
       </span>
     </button>
   );
@@ -569,87 +630,70 @@ function NodeButton({
   color,
   onOpen,
   onFocusNode,
+  onInspect,
 }: {
   node: TreeNode;
   color: string;
   onOpen: () => void;
   onFocusNode: (point: { x: number; y: number }) => void;
+  onInspect: (node: TreeNode | null) => void;
 }) {
   const Icon = STEP_ICON[node.step.kind];
   const done = Math.min(node.step.done, node.step.target);
+  const size = node.radius * 2;
   return (
     <button
       type="button"
-      className="path-node absolute flex w-44 flex-col items-center"
+      // A NODE IS A DISC, not a captioned card. Eleven two-line captions
+      // is what made the first cut read as a diagram someone had typed
+      // over: the reference carries an icon and a rank pill and nothing
+      // else, and the title arrives on hover or in the panel. That is
+      // the whole difference between a skill tree and an org chart.
+      className="path-node absolute"
       data-state={node.state}
       data-branch={node.branch}
       style={
         {
           left: node.x,
           top: node.y,
-          transform: "translate(-50%, -38px)",
+          width: size,
+          height: size,
+          transform: `translate(-50%, -50%)`,
           "--branch": color,
         } as React.CSSProperties
       }
       onClick={onOpen}
+      onPointerEnter={() => onInspect(node)}
+      onPointerLeave={() => onInspect(null)}
       onFocus={(event) => {
+        onInspect(node);
         if (event.target.matches(":focus-visible")) onFocusNode(node);
       }}
+      onBlur={() => onInspect(null)}
       aria-label={`${node.step.title} — ${done} of ${node.step.target} ${stepUnit(node.step.kind)}${node.state === "next" ? ", start here" : ""}`}
     >
-      <span className="path-node-halo relative grid place-items-center">
-        {node.state === "next" && (
-          <span className="path-node-chip absolute -top-6 rounded-full bg-accent px-2 py-px text-[0.62rem] font-semibold tracking-wide text-white uppercase">
-            Start here
-          </span>
-        )}
-        <span className="path-node-disc">
-          {node.state === "complete" ? (
-            <Check className="size-7" aria-hidden />
-          ) : (
-            <Icon className="size-6" aria-hidden />
-          )}
+      {node.state === "next" && (
+        <span className="path-node-chip absolute -top-7 left-1/2 -translate-x-1/2 rounded-full bg-accent px-2 py-px text-[0.62rem] font-semibold tracking-wide whitespace-nowrap text-white uppercase">
+          Start here
         </span>
-        <Pips node={node} />
-      </span>
-      <span className="path-node-label mt-2 text-center text-[0.78rem] leading-tight font-semibold">
-        {node.step.title}
-      </span>
-      <span className="path-node-meta text-center text-[0.7rem] text-fg-tertiary tabular-nums">
-        {done} / {node.step.target} {stepUnit(node.step.kind)}
-      </span>
-    </button>
-  );
-}
+      )}
 
-/** The satellites: the step's target cut into equal chunks, arranged on
- * the outer side of the disc so they never sit on the limb coming in. */
-function Pips({ node }: { node: TreeNode }) {
-  const outward = node.branch === "vocabulary" ? -1 : 1;
-  const radius = 50;
-  const count = node.pips.length;
-  return (
-    <span className="path-node-pips pointer-events-none absolute inset-0">
-      {node.pips.map((filled, index) => {
-        const spread = count === 1 ? 0 : -55 + (110 * index) / (count - 1);
-        const angle = (spread * Math.PI) / 180;
-        // Whole pixels, and no `calc()`: the browser re-serialises a
-        // style attribute when React diffs it at hydration, and a
-        // fifteen-decimal offset inside calc() comes back rounded — a
-        // mismatch warning on every pip on the page. The pip centres
-        // itself with a negative margin instead (see globals.css).
-        return (
-          <span
-            key={index}
-            className="path-pip absolute top-1/2 left-1/2"
-            data-filled={filled}
-            title={`${node.pipWorth} ${stepUnit(node.step.kind)}`}
-            style={{
-              transform: `translate(${Math.round(outward * Math.cos(angle) * radius)}px, ${Math.round(Math.sin(angle) * radius)}px)`,
-            }}
-          />
-        );
-      })}
-    </span>
+      <span className="path-node-disc size-full">
+        {node.state === "complete" ? (
+          <Check style={{ width: size * 0.5, height: size * 0.5 }} aria-hidden />
+        ) : (
+          <Icon style={{ width: size * 0.44, height: size * 0.44 }} aria-hidden />
+        )}
+      </span>
+
+      {/* The rank pill, straight off the reference: how far through this
+          node you are, in its own unit, hanging off the bottom edge. It
+          replaced a ring of arc segments that said the same thing less
+          precisely and made every node look like a gauge. */}
+      <span className="path-node-pill absolute -bottom-2.5 left-1/2 -translate-x-1/2 rounded-full px-1.5 text-[0.68rem] font-semibold tabular-nums">
+        {done}/{node.step.target}
+      </span>
+
+    </button>
   );
 }

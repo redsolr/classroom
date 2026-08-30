@@ -110,29 +110,52 @@ export function branchOf(kind: PathStepProgress["kind"]): BranchKey {
 // tested here is what is drawn.
 // ---------------------------------------------------------------------------
 
-export const TREE_WIDTH = 1120;
-/** Circle radius of a step node — the component's CSS uses the same. */
-export const NODE_RADIUS = 38;
-export const HUB_RADIUS = 54;
+/**
+ * The canvas is deliberately WIDE — roughly 16:9 — because the card it
+ * is drawn in is. The first cut was 1120×1040, near square, so on a
+ * monitor it fitted to the card's HEIGHT and left a third of the width
+ * empty on either side: a small tree marooned in a big panel. Limbs
+ * spread instead of stacking now.
+ */
+export const TREE_WIDTH = 1480;
+/**
+ * Two node sizes, the way the reference art does it: the FIRST node on a
+ * limb is a keystone — the foundation the rest of that limb is built on,
+ * and the one we would point a beginner at — and the rest are the same
+ * smaller size. A tree of identical circles has no anchor for the eye to
+ * start from.
+ */
+export const NODE_RADIUS = 32;
+export const KEYSTONE_RADIUS = 44;
+export const HUB_RADIUS = 64;
 
 const CENTER = TREE_WIDTH / 2;
-const BRANCH_SPREAD = 320;
-// These two leave room for the LABELS under the hub and the root, not
-// just their circles: the hub carries a name, a big number and a unit
-// line, and the first cut clipped every one of them off the bottom of
-// the canvas because the constants were measured to the disc.
-const HUB_FROM_BOTTOM = 272;
-const ROOT_FROM_BOTTOM = 112;
+const BRANCH_SPREAD = 440;
+// Room for the trunk to split between the root and the hubs, and for
+// the root's own caption below it. The hubs' captions need no vertical
+// room here: they sit BESIDE their disc, off the trunk.
+const HUB_FROM_BOTTOM = 264;
+const ROOT_FROM_BOTTOM = 104;
 /** Hub → first node. Longer than a tier gap so the hub reads as a base. */
-const FIRST_NODE_GAP = 152;
-/** Tier spacing has to clear a two-line label AND the "start here" chip
- * that sits above the next node's disc — at 138 they collided. */
-const TIER_GAP = 166;
+const FIRST_NODE_GAP = 132;
+/** Tiers pack tightly now that nodes carry an icon and a rank pill
+ * instead of a two-line caption — which is most of why the reference
+ * reads as a tree and the first cut read as a list drawn with curves. */
+const TIER_GAP = 118;
 /** Limbs lean further out as they climb, the way a real branch does. */
-const TIER_DRIFT = 18;
-/** Nodes alternate side to side so a limb reads as grown, not stacked. */
-const ZIGZAG = 44;
-const TOP_MARGIN = 120;
+const TIER_DRIFT = 20;
+/**
+ * The two LANES each limb alternates between. With elbow routing this is
+ * what produces the git-graph look — a cable runs up its lane, steps
+ * across, and carries on up.
+ */
+const ZIGZAG = 78;
+const TOP_MARGIN = 84;
+/** Corner radius where an elbow turns. Big enough to read as a cable
+ * bend, small enough that it never becomes a curve. */
+const BEND = 24;
+/** How far above the root the three limbs peel off the trunk. */
+const TRUNK_SPLIT = 62;
 
 export type NodeState = "complete" | "next" | "started" | "untouched";
 
@@ -144,15 +167,8 @@ export type TreeNode = {
   x: number;
   y: number;
   state: NodeState;
-  /**
-   * The satellites drawn around the circle: the step's target cut into
-   * equal chunks, each lit once the learner has banked it. A node worth
-   * twenty words shows four pips of five, because twenty dots around a
-   * 76px circle is decoration, not information.
-   */
-  pips: boolean[];
-  /** What one pip is worth, in the step's own unit. */
-  pipWorth: number;
+  /** Disc radius: keystones (the first node on a limb) are bigger. */
+  radius: number;
 };
 
 export type TreeBranch = {
@@ -182,24 +198,50 @@ export type PathTreeLayout = {
   links: TreeLink[];
 };
 
-function curve(
+/**
+ * ELBOW ROUTING — straight runs, one horizontal step, rounded corners.
+ * The git-graph shape, and the single biggest reason the reference reads
+ * as a skill tree rather than a mind map.
+ *
+ * The first cut used vertical-tangent cubics. They were smooth and they
+ * were WRONG: every cable had its own personality, so eleven of them
+ * looked like spilled string. An elbow is predictable — up, across, up —
+ * which is what lets a person trace a limb with their eye instead of
+ * following it.
+ */
+function elbow(
   from: { x: number; y: number },
   to: { x: number; y: number },
+  /**
+   * Where the horizontal run happens. Defaults to halfway, which is
+   * right for node-to-node. The TRUNK passes its own: the three limbs
+   * have to split low, just above the root, or the split happens at the
+   * hubs' own height and draws a line straight through them.
+   */
+  junction?: number,
 ): string {
-  // Vertical-tangent cubic: it leaves the lower node going straight up
-  // and arrives at the upper one the same way, so junctions never kink.
-  const bend = (from.y - to.y) * 0.45;
-  return `M ${from.x} ${from.y} C ${from.x} ${from.y - bend}, ${to.x} ${to.y + bend}, ${to.x} ${to.y}`;
-}
+  const dx = to.x - from.x;
+  if (Math.abs(dx) < 2) return `M ${from.x} ${from.y} L ${to.x} ${to.y}`;
 
-function pipsFor(step: PathStepProgress): { pips: boolean[]; worth: number } {
-  const target = Math.max(1, step.target);
-  const count = target <= 6 ? target : 5;
-  const worth = target / count;
-  return {
-    pips: Array.from({ length: count }, (_, i) => step.done >= (i + 1) * worth),
-    worth: Math.round(worth),
-  };
+  const midY = junction ?? (from.y + to.y) / 2;
+  const direction = Math.sign(dx);
+  // Never let a corner eat more than half the run it turns into, or a
+  // short hop draws a bend that overshoots its own endpoint.
+  const bend = Math.min(
+    BEND,
+    Math.abs(dx) / 2,
+    Math.abs(from.y - midY),
+    Math.abs(midY - to.y),
+  );
+
+  return [
+    `M ${from.x} ${from.y}`,
+    `L ${from.x} ${midY + bend}`,
+    `Q ${from.x} ${midY} ${from.x + direction * bend} ${midY}`,
+    `L ${to.x - direction * bend} ${midY}`,
+    `Q ${to.x} ${midY} ${to.x} ${midY - bend}`,
+    `L ${to.x} ${to.y}`,
+  ].join(" ");
 }
 
 function stateOf(
@@ -244,7 +286,6 @@ export function buildPathTree(
       // curving reads as a mistake rather than as growth.
       const drift = spec.lean * Math.min(tier + 1, 4) * TIER_DRIFT;
       const swing = (tier % 2 === 0 ? -ZIGZAG : ZIGZAG) * (spec.lean || 1);
-      const { pips, worth } = pipsFor(step);
       return {
         step,
         branch: spec.key,
@@ -252,8 +293,7 @@ export function buildPathTree(
         x: hub.x + drift + swing,
         y: hubY - FIRST_NODE_GAP - tier * TIER_GAP,
         state: stateOf(step, nextId),
-        pips,
-        pipWorth: worth,
+        radius: tier === 0 ? KEYSTONE_RADIUS : NODE_RADIUS,
       };
     });
 
@@ -276,14 +316,18 @@ export function buildPathTree(
     // lights when anything on that limb is done: the root is where you
     // came from, so it has no "next" of its own to be honest about.
     links.push({
-      d: curve(root, hub),
+      // The trunk splits low — one stem out of the root, three cables
+      // peeling off it just above, exactly the way the reference does
+      // it. Split at the halfway point and the horizontal run lands at
+      // the hubs' own height, drawing a line through all three of them.
+      d: elbow(root, hub, root.y - TRUNK_SPLIT),
       branch: spec.key,
       lit: nodes.some((node) => node.state === "complete"),
     });
     let from: { x: number; y: number } = hub;
     for (const node of nodes) {
       links.push({
-        d: curve(from, node),
+        d: elbow(from, node),
         branch: spec.key,
         lit: node.state === "complete",
       });

@@ -1,10 +1,14 @@
 import { expect, test } from "@playwright/test";
 import {
   BRANCHES,
-  NODE_RADIUS,
+  HUB_RADIUS,
   branchOf,
   buildPathTree,
 } from "../src/lib/study-path-tree";
+
+/** The root's disc, which the layout does not own (it has no state to
+ * carry) — the component draws it at 84px. */
+const ROOT_RADIUS = 42;
 import type { PathStepProgress } from "../src/lib/study-progress";
 
 /**
@@ -81,10 +85,23 @@ test("no two nodes ever overlap, at any path length", () => {
       step((["pack", "sentences", "chat"] as const)[i % 3], 0, 10),
     );
     const tree = buildPathTree(steps);
+    // Every circle with the radius it is actually drawn at: the root,
+    // the three hubs, and each node (keystones are bigger than the rest,
+    // so one shared radius would under-test exactly the biggest ones).
     const points = [
-      tree.root,
-      ...tree.branches.map((branch) => branch.hub),
-      ...tree.branches.flatMap((branch) => branch.nodes),
+      // `margin` is what each circle needs BESIDE it to stay unclipped:
+      // a node only owns its rank pill, a hub carries its name and
+      // headline number off to one side, and the root's caption is
+      // centred under it.
+      { ...tree.root, radius: ROOT_RADIUS, margin: ROOT_RADIUS + 90 },
+      ...tree.branches.map((branch) => ({
+        ...branch.hub,
+        radius: HUB_RADIUS,
+        margin: HUB_RADIUS + 170,
+      })),
+      ...tree.branches.flatMap((branch) =>
+        branch.nodes.map((node) => ({ ...node, margin: node.radius + 10 })),
+      ),
     ];
 
     for (let i = 0; i < points.length; i += 1) {
@@ -93,18 +110,18 @@ test("no two nodes ever overlap, at any path length", () => {
           points[i].x - points[j].x,
           points[i].y - points[j].y,
         );
-        expect(distance).toBeGreaterThan(NODE_RADIUS * 2 + 4);
+        expect(distance).toBeGreaterThan(
+          points[i].radius + points[j].radius + 8,
+        );
       }
     }
 
-    // And everything stays inside the canvas it is drawn on, with room
-    // for the circle AND the label under it (the label box is wider than
-    // the circle, so a node that merely fits is still clipped).
-    const LABEL_HALF = 88;
+    // And every circle stays inside the canvas it is drawn on, with the
+    // room its own caption needs.
     for (const point of points) {
-      expect(point.x).toBeGreaterThan(LABEL_HALF);
-      expect(point.x).toBeLessThan(tree.width - LABEL_HALF);
-      expect(point.y).toBeGreaterThan(NODE_RADIUS);
+      expect(point.x).toBeGreaterThan(point.margin);
+      expect(point.x).toBeLessThan(tree.width - point.margin);
+      expect(point.y).toBeGreaterThan(point.radius);
       expect(point.y).toBeLessThan(tree.height);
     }
   }

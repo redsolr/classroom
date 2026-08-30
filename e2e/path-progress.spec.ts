@@ -87,12 +87,24 @@ test("opening a node shows what it is made of, and counts nothing it cannot see"
   );
 });
 
-test("a fresh learner's nodes read 0 of N, not 0%", async ({ page }) => {
+test("a node counts in its own unit, and never in bare percent", async ({
+  page,
+}) => {
   await page.goto("/path");
-  // The count is the honest sentence: what you've done over what the
-  // step asks for, in the step's own unit. A bare percentage of a thing
-  // you cannot name is not something anyone can act on.
-  await expect(page.getByText(/0 \/ \d+ words known/).first()).toBeVisible();
+
+  // Every node wears a rank pill: done over target, no percentage. A
+  // bare "60%" of a thing you cannot name is not something anyone can
+  // act on.
+  const pill = page.locator(".path-node-pill").first();
+  await expect(pill).toHaveText(/^\d+\/\d+$/);
+
+  // And the unit is one hover away — the inspector names the node the
+  // pointer is on, because a tree cannot carry eleven captions and a
+  // number with no noun is not evidence.
+  await page.locator(".path-node").first().hover();
+  await expect(page.locator(".path-tree-inspector")).toContainText(
+    /\d+ of \d+ words known/,
+  );
 });
 
 test("the node panel is a right-hand sheet on desktop and a bottom sheet on a phone", async ({
