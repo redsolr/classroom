@@ -3,19 +3,20 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { and, desc, eq } from "drizzle-orm";
 import { Play, Trophy } from "lucide-react";
-import { db, studyBooks, studyDeckItems, studyVocab } from "@/db";
+import { db, studyBooks, studyVocab } from "@/db";
 import { requireLearner } from "@/lib/auth";
 import { isCardDue } from "@/lib/srs";
-import { isPlatinum, loadDecks } from "@/lib/study-book-queries";
+import {
+  deckSummaryRows,
+  isPlatinum,
+  loadDecks,
+} from "@/lib/study-book-queries";
 import { deckRunHistory } from "@/lib/deck-runs";
 import { QuickAddVocabDialog } from "@/components/study/quick-add-vocab-dialog";
 import { CollectionHero, PlayAction } from "@/components/study/collection-hero";
 import { DeckRecords } from "@/components/study/deck-records";
 import { BookTile, LikedCover } from "@/components/study/study-covers";
-import {
-  VocabTable,
-  type DeckSummaryRow,
-} from "@/components/study/vocab-table";
+import { VocabTable } from "@/components/study/vocab-table";
 import { AddWordDialogButton } from "@/components/study/vocab-shelf";
 import { Button } from "@/components/ui/button";
 import { BackLink, PageShell } from "@/components/ui/page-header";
@@ -53,44 +54,21 @@ export default async function StudyDeckPage({
   const { deckId } = await params;
   const now = new Date();
 
-  const [items, decks] = await Promise.all([
+  const [items, decks, { rows: summaries }] = await Promise.all([
     db
       .select()
       .from(studyVocab)
       .where(eq(studyVocab.learnerId, learner.id))
       .orderBy(desc(studyVocab.createdAt)),
     loadDecks(learner.id, now),
+    deckSummaryRows(learner.id),
   ]);
-
-  const membership = await db
-    .select({
-      deckId: studyDeckItems.deckId,
-      vocabId: studyDeckItems.vocabId,
-    })
-    .from(studyDeckItems)
-    .innerJoin(studyVocab, eq(studyVocab.id, studyDeckItems.vocabId))
-    .where(eq(studyVocab.learnerId, learner.id))
-    .orderBy(studyDeckItems.deckId, studyDeckItems.position);
-
-  const byDeck = new Map<string, string[]>();
-  for (const row of membership) {
-    const bucket = byDeck.get(row.deckId);
-    if (bucket) bucket.push(row.vocabId);
-    else byDeck.set(row.deckId, [row.vocabId]);
-  }
-
-  const summaries: DeckSummaryRow[] = decks.map((deck) => ({
-    id: deck.id,
-    name: deck.name,
-    pinned: deck.pinned,
-    isDefault: deck.isDefault,
-    itemIds: byDeck.get(deck.id) ?? [],
-  }));
 
   const all = deckId === "all";
   const deck = all ? null : decks.find((d) => d.id === deckId);
   if (!all && !deck) notFound();
 
+  const byDeck = new Map(summaries.map((s) => [s.id, s.itemIds]));
   const byId = new Map(items.map((i) => [i.id, i]));
   const visible = deck
     ? (byDeck.get(deck.id) ?? [])

@@ -1,5 +1,6 @@
 import { and, desc, eq, gte, inArray } from "drizzle-orm";
 import { db, studyDeckItems, studyReviews, studyVocab } from "@/db";
+import { wordCardColumns } from "@/lib/study-decks";
 
 /**
  * THE ERROR DECK — only the ones you got wrong.
@@ -80,21 +81,12 @@ export async function loadErrorDeck(
     .slice(0, MAX_ERROR_CARDS);
   if (failing.length === 0) return [];
 
-  const columns = {
-    id: studyVocab.id,
-    language: studyVocab.language,
-    term: studyVocab.term,
-    reading: studyVocab.reading,
-    meaning: studyVocab.meaning,
-    example: studyVocab.example,
-  };
-
   // Scoped to the learner AGAIN on the read, not only via the review
   // rows: ownership belongs in the query that returns the content, so a
   // bug upstream can never become someone else's words on the screen.
   if (deckId) {
     return db
-      .select(columns)
+      .select(wordCardColumns)
       .from(studyVocab)
       .innerJoin(studyDeckItems, eq(studyDeckItems.vocabId, studyVocab.id))
       .where(
@@ -107,7 +99,7 @@ export async function loadErrorDeck(
   }
 
   return db
-    .select(columns)
+    .select(wordCardColumns)
     .from(studyVocab)
     .where(
       and(eq(studyVocab.learnerId, learnerId), inArray(studyVocab.id, failing)),

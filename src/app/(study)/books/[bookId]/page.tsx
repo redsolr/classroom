@@ -16,7 +16,7 @@ import { BookMenu } from "@/components/study/book-menu";
 import { BookShareCard } from "@/components/study/book-share-card";
 import { BookTile } from "@/components/study/study-covers";
 import { CollectionHero, PlayAction } from "@/components/study/collection-hero";
-import { NewDeckInBookDialog } from "@/components/study/new-deck-dialog";
+import { NewDeckDialog } from "@/components/study/new-deck-dialog";
 import { SubmitButton } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { BackLink, Card, CardHeader, PageShell } from "@/components/ui/page-header";
@@ -122,7 +122,7 @@ export default async function StudyBookPage({
               </span>
             }
             actions={
-              <NewDeckInBookDialog bookId={book.id}>
+              <NewDeckDialog bookId={book.id}>
                 <button
                   type="button"
                   className="flex items-center gap-1.5 text-[0.875rem] text-fg-secondary transition-colors hover:text-fg"
@@ -130,7 +130,7 @@ export default async function StudyBookPage({
                   <Plus className="size-3.5" />
                   New deck
                 </button>
-              </NewDeckInBookDialog>
+              </NewDeckDialog>
             }
           />
           {book.decks.length === 0 ? (

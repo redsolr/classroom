@@ -1,7 +1,6 @@
 "use server";
 
 import { and, eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import {
@@ -14,7 +13,7 @@ import {
 } from "@/db";
 import { requireLearner } from "@/lib/auth";
 import { requireOwnBook, requireOwnDeck } from "@/lib/study-guards";
-import { revalidateStudyTree } from "@/lib/study-revalidate";
+import { revalidateBook, revalidateDeck } from "@/lib/study-revalidate";
 import { generateAccessToken } from "@/lib/tokens";
 
 /**
@@ -71,9 +70,7 @@ export async function createStudyBook(formData: FormData): Promise<{
     })
     .returning({ id: studyBooks.id });
 
-  revalidateStudyTree();
-  revalidatePath("/books");
-  revalidatePath("/reading");
+  revalidateBook();
   return { id: book.id };
 }
 
@@ -89,9 +86,7 @@ export async function renameStudyBook(
     .set({ title: titleSchema.parse(title), updatedAt: new Date() })
     .where(eq(studyBooks.id, book.id));
 
-  revalidateStudyTree();
-  revalidatePath("/books");
-  revalidatePath(`/books/${book.id}`);
+  revalidateBook(book.id);
 }
 
 export async function updateStudyBookDetails(
@@ -123,8 +118,7 @@ export async function updateStudyBookDetails(
     })
     .where(eq(studyBooks.id, book.id));
 
-  revalidateStudyTree();
-  revalidatePath(`/books/${book.id}`);
+  revalidateBook(book.id);
 }
 
 export async function toggleStudyBookPin(bookId: string): Promise<void> {
@@ -136,8 +130,7 @@ export async function toggleStudyBookPin(bookId: string): Promise<void> {
     .set({ pinned: !book.pinned, updatedAt: new Date() })
     .where(eq(studyBooks.id, book.id));
 
-  revalidateStudyTree();
-  revalidatePath("/books");
+  revalidateBook(book.id);
 }
 
 /**
@@ -156,9 +149,7 @@ export async function toggleStudyBookRead(bookId: string): Promise<void> {
     .set({ readAt: book.readAt ? null : new Date(), updatedAt: new Date() })
     .where(eq(studyBooks.id, book.id));
 
-  revalidatePath("/books");
-  revalidatePath("/reading");
-  revalidatePath(`/books/${book.id}`);
+  revalidateBook(book.id);
 }
 
 /**
@@ -175,9 +166,7 @@ export async function deleteStudyBook(bookId: string): Promise<void> {
 
   await db.delete(studyBooks).where(eq(studyBooks.id, book.id));
 
-  revalidateStudyTree();
-  revalidatePath("/books");
-  revalidatePath("/reading");
+  revalidateBook(book.id);
   // ONE destination, whichever surface deleted it. The page the caller
   // was on no longer exists, so leaving is not optional — and the books
   // shelf is where a deleted book's siblings are, including the reading
@@ -214,7 +203,7 @@ export async function shareStudyBook(bookId: string): Promise<{
     .set({ shareToken: token, updatedAt: new Date() })
     .where(eq(studyBooks.id, book.id));
 
-  revalidatePath(`/books/${book.id}`);
+  revalidateBook(book.id);
   return { token };
 }
 
@@ -227,7 +216,7 @@ export async function unshareStudyBook(bookId: string): Promise<void> {
     .set({ shareToken: null, updatedAt: new Date() })
     .where(eq(studyBooks.id, book.id));
 
-  revalidatePath(`/books/${book.id}`);
+  revalidateBook(book.id);
 }
 
 /**
@@ -320,8 +309,9 @@ export async function copySharedBook(token: string): Promise<{ id: string }> {
     );
   }
 
-  revalidateStudyTree();
-  revalidatePath("/books");
+  // A copy brings decks with it, so both entities moved.
+  revalidateBook(copy.id);
+  revalidateDeck();
   return { id: copy.id };
 }
 
@@ -343,9 +333,10 @@ export async function moveDeckToBook(
     .set({ bookId: book?.id ?? null, updatedAt: new Date() })
     .where(eq(studyDecks.id, deck.id));
 
-  revalidateStudyTree();
-  revalidatePath("/books");
-  revalidatePath("/decks");
+  // Both ends move: the book gains or loses a deck, and the deck's own
+  // page carries the book it is filed in.
+  revalidateBook(book?.id);
+  revalidateDeck(deck.id);
 }
 
 /** Attach a loose note to a book, or free it. */
@@ -364,6 +355,5 @@ export async function moveNoteToBook(
     .returning({ id: studyNotes.id });
   if (updated.length === 0) throw new Error("Note not found");
 
-  revalidatePath("/notes");
-  revalidatePath("/books");
+  revalidateBook(book?.id);
 }

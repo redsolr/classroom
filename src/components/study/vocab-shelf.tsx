@@ -8,14 +8,12 @@ import {
   Pencil,
   Pin,
   PinOff,
-  Plus,
   Sparkles,
   Star,
   StarOff,
   Trash2,
 } from "lucide-react";
 import {
-  createStudyDeck,
   deleteStudyDeck,
   renameStudyDeck,
   setDefaultStudyDeck,
@@ -23,7 +21,6 @@ import {
 } from "@/lib/actions/decks";
 import { addStudyVocab } from "@/lib/actions/vocab";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import {
   Dropdown,
   DropdownContent,
@@ -31,8 +28,8 @@ import {
   DropdownSeparator,
   DropdownTrigger,
 } from "@/components/ui/dropdown";
-import { Input } from "@/components/ui/field";
 import { InlineRenameInput } from "@/components/ui/inline-rename-input";
+import { NewDeckDialog } from "@/components/study/new-deck-dialog";
 import { WordFormDialog } from "@/components/study/word-form-dialog";
 import { BookTile, LikedCover } from "@/components/study/study-covers";
 import type { DeckSummaryRow } from "@/components/study/vocab-table";
@@ -63,62 +60,16 @@ export function AddWordDialogButton() {
 }
 
 /**
- * A new, empty DECK — it always was one; it just said "book" back when
- * decks were called books. Two controls on the same page saying "New
- * book" while one makes a deck is the exact confusion the merge exists
- * to end (and it made the label ambiguous to a screen reader too).
+ * One deck: open it, or manage it from the ⋯ menu.
+ *
+ * The user-visible strings here still say "book" — "Make default book",
+ * "Delete book", the ⋯ tooltip. That is a RECORDED residual of the
+ * 2026-08-30 merge (see `FEATURES.md`), not an oversight: these controls
+ * belong to the `/books` page queued for a redesign, and renaming labels
+ * on a page about to be reconsidered whole is churn. The code says deck,
+ * because a deck is what the row is.
  */
-function NewDeckDialog() {
-  const router = useRouter();
-  const [open, setOpen] = React.useState(false);
-  const [pending, startTransition] = React.useTransition();
-
-  const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const name = String(new FormData(e.currentTarget).get("name") ?? "").trim();
-    if (!name) return;
-    startTransition(async () => {
-      try {
-        const { id } = await createStudyDeck(name, []);
-        setOpen(false);
-        router.push(`/decks/${id}`);
-      } catch (err) {
-        console.error("vocab: failed to create deck", err);
-      }
-    });
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button>
-          <Plus className="size-3.5" />
-          New deck
-        </Button>
-      </DialogTrigger>
-      <DialogContent
-        title="New deck"
-        description="A list of words you can drill — pin it to the sidebar for one-tap access, or file it into a book."
-      >
-        <form onSubmit={onSubmit} className="flex items-center gap-2">
-          <Input
-            name="name"
-            required
-            autoFocus
-            maxLength={80}
-            placeholder="FF7 vocab · Travel phrases · …"
-            aria-label="Deck name"
-          />
-          <Button type="submit" variant="primary" loading={pending}>
-            Create
-          </Button>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function BookRow({ list }: { list: DeckSummaryRow }) {
+function DeckRow({ deck }: { deck: DeckSummaryRow }) {
   const router = useRouter();
   const [renaming, setRenaming] = React.useState(false);
   const [pending, startTransition] = React.useTransition();
@@ -126,38 +77,38 @@ function BookRow({ list }: { list: DeckSummaryRow }) {
   const commitRename = (name: string) => {
     startTransition(async () => {
       try {
-        await renameStudyDeck(list.id, name);
+        await renameStudyDeck(deck.id, name);
       } catch (err) {
-        console.error("vocab: failed to rename book", err);
+        console.error("vocab: failed to rename deck", err);
       }
     });
   };
 
   return (
     <li className="book-row group flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-surface-hover sm:px-4">
-      <BookTile name={list.name} className="w-11 shrink-0" />
+      <BookTile name={deck.name} className="w-11 shrink-0" />
       {renaming ? (
         <InlineRenameInput
-          initialValue={list.name}
-          ariaLabel="Rename book"
+          initialValue={deck.name}
+          ariaLabel="Rename deck"
           onCommit={commitRename}
           onClose={() => setRenaming(false)}
           className="min-w-0 flex-1 text-[0.9375rem]"
         />
       ) : (
         <Link
-          href={`/decks/${list.id}`}
+          href={`/decks/${deck.id}`}
           className="min-w-0 flex-1"
         >
           <span className="block truncate text-[0.9375rem] font-medium">
-            {list.name}
-            {list.pinned && (
+            {deck.name}
+            {deck.pinned && (
               <Pin className="ml-1.5 inline size-3 text-fg-tertiary" />
             )}
           </span>
           <span className="text-[0.8125rem] text-fg-tertiary">
-            {list.itemIds.length} word{list.itemIds.length === 1 ? "" : "s"}
-            {list.isDefault && (
+            {deck.itemIds.length} word{deck.itemIds.length === 1 ? "" : "s"}
+            {deck.isDefault && (
               <span className="ml-2 rounded-full bg-accent-soft px-1.5 py-0.5 text-[0.6875rem] font-semibold text-accent-text">
                 Default
               </span>
@@ -169,7 +120,7 @@ function BookRow({ list }: { list: DeckSummaryRow }) {
         <DropdownTrigger asChild>
           <button
             type="button"
-            aria-label={`${list.name} options`}
+            aria-label={`${deck.name} options`}
             title="Book options"
             className="flex size-7 shrink-0 items-center justify-center rounded-md text-fg-tertiary opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 hover:text-fg max-lg:opacity-100 data-[state=open]:opacity-100 data-[state=open]:text-fg"
           >
@@ -185,40 +136,40 @@ function BookRow({ list }: { list: DeckSummaryRow }) {
             onSelect={() => {
               startTransition(async () => {
                 try {
-                  await setDefaultStudyDeck(list.id, !list.isDefault);
+                  await setDefaultStudyDeck(deck.id, !deck.isDefault);
                   router.refresh();
                 } catch (err) {
-                  console.error("vocab: failed to set default book", err);
+                  console.error("vocab: failed to set default deck", err);
                 }
               });
             }}
           >
-            {list.isDefault ? (
+            {deck.isDefault ? (
               <StarOff className="size-4 text-fg-tertiary" />
             ) : (
               <Star className="size-4 text-fg-tertiary" />
             )}
-            {list.isDefault ? "Clear default book" : "Make default book"}
+            {deck.isDefault ? "Clear default book" : "Make default book"}
           </DropdownItem>
           <DropdownItem
             disabled={pending}
             onSelect={() => {
               startTransition(async () => {
                 try {
-                  await toggleStudyDeckPin(list.id);
+                  await toggleStudyDeckPin(deck.id);
                   router.refresh();
                 } catch (err) {
-                  console.error("vocab: failed to toggle book pin", err);
+                  console.error("vocab: failed to toggle deck pin", err);
                 }
               });
             }}
           >
-            {list.pinned ? (
+            {deck.pinned ? (
               <PinOff className="size-4 text-fg-tertiary" />
             ) : (
               <Pin className="size-4 text-fg-tertiary" />
             )}
-            {list.pinned ? "Unpin from sidebar" : "Pin to sidebar"}
+            {deck.pinned ? "Unpin from sidebar" : "Pin to sidebar"}
           </DropdownItem>
           <DropdownItem disabled={pending} onSelect={() => setRenaming(true)}>
             <Pencil className="size-4 text-fg-tertiary" />
@@ -231,15 +182,15 @@ function BookRow({ list }: { list: DeckSummaryRow }) {
             onSelect={() => {
               if (
                 !window.confirm(
-                  `Delete “${list.name}”? Its words stay in your vocabulary.`,
+                  `Delete “${deck.name}”? Its words stay in your vocabulary.`,
                 )
               )
                 return;
               startTransition(async () => {
                 try {
-                  await deleteStudyDeck(list.id);
+                  await deleteStudyDeck(deck.id);
                 } catch (err) {
-                  console.error("vocab: failed to delete book", err);
+                  console.error("vocab: failed to delete deck", err);
                 }
               });
             }}
@@ -254,10 +205,10 @@ function BookRow({ list }: { list: DeckSummaryRow }) {
 }
 
 export function VocabShelf({
-  lists,
+  decks,
   totalWords,
 }: {
-  lists: DeckSummaryRow[];
+  decks: DeckSummaryRow[];
   totalWords: number;
 }) {
   return (
@@ -297,12 +248,12 @@ export function VocabShelf({
             </span>
           </Link>
         </li>
-        {lists.map((list) => (
-          <BookRow key={list.id} list={list} />
+        {decks.map((deck) => (
+          <DeckRow key={deck.id} deck={deck} />
         ))}
       </ul>
 
-      {lists.length === 0 && (
+      {decks.length === 0 && (
         <p className="mt-3 text-[0.875rem] text-fg-tertiary">
           No books yet — create one, save a filtered view as a book, or
           import an official one.

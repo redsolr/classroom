@@ -1,10 +1,10 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db, studyBooks, studyNotes } from "@/db";
 import { requireLearner } from "@/lib/auth";
+import { revalidateBook } from "@/lib/study-revalidate";
 
 /**
  * NOTES — atomic "what I learned" entries, filed under a book or loose.
@@ -21,17 +21,11 @@ import { requireLearner } from "@/lib/auth";
  * these actions are the UI's hands on it.
  */
 
-/** A note shows on the book page, the Notes tab and the shelf's counts —
- * a mutation has to refresh all three. */
-function revalidateNotes(bookId?: string | null) {
-  revalidatePath("/reading");
-  revalidatePath("/notes");
-  revalidatePath("/books");
-  if (bookId) {
-    revalidatePath(`/reading/${bookId}`);
-    revalidatePath(`/books/${bookId}`);
-  }
-}
+/**
+ * A note shows on the book page, the Notes tab and the shelf's counts,
+ * which is exactly the set `revalidateBook` already owns — this file
+ * kept its own third copy of that list until 2026-08-30.
+ */
 
 const noteContentSchema = z.string().trim().min(1).max(4000);
 
@@ -59,7 +53,7 @@ export async function createStudyNote(input: {
     content,
   });
 
-  revalidateNotes(bookId);
+  revalidateBook(bookId);
 }
 
 export async function updateStudyNote(noteId: string, content: string) {
@@ -74,7 +68,7 @@ export async function updateStudyNote(noteId: string, content: string) {
     .returning({ bookId: studyNotes.bookId });
   if (updated.length === 0) throw new Error("Note not found");
 
-  revalidateNotes(updated[0].bookId);
+  revalidateBook(updated[0].bookId);
 }
 
 export async function deleteStudyNote(noteId: string) {
@@ -86,5 +80,5 @@ export async function deleteStudyNote(noteId: string) {
     .where(and(eq(studyNotes.id, id), eq(studyNotes.learnerId, learner.id)))
     .returning({ bookId: studyNotes.bookId });
 
-  if (deleted.length > 0) revalidateNotes(deleted[0].bookId);
+  if (deleted.length > 0) revalidateBook(deleted[0].bookId);
 }

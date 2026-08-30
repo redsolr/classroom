@@ -3,15 +3,14 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { asc, eq, sql } from "drizzle-orm";
 import { BookOpen, Layers, Plus } from "lucide-react";
-import { db, studyDeckItems, studyPackItems, studyPacks, studyVocab } from "@/db";
+import { db, studyPackItems, studyPacks } from "@/db";
 import { requireLearner } from "@/lib/auth";
-import { loadBooks, loadDecks } from "@/lib/study-book-queries";
+import { deckSummaryRows, loadBooks } from "@/lib/study-book-queries";
 import { NewBookDialog } from "@/components/study/new-book-dialog";
 import { OfficialShelf } from "@/components/study/official-shelf";
 import { Shelf, ShelfCard } from "@/components/study/shelf";
 import { BookTile, LikedCover } from "@/components/study/study-covers";
 import { VocabShelf } from "@/components/study/vocab-shelf";
-import type { DeckSummaryRow } from "@/components/study/vocab-table";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader, PageShell } from "@/components/ui/page-header";
 
@@ -47,50 +46,23 @@ export default async function StudyBooksPage({
    */
   if (book) redirect(`/decks/${book}`);
 
-  const [books, decks, membership, officialRows] = await Promise.all([
-    loadBooks(learner.id),
-    loadDecks(learner.id),
-    db
-      .select({
-        deckId: studyDeckItems.deckId,
-        vocabId: studyDeckItems.vocabId,
-      })
-      .from(studyDeckItems)
-      .innerJoin(studyVocab, eq(studyVocab.id, studyDeckItems.vocabId))
-      .where(eq(studyVocab.learnerId, learner.id))
-      .orderBy(studyDeckItems.deckId, studyDeckItems.position),
-    db
-      .select({
-        id: studyPacks.id,
-        slug: studyPacks.slug,
-        name: studyPacks.name,
-        language: studyPacks.language,
-        itemCount: sql<number>`count(${studyPackItems.id})::int`,
-      })
-      .from(studyPacks)
-      .leftJoin(studyPackItems, eq(studyPackItems.packId, studyPacks.id))
-      .groupBy(studyPacks.id)
-      .orderBy(asc(studyPacks.name)),
-  ]);
-
-  const byDeck = new Map<string, string[]>();
-  for (const row of membership) {
-    const bucket = byDeck.get(row.deckId);
-    if (bucket) bucket.push(row.vocabId);
-    else byDeck.set(row.deckId, [row.vocabId]);
-  }
-
-  const deckRows: DeckSummaryRow[] = decks.map((deck) => ({
-    id: deck.id,
-    name: deck.name,
-    pinned: deck.pinned,
-    isDefault: deck.isDefault,
-    itemIds: byDeck.get(deck.id) ?? [],
-  }));
-
-  // Every word once, however many decks file it — the liked layer is a
-  // set, and summing deck sizes would count a word in two decks twice.
-  const totalWords = new Set(membership.map((m) => m.vocabId)).size;
+  const [books, { rows: deckRows, totalWords }, officialRows] =
+    await Promise.all([
+      loadBooks(learner.id),
+      deckSummaryRows(learner.id),
+      db
+        .select({
+          id: studyPacks.id,
+          slug: studyPacks.slug,
+          name: studyPacks.name,
+          language: studyPacks.language,
+          itemCount: sql<number>`count(${studyPackItems.id})::int`,
+        })
+        .from(studyPacks)
+        .leftJoin(studyPackItems, eq(studyPackItems.packId, studyPacks.id))
+        .groupBy(studyPacks.id)
+        .orderBy(asc(studyPacks.name)),
+    ]);
 
   return (
     <PageShell width="wide">
@@ -148,10 +120,10 @@ export default async function StudyBooksPage({
           <h2 className="mb-3 text-[1.5rem] font-bold tracking-tight">
             Your decks
           </h2>
-          <VocabShelf lists={deckRows} totalWords={totalWords} />
+          <VocabShelf decks={deckRows} totalWords={totalWords} />
         </section>
 
-        {books.length === 0 && decks.length === 0 && (
+        {books.length === 0 && deckRows.length === 0 && (
           <EmptyState
             icon={<BookOpen />}
             title="No books yet"

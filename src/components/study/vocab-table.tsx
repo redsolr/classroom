@@ -55,15 +55,15 @@ import { Input, Select } from "@/components/ui/field";
 import { WordFormDialog } from "@/components/study/word-form-dialog";
 import { cn } from "@/lib/utils";
 
-/** A book with its member ids in the learner's manual order. */
-export type DeckSummaryRow = {
-  id: string;
-  name: string;
-  pinned: boolean;
-  /** The book one-tap saves file into, on top of joining the vocabulary. */
-  isDefault: boolean;
-  itemIds: string[];
-};
+/**
+ * A deck with its member ids in the learner's manual order.
+ *
+ * Re-exported, not declared: it is the shape `deckSummaryRows()` returns,
+ * and the query is what decides it. Every consumer already imports it
+ * from here, so the alias stays.
+ */
+import type { DeckSummaryRow } from "@/lib/study-book-queries";
+export type { DeckSummaryRow };
 
 /**
  * The vocabulary table — compact, Attio-style, ONE layout for every

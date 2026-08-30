@@ -15,6 +15,7 @@ import {
 import { requireLearner } from "@/lib/auth";
 import { loadErrorDeck } from "@/lib/error-deck";
 import { isCardDue } from "@/lib/srs";
+import { wordCardColumns } from "@/lib/study-decks";
 import { dueIds, membersByDeck } from "@/lib/study-shelves";
 import {
   DeckShelf,
@@ -430,19 +431,10 @@ export default async function StudyReviewPage({
     isNull(studyVocab.srsDueAt),
     lte(studyVocab.srsDueAt, new Date()),
   );
-  const deckColumns = {
-    id: studyVocab.id,
-    language: studyVocab.language,
-    term: studyVocab.term,
-    reading: studyVocab.reading,
-    meaning: studyVocab.meaning,
-    example: studyVocab.example,
-  };
-
   // Never-reviewed cards first (srsDueAt null), then most-overdue.
   const deckQuery = list
     ? db
-        .select(deckColumns)
+        .select(wordCardColumns)
         .from(studyVocab)
         .innerJoin(
           studyDeckItems,
@@ -458,7 +450,7 @@ export default async function StudyReviewPage({
         .orderBy(sql`${studyVocab.srsDueAt} asc nulls first`)
         .limit(50)
     : db
-        .select(deckColumns)
+        .select(wordCardColumns)
         .from(studyVocab)
         .where(and(eq(studyVocab.learnerId, learner.id), due))
         .orderBy(sql`${studyVocab.srsDueAt} asc nulls first`)

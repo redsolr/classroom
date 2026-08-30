@@ -10,6 +10,7 @@ import {
   type StudyDeck,
 } from "@/db";
 import { isCardDue } from "@/lib/srs";
+import { membersByDeck } from "@/lib/study-shelves";
 
 /**
  * Reading books and the decks inside them.
@@ -19,6 +20,24 @@ import { isCardDue } from "@/lib/srs";
  * shelf, the book page and the sidebar — and three inline versions is
  * three chances for the count to mean subtly different things.
  */
+
+/**
+ * What the vocab table needs to know about every deck: enough to offer
+ * "file this word into…" and to say which decks already hold it.
+ *
+ * Declared HERE rather than on the component that consumes it, because
+ * it is the shape of a query result — a server module importing a type
+ * out of a `"use client"` file to describe its own return value has the
+ * dependency the wrong way round.
+ */
+export type DeckSummaryRow = {
+  id: string;
+  name: string;
+  pinned: boolean;
+  isDefault: boolean;
+  /** Member vocab ids, in the learner's manual order. */
+  itemIds: string[];
+};
 
 export type DeckSummary = StudyDeck & {
   wordCount: number;
@@ -130,6 +149,54 @@ export async function loadBooks(
       dueCount: own.reduce((sum, d) => sum + d.dueCount, 0),
     };
   });
+}
+
+/**
+ * Every deck as the vocab table wants it, plus the size of the liked
+ * layer — the two things `/books` and `/decks/<id>` both need before
+ * they can draw a word table.
+ *
+ * Both pages ran this same query and rebuilt the same map inline, and
+ * `/decks/<id>` did it in a second round-trip after its first await. One
+ * function, one round-trip, one answer to "which words are in which
+ * deck" — which is the question `membersByDeck` was extracted for in the
+ * first place and which both callers had quietly re-implemented.
+ */
+export async function deckSummaryRows(learnerId: string): Promise<{
+  rows: DeckSummaryRow[];
+  /** Distinct words the learner has saved, however many decks file them. */
+  totalWords: number;
+}> {
+  const [decks, membership] = await Promise.all([
+    db
+      .select()
+      .from(studyDecks)
+      .where(eq(studyDecks.learnerId, learnerId))
+      .orderBy(studyDecks.createdAt),
+    db
+      .select({
+        deckId: studyDeckItems.deckId,
+        vocabId: studyDeckItems.vocabId,
+      })
+      .from(studyDeckItems)
+      .innerJoin(studyVocab, eq(studyVocab.id, studyDeckItems.vocabId))
+      .where(eq(studyVocab.learnerId, learnerId))
+      .orderBy(studyDeckItems.deckId, studyDeckItems.position),
+  ]);
+
+  const members = membersByDeck(membership);
+  return {
+    rows: decks.map((deck) => ({
+      id: deck.id,
+      name: deck.name,
+      pinned: deck.pinned,
+      isDefault: deck.isDefault,
+      itemIds: members.get(deck.id) ?? [],
+    })),
+    // A SET, because summing deck sizes counts a word filed in two decks
+    // twice — the liked layer is a set, not a total.
+    totalWords: new Set(membership.map((m) => m.vocabId)).size,
+  };
 }
 
 /** Decks with no book — still legal, and they need somewhere to appear. */
