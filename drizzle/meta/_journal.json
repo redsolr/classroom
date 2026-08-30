@@ -155,6 +155,20 @@
       "when": 1788067066920,
       "tag": "0021_amazing_wonder_man",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1788069074547,
+      "tag": "0022_drop_call_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1788069090456,
+      "tag": "0023_lesson_calls",
+      "breakpoints": true
     }
   ]
 }

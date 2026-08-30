@@ -1,13 +1,11 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { db, teachers } from "@/db";
-import { eq } from "drizzle-orm";
 import { requireLearner } from "@/lib/auth";
 import {
-  bookingLearner,
   bothConsented,
   ensureCall,
   requireCallParticipant,
+  selfConsentAt,
 } from "@/lib/call-guards";
 import { realtimeKitConfigured } from "@/lib/realtimekit";
 import { LessonCallRoom } from "@/components/call/lesson-call-room";
@@ -29,49 +27,39 @@ export const metadata: Metadata = { title: "Lesson" };
 export default async function LessonCallPage({
   params,
 }: {
-  params: Promise<{ bookingId: string }>;
+  params: Promise<{ lessonId: string }>;
 }) {
-  const { bookingId } = await params;
-  const learner = await requireLearner();
+  const { lessonId } = await params;
+  const caller = await requireLearner();
 
   let me;
   try {
-    me = await requireCallParticipant(learner, bookingId);
+    me = await requireCallParticipant(caller, lessonId);
   } catch {
-    // Not this person's lesson, or no such booking — the guard gives both
+    // Not this person's lesson, or no such lesson — the guard gives both
     // the same answer on purpose, and so does this page.
     notFound();
   }
-
-  const [tutor, student] = await Promise.all([
-    db.query.teachers.findFirst({
-      where: eq(teachers.id, me.booking.teacherId),
-    }),
-    bookingLearner(me.booking),
-  ]);
 
   // Opened on LOAD, not on join: consent comes before joining, and it has
   // to be recorded against a room that exists. Returns null when the
   // provider is unconfigured, which the client renders as a plain
   // explanation rather than a failure at the join button.
-  const call = await ensureCall(me.booking);
-  const otherName =
-    me.role === "teacher"
-      ? (student?.name ?? student?.email ?? "Your student")
-      : (tutor?.name ?? tutor?.email ?? "Your tutor");
+  const call = await ensureCall(me);
 
   return (
     <LessonCallRoom
-      bookingId={bookingId}
+      lessonId={lessonId}
       role={me.role}
       selfName={me.displayName}
-      otherName={otherName}
-      startsAt={me.booking.startsAt.toISOString()}
+      otherName={
+        me.role === "teacher"
+          ? me.student.name
+          : (me.teacher.name ?? me.teacher.email)
+      }
+      startsAt={me.lesson.startedAt.toISOString()}
       configured={realtimeKitConfigured()}
-      initialSelfConsented={Boolean(
-        call &&
-          (me.role === "teacher" ? call.teacherConsentAt : call.learnerConsentAt),
-      )}
+      initialSelfConsented={Boolean(call && selfConsentAt(call, me.role))}
       initialBothConsented={Boolean(call && bothConsented(call))}
     />
   );

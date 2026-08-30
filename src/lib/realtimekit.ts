@@ -20,7 +20,7 @@ import "server-only";
 
 const API_BASE = "https://api.realtime.cloudflare.com/v2";
 
-export type CallRole = "teacher" | "learner";
+export type CallRole = "teacher" | "student";
 
 /** A track file as the provider hands it back, before we own any of it. */
 export type ProviderTrackFile = {

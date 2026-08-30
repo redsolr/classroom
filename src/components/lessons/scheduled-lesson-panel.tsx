@@ -8,6 +8,7 @@ import {
   CheckCheck,
   ClipboardList,
   UserX,
+  Video,
 } from "lucide-react";
 import type { LessonDetail } from "@/lib/queries";
 import {
@@ -43,6 +44,14 @@ export function ScheduledLessonPanel({ detail }: { detail: LessonDetail }) {
           </p>
 
           <div className="mt-3.5 flex flex-wrap items-center gap-2">
+            {/* The room is always reachable, not only in the minutes
+                around the start time. A teacher checking their camera an
+                hour early is doing the right thing, and a lesson running
+                late is exactly when a locked door costs the most. */}
+            <LinkButton href={`/call/${lesson.id}`}>
+              <Video className="size-3.5 text-fg-tertiary" />
+              Join call
+            </LinkButton>
             <Button
               variant="primary"
               size="sm"

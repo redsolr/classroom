@@ -1,65 +1,61 @@
 import { and, eq } from "drizzle-orm";
-import { db, learners, lessonCalls, students, teachers, tutorBookings } from "../src/db";
+import { db, lessonCalls, lessons, students, teachers } from "../src/db";
 
 /**
- * A confirmed booking you can walk straight into a call from.
+ * A scheduled lesson you can walk straight into a call from.
  *
- * Exists because the only other way to get one is a paid Stripe
- * checkout, and "buy a lesson from yourself" is a poor way to test a
- * camera. It creates the booking the payment webhook would have written,
- * and nothing else — no payment row, because no money moved and a ledger
- * that says otherwise is worse than no ledger.
+ * The call room hangs off a LESSON, so this seeds the thing the teacher
+ * workspace has always been able to make — a student and a scheduled
+ * lesson — rather than a paid booking. That matters: no environment has
+ * Stripe configured, so a confirmed booking cannot exist anywhere, and a
+ * seed that faked one would be pretending money moved.
  *
- * The mock-auth identity is the TEACHER of this booking, and the learner
- * is a separate row. That is deliberate: `requireCallParticipant` checks
- * the learner branch first, so a booking where one person is both would
- * only ever exercise one of the two roles.
+ * Pass emails to point it at real accounts:
  *
- * LOCAL ONLY. Like `seed-tutors`, it refuses to run against a remote
- * database — it fabricates a CONFIRMED booking, and a confirmed booking
- * in production means somebody paid.
+ *   npm run db:seed:call -- --teacher a@example.com --student b@example.com
+ *
+ * The teacher must have signed in at least once (that is what creates
+ * the teacher row). The student does not need an account yet — the
+ * student row is claimed by email on their first login, and the call
+ * guard matches on email for exactly that reason.
+ *
+ * LOCAL ONLY, like `seed-tutors`: it writes rows that assert a lesson
+ * was arranged, and inventing those in production would put a lesson on
+ * someone's real calendar.
  */
 
-const MOCK_WORKOS_USER = "mock_teacher_dev";
+function arg(name: string): string | undefined {
+  const i = process.argv.indexOf(`--${name}`);
+  return i > -1 ? process.argv[i + 1] : undefined;
+}
 
 async function main() {
   const url = process.env.DATABASE_URL ?? "";
   if (url && !/localhost|127\.0\.0\.1/.test(url)) {
     throw new Error(
-      `refusing to seed a confirmed booking against a remote database (${url.replace(/:[^:@]*@/, ":***@")})`,
+      `refusing to seed a lesson against a remote database (${url.replace(/:[^:@]*@/, ":***@")})`,
     );
   }
 
-  const [teacher] = await db
-    .insert(teachers)
-    .values({
-      workosUserId: MOCK_WORKOS_USER,
-      email: "teacher@class-room.dev",
-      name: "Demo Teacher",
-    })
-    .onConflictDoUpdate({
-      target: teachers.workosUserId,
-      set: { email: "teacher@class-room.dev" },
-    })
-    .returning();
+  const teacherEmail = arg("teacher") ?? "teacher@class-room.dev";
+  const studentEmail = arg("student") ?? "learner@class-room.dev";
+  const studentName = arg("student-name") ?? studentEmail.split("@")[0];
 
-  const [learner] = await db
-    .insert(learners)
-    .values({
-      workosUserId: "call_demo_learner",
-      email: "learner@class-room.dev",
-      name: "Demo Learner",
-    })
-    .onConflictDoUpdate({
-      target: learners.workosUserId,
-      set: { email: "learner@class-room.dev" },
-    })
-    .returning();
+  // The teacher must already exist: a teacher row is created by signing
+  // in, and fabricating one here would make a WorkOS id up.
+  const teacher = await db.query.teachers.findFirst({
+    where: eq(teachers.email, teacherEmail),
+  });
+  if (!teacher) {
+    throw new Error(
+      `no teacher with email ${teacherEmail} — sign in as them once first, then re-run`,
+    );
+  }
 
   const existingStudent = await db.query.students.findFirst({
     where: and(
       eq(students.teacherId, teacher.id),
-      eq(students.email, "learner@class-room.dev"),
+      eq(students.email, studentEmail),
     ),
   });
   const student =
@@ -69,51 +65,37 @@ async function main() {
         .insert(students)
         .values({
           teacherId: teacher.id,
-          name: "Demo Learner",
-          targetLanguage: "French",
-          email: "learner@class-room.dev",
+          name: studentName,
+          email: studentEmail,
+          targetLanguage: "Japanese",
         })
         .returning()
     )[0];
 
-  // Reuse the same booking across runs so the URL you bookmarked keeps
-  // working, and drop any room it already had so the next open starts clean.
-  const existing = await db.query.tutorBookings.findFirst({
-    where: and(
-      eq(tutorBookings.teacherId, teacher.id),
-      eq(tutorBookings.learnerId, learner.id),
-    ),
-  });
+  const startedAt = new Date(Date.now() + 5 * 60_000);
+  const [lesson] = await db
+    .insert(lessons)
+    .values({
+      teacherId: teacher.id,
+      studentId: student.id,
+      startedAt,
+      durationMinutes: 60,
+      status: "scheduled",
+      sourceType: "manual",
+    })
+    .returning();
 
-  const startsAt = new Date(Date.now() + 5 * 60_000);
-  const booking =
-    existing ??
-    (
-      await db
-        .insert(tutorBookings)
-        .values({
-          teacherId: teacher.id,
-          learnerId: learner.id,
-          studentId: student.id,
-          startsAt,
-          endsAt: new Date(startsAt.getTime() + 60 * 60_000),
-          status: "confirmed",
-          priceCents: 2500,
-          focus: ["conversation"],
-        })
-        .returning()
-    )[0];
+  // Drop any room a previous run left, so the next open starts clean.
+  await db.delete(lessonCalls).where(eq(lessonCalls.lessonId, lesson.id));
 
-  await db.delete(lessonCalls).where(eq(lessonCalls.bookingId, booking.id));
-
-  console.log(`\n  Lesson room ready:\n\n    http://localhost:3020/call/${booking.id}\n`);
-  console.log(`  teacher  ${teacher.email}  (the mock-auth identity)`);
-  console.log(`  learner  ${learner.email}\n`);
+  console.log(`\n  Lesson room ready:\n\n    /call/${lesson.id}\n`);
+  console.log(`  teacher  ${teacher.email}`);
+  console.log(`  student  ${student.email} (${student.name})\n`);
 }
 
 main()
   .then(() => process.exit(0))
   .catch((error) => {
-    console.error(error);
+    console.error(error instanceof Error ? error.message : error);
     process.exit(1);
   });

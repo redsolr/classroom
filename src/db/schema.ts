@@ -1509,7 +1509,7 @@ export const lessonRecordingStateEnum = pgEnum("lesson_recording_state", [
 /** Which side of the lesson a track or a consent belongs to. */
 export const lessonCallRoleEnum = pgEnum("lesson_call_role", [
   "teacher",
-  "learner",
+  "student",
 ]);
 
 /**
@@ -1521,17 +1521,31 @@ export const lessonCalls = pgTable(
   "lesson_calls",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    bookingId: uuid("booking_id")
+    /**
+     * The room belongs to a LESSON, not to a paid booking.
+     *
+     * Binding it to `tutor_bookings` made the room unreachable wherever
+     * Stripe is not configured — which is every environment we run,
+     * production included: no Stripe means a tutor cannot be listed and
+     * a booking can never reach `confirmed`. It also excluded the case
+     * the teacher workspace has served since day one, a tutor teaching
+     * a student they scheduled themselves with no money involved.
+     *
+     * Nothing is lost from the tutor pilot: a confirmed booking already
+     * writes a `lessons` row (`tutor_bookings.lesson_id`), so a paid
+     * lesson reaches its room through the same door as any other.
+     */
+    lessonId: uuid("lesson_id")
       .notNull()
-      .references(() => tutorBookings.id, { onDelete: "cascade" }),
-    /** Denormalised from the booking so authorization is one read, and so
-     * a call still names its people if the booking is ever reshaped. */
+      .references(() => lessons.id, { onDelete: "cascade" }),
+    /** Denormalised from the lesson so authorization is one read, and so
+     * a call still names its people if the lesson is ever reshaped. */
     teacherId: uuid("teacher_id")
       .notNull()
       .references(() => teachers.id, { onDelete: "cascade" }),
-    learnerId: uuid("learner_id")
+    studentId: uuid("student_id")
       .notNull()
-      .references(() => learners.id, { onDelete: "cascade" }),
+      .references(() => students.id, { onDelete: "cascade" }),
     /** RealtimeKit's meeting id. */
     providerMeetingId: text("provider_meeting_id").notNull(),
     /**
@@ -1541,7 +1555,7 @@ export const lessonCalls = pgTable(
      * someone can flip.
      */
     teacherConsentAt: timestamp("teacher_consent_at", { withTimezone: true }),
-    learnerConsentAt: timestamp("learner_consent_at", { withTimezone: true }),
+    studentConsentAt: timestamp("student_consent_at", { withTimezone: true }),
     endedAt: timestamp("ended_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -1551,9 +1565,9 @@ export const lessonCalls = pgTable(
       .defaultNow(),
   },
   (t) => [
-    uniqueIndex("lesson_calls_booking_idx").on(t.bookingId),
+    uniqueIndex("lesson_calls_lesson_idx").on(t.lessonId),
     index("lesson_calls_teacher_idx").on(t.teacherId),
-    index("lesson_calls_learner_idx").on(t.learnerId),
+    index("lesson_calls_student_idx").on(t.studentId),
   ],
 );
 

@@ -1,14 +1,15 @@
 import "server-only";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import {
   db,
-  learners,
   lessonCalls,
+  lessons,
+  students,
   teachers,
-  tutorBookings,
-  type Learner,
+  type Lesson,
   type LessonCall,
-  type TutorBooking,
+  type Student,
+  type Teacher,
 } from "@/db";
 import {
   createMeeting,
@@ -19,90 +20,105 @@ import {
 /**
  * WHO MAY ENTER A LESSON ROOM.
  *
- * Exactly two people: the tutor who is teaching it and the learner who
- * booked it. Not "any signed-in user with the link" — a lesson room is
+ * Exactly two people: the teacher whose lesson it is, and the student it
+ * is with. Not "any signed-in user with the link" — a lesson room is
  * where a recorded, transcribed conversation happens, and a third party
  * in it is a privacy incident rather than an inconvenience.
+ *
+ * The room hangs off a LESSON rather than a paid booking. A confirmed
+ * tutor booking writes a `lessons` row, so the pilot still reaches its
+ * room; and a teacher who scheduled a student themselves — the thing the
+ * teacher workspace has done since day one — reaches one too, without a
+ * payment rail that no environment currently has configured.
  *
  * This lives outside `src/lib/actions/` for the same reason the study
  * guards do: everything exported from there becomes a public POST
  * endpoint.
- *
- * On the two-audience problem — `requireLearner()` is the authenticator
- * for BOTH sides. It resolves any signed-in account to its learner row
- * (every login has one, by design), so it establishes WHO is calling
- * without redirecting a teacher away the way `requireTeacher()` would.
- * The role below is then AUTHORIZATION, decided by the booking, never by
- * anything the caller sends.
  */
 
 export type CallParticipant = {
   role: CallRole;
-  booking: TutorBooking;
+  lesson: Lesson;
+  teacher: Teacher;
+  student: Student;
   /** The name the other person sees in the call. */
   displayName: string;
-  /** Stable per-person id we hand the provider, so track files come back
-   * attributable to a role without trusting the provider's ordering. */
+  /** Stable per-person id handed to the provider, so track files come
+   * back attributable to a role without trusting the provider's order. */
   customParticipantId: string;
 };
 
 /**
- * Resolve the caller's part in this booking, or throw.
+ * Resolve the caller's part in this lesson, or throw.
  *
- * The learner is matched on the booking's own `learnerId`; the teacher is
- * matched by walking from the booking's `teacherId` to that teacher's
- * WorkOS user, and comparing it to the caller's. Matching on email would
- * have been shorter and wrong — emails change, and a teacher who updates
- * theirs must not lose the room.
+ * The teacher is matched on WorkOS user id — emails change, and a tutor
+ * who updates theirs must not lose their own room.
+ *
+ * The student is matched on WorkOS user id FIRST, then on email. Email
+ * is not a fallback bolted on here; it is the product's own claim
+ * mechanism (`resolveStudentAccount` links a login to a student row the
+ * first time the addresses match). It matters more than it looks: an
+ * account that already has a TEACHER row always resolves as a teacher,
+ * so a teacher sitting in someone else's roster never gets a
+ * `workos_user_id` written on that student row, and would be locked out
+ * of a lesson that is plainly theirs. That is exactly the founder's own
+ * account.
  */
 export async function requireCallParticipant(
-  caller: Learner,
-  bookingId: string,
+  caller: { workosUserId: string; email: string; name: string | null },
+  lessonId: string,
 ): Promise<CallParticipant> {
-  const booking = await db.query.tutorBookings.findFirst({
-    where: eq(tutorBookings.id, bookingId),
+  const lesson = await db.query.lessons.findFirst({
+    where: eq(lessons.id, lessonId),
   });
-  // Same message for "no such booking" and "not yours" — a distinct
-  // not-found would let anyone enumerate which booking ids exist.
-  if (!booking) throw new Error("Lesson not found");
+  // Same message for "no such lesson" and "not yours" — a distinct
+  // not-found would let anyone enumerate which lesson ids exist.
+  if (!lesson) throw new Error("Lesson not found");
 
-  if (booking.learnerId === caller.id) {
+  const [teacher, student] = await Promise.all([
+    db.query.teachers.findFirst({ where: eq(teachers.id, lesson.teacherId) }),
+    db.query.students.findFirst({ where: eq(students.id, lesson.studentId) }),
+  ]);
+  if (!teacher || !student) throw new Error("Lesson not found");
+
+  if (teacher.workosUserId === caller.workosUserId) {
     return {
-      role: "learner",
-      booking,
-      displayName: caller.name ?? caller.email,
-      customParticipantId: `learner:${caller.id}`,
+      role: "teacher",
+      lesson,
+      teacher,
+      student,
+      displayName: teacher.name ?? teacher.email,
+      customParticipantId: `teacher:${teacher.id}`,
     };
   }
 
-  const tutor = await db.query.teachers.findFirst({
-    where: and(
-      eq(teachers.id, booking.teacherId),
-      eq(teachers.workosUserId, caller.workosUserId),
-    ),
-  });
-  if (tutor) {
+  const emailsMatch =
+    Boolean(student.email) &&
+    student.email!.toLowerCase() === caller.email.toLowerCase();
+  if (student.workosUserId === caller.workosUserId || emailsMatch) {
     return {
-      role: "teacher",
-      booking,
-      displayName: tutor.name ?? tutor.email,
-      customParticipantId: `teacher:${tutor.id}`,
+      role: "student",
+      lesson,
+      teacher,
+      student,
+      displayName: student.name,
+      customParticipantId: `student:${student.id}`,
     };
   }
 
   throw new Error("Lesson not found");
 }
 
-/** The room for this booking, if one has been opened yet. */
-export async function findCall(bookingId: string): Promise<LessonCall | null> {
+/** The room for this lesson, if one has been opened yet. */
+export async function findCall(lessonId: string): Promise<LessonCall | null> {
   const row = await db.query.lessonCalls.findFirst({
-    where: eq(lessonCalls.bookingId, bookingId),
+    where: eq(lessonCalls.lessonId, lessonId),
   });
   return row ?? null;
 }
 
 /**
- * The room for this booking, created if it does not exist yet.
+ * The room for this lesson, created if it does not exist yet.
  *
  * Opened when someone OPENS the lesson, not when they join it, because
  * consent comes before joining — that is the whole point of the order —
@@ -110,39 +126,41 @@ export async function findCall(bookingId: string): Promise<LessonCall | null> {
  * join meant the consent button on the pre-call screen could only ever
  * fail.
  *
- * Safe to call from a page render: `booking_id` is unique, so two people
+ * Safe to call from a page render: `lesson_id` is unique, so two people
  * arriving at once produce one room and the loser reads the winner's.
  * The provider meeting created by the loser is simply never used.
  */
 export async function ensureCall(
-  booking: TutorBooking,
+  participant: CallParticipant,
 ): Promise<LessonCall | null> {
-  const existing = await findCall(booking.id);
+  const existing = await findCall(participant.lesson.id);
   if (existing) return existing;
   if (!realtimeKitConfigured()) return null;
 
-  const providerMeetingId = await createMeeting(`lesson-${booking.id}`);
+  const providerMeetingId = await createMeeting(`lesson-${participant.lesson.id}`);
   const [created] = await db
     .insert(lessonCalls)
     .values({
-      bookingId: booking.id,
-      teacherId: booking.teacherId,
-      learnerId: booking.learnerId,
+      lessonId: participant.lesson.id,
+      teacherId: participant.teacher.id,
+      studentId: participant.student.id,
       providerMeetingId,
     })
-    .onConflictDoNothing({ target: lessonCalls.bookingId })
+    .onConflictDoNothing({ target: lessonCalls.lessonId })
     .returning();
-  return created ?? (await findCall(booking.id));
+  return created ?? (await findCall(participant.lesson.id));
 }
 
 /** Both people have said yes, in the record, with times. */
 export function bothConsented(call: LessonCall): boolean {
-  return Boolean(call.teacherConsentAt && call.learnerConsentAt);
+  return Boolean(call.teacherConsentAt && call.studentConsentAt);
 }
 
-/** The learner row for a booking — used to name the other participant. */
-export async function bookingLearner(booking: TutorBooking) {
-  return db.query.learners.findFirst({
-    where: eq(learners.id, booking.learnerId),
-  });
+/** This person's own consent timestamp, whichever side they are. */
+export function selfConsentAt(
+  call: LessonCall,
+  role: CallRole,
+): Date | null {
+  return role === "teacher" ? call.teacherConsentAt : call.studentConsentAt;
 }
+

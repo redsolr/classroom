@@ -15,6 +15,7 @@ import {
   ensureCall,
   findCall,
   requireCallParticipant,
+  selfConsentAt,
 } from "@/lib/call-guards";
 import {
   addParticipant,
@@ -28,10 +29,12 @@ import {
  * THE LESSON CALL — joining it, consenting to it, recording it.
  *
  * Every export resolves its caller with `requireLearner()`, which is the
- * authenticator for BOTH audiences here (every signed-in account has a
- * learner row; a teacher is not redirected away from their own lesson).
- * `requireCallParticipant` then does the half the ratchet cannot: proving
- * this person is one of the two people this booking is between.
+ * authenticator for BOTH audiences here: every signed-in account has a
+ * learner row, so it establishes WHO is calling without redirecting a
+ * teacher away from their own lesson the way `requireTeacher()` would.
+ * It carries the WorkOS id and email, and `requireCallParticipant` then
+ * does the half the ratchet cannot — proving this person is one of the
+ * two the lesson is between.
  *
  * The ordering rule the whole feature rests on: nothing starts recording
  * until both consents are stored. It is enforced here, on the server,
@@ -39,12 +42,12 @@ import {
  * can be made to lie about it.
  */
 
-const bookingIdSchema = z.string().uuid();
+const lessonIdSchema = z.string().uuid();
 
 export type JoinedCall = {
   authToken: string;
   meetingId: string;
-  role: "teacher" | "learner";
+  role: "teacher" | "student";
   displayName: string;
   bothConsented: boolean;
   selfConsented: boolean;
@@ -52,17 +55,17 @@ export type JoinedCall = {
 };
 
 /**
- * Open (or rejoin) the room for a booking and mint this person's token.
+ * Open (or rejoin) the room for a lesson and mint this person's token.
  *
  * Rejoining is the normal case, not an edge case: a dropped connection
  * must land back in the SAME meeting. The room is therefore created once
- * per booking and looked up thereafter — `lesson_calls.booking_id` is
+ * per lesson and looked up thereafter — `lesson_calls.lesson_id` is
  * unique so two racing joins cannot produce two rooms.
  */
-export async function joinLessonCall(rawBookingId: string): Promise<JoinedCall> {
-  const learner = await requireLearner();
-  const bookingId = bookingIdSchema.parse(rawBookingId);
-  const me = await requireCallParticipant(learner, bookingId);
+export async function joinLessonCall(rawLessonId: string): Promise<JoinedCall> {
+  const caller = await requireLearner();
+  const lessonId = lessonIdSchema.parse(rawLessonId);
+  const me = await requireCallParticipant(caller, lessonId);
 
   if (!realtimeKitConfigured()) {
     throw new Error(
@@ -72,7 +75,7 @@ export async function joinLessonCall(rawBookingId: string): Promise<JoinedCall> 
 
   // Usually already open — the page opens it on load, so that consent
   // (which comes BEFORE joining) has something to attach to.
-  const call = await ensureCall(me.booking);
+  const call = await ensureCall(me);
   if (!call) throw new Error("Could not open the lesson room");
 
   const { token } = await addParticipant({
@@ -90,9 +93,7 @@ export async function joinLessonCall(rawBookingId: string): Promise<JoinedCall> 
     role: me.role,
     displayName: me.displayName,
     bothConsented: bothConsented(call),
-    selfConsented: Boolean(
-      me.role === "teacher" ? call.teacherConsentAt : call.learnerConsentAt,
-    ),
+    selfConsented: Boolean(selfConsentAt(call, me.role)),
     recording: Boolean(live),
   };
 }
@@ -106,13 +107,13 @@ export async function joinLessonCall(rawBookingId: string): Promise<JoinedCall> 
  * recording is, and that is the honest control to give.
  */
 export async function consentToRecording(
-  rawBookingId: string,
+  rawLessonId: string,
 ): Promise<{ bothConsented: boolean }> {
-  const learner = await requireLearner();
-  const bookingId = bookingIdSchema.parse(rawBookingId);
-  const me = await requireCallParticipant(learner, bookingId);
+  const caller = await requireLearner();
+  const lessonId = lessonIdSchema.parse(rawLessonId);
+  const me = await requireCallParticipant(caller, lessonId);
 
-  const call = await findCall(bookingId);
+  const call = await findCall(lessonId);
   if (!call) throw new Error("Lesson room is not open");
 
   const now = new Date();
@@ -121,12 +122,12 @@ export async function consentToRecording(
     .set(
       me.role === "teacher"
         ? { teacherConsentAt: now, updatedAt: now }
-        : { learnerConsentAt: now, updatedAt: now },
+        : { studentConsentAt: now, updatedAt: now },
     )
     .where(eq(lessonCalls.id, call.id))
     .returning();
 
-  revalidatePath(`/call/${bookingId}`);
+  revalidatePath(`/call/${lessonId}`);
   return { bothConsented: bothConsented(updated) };
 }
 
@@ -143,17 +144,17 @@ export async function consentToRecording(
  *    discovered when someone goes looking for the lesson.
  */
 export async function startLessonRecording(
-  rawBookingId: string,
+  rawLessonId: string,
 ): Promise<{ recordingId: string }> {
-  const learner = await requireLearner();
-  const bookingId = bookingIdSchema.parse(rawBookingId);
-  const me = await requireCallParticipant(learner, bookingId);
+  const caller = await requireLearner();
+  const lessonId = lessonIdSchema.parse(rawLessonId);
+  const me = await requireCallParticipant(caller, lessonId);
   // The teacher runs the lesson and is accountable for the record of it.
   if (me.role !== "teacher") {
     throw new Error("Only the teacher can start recording");
   }
 
-  const call = await findCall(bookingId);
+  const call = await findCall(lessonId);
   if (!call) throw new Error("Lesson room is not open");
   if (!bothConsented(call)) {
     throw new Error("Both people must consent before recording starts");
@@ -165,7 +166,7 @@ export async function startLessonRecording(
   const participants = await listActiveParticipants(call.providerMeetingId);
   const ours = participants.filter((p) =>
     p.customParticipantId?.startsWith("teacher:") ||
-    p.customParticipantId?.startsWith("learner:"),
+    p.customParticipantId?.startsWith("student:"),
   );
   if (ours.length < 2) {
     throw new Error(
@@ -199,7 +200,7 @@ export async function startLessonRecording(
       recordingId: row.id,
       role: p.customParticipantId?.startsWith("teacher:")
         ? ("teacher" as const)
-        : ("learner" as const),
+        : ("student" as const),
       providerParticipantId: p.participantId,
       // Filled in from the provider's manifest on ingest; the placeholder
       // keeps the row unique per participant until then.
@@ -207,22 +208,22 @@ export async function startLessonRecording(
     })),
   );
 
-  revalidatePath(`/call/${bookingId}`);
+  revalidatePath(`/call/${lessonId}`);
   return { recordingId: providerRecordingId };
 }
 
 /** Stop the active recording. Ingestion is driven by the webhook. */
 export async function stopLessonRecording(
-  rawBookingId: string,
+  rawLessonId: string,
 ): Promise<{ stopped: boolean }> {
-  const learner = await requireLearner();
-  const bookingId = bookingIdSchema.parse(rawBookingId);
-  const me = await requireCallParticipant(learner, bookingId);
+  const caller = await requireLearner();
+  const lessonId = lessonIdSchema.parse(rawLessonId);
+  const me = await requireCallParticipant(caller, lessonId);
   if (me.role !== "teacher") {
     throw new Error("Only the teacher can stop recording");
   }
 
-  const call = await findCall(bookingId);
+  const call = await findCall(lessonId);
   if (!call) throw new Error("Lesson room is not open");
 
   const active = await activeRecording(call.id);
@@ -234,24 +235,24 @@ export async function stopLessonRecording(
     .set({ state: "recording_complete", stoppedAt: new Date(), updatedAt: new Date() })
     .where(eq(lessonRecordings.id, active.id));
 
-  revalidatePath(`/call/${bookingId}`);
+  revalidatePath(`/call/${lessonId}`);
   return { stopped: true };
 }
 
 /** Mark the room closed. The provider ends its own session on idle. */
-export async function endLessonCall(rawBookingId: string): Promise<void> {
-  const learner = await requireLearner();
-  const bookingId = bookingIdSchema.parse(rawBookingId);
-  await requireCallParticipant(learner, bookingId);
+export async function endLessonCall(rawLessonId: string): Promise<void> {
+  const caller = await requireLearner();
+  const lessonId = lessonIdSchema.parse(rawLessonId);
+  await requireCallParticipant(caller, lessonId);
 
-  const call = await findCall(bookingId);
+  const call = await findCall(lessonId);
   if (!call || call.endedAt) return;
 
   await db
     .update(lessonCalls)
     .set({ endedAt: new Date(), updatedAt: new Date() })
     .where(eq(lessonCalls.id, call.id));
-  revalidatePath(`/call/${bookingId}`);
+  revalidatePath(`/call/${lessonId}`);
 }
 
 // ---------------------------------------------------------------------------

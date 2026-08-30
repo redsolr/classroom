@@ -43,7 +43,7 @@ type Stage = "preflight" | "connecting" | "live" | "ended";
 type Quality = "good" | "poor" | "lost";
 
 export function LessonCallRoom({
-  bookingId,
+  lessonId,
   role,
   selfName,
   otherName,
@@ -52,8 +52,8 @@ export function LessonCallRoom({
   initialSelfConsented,
   initialBothConsented,
 }: {
-  bookingId: string;
-  role: "teacher" | "learner";
+  lessonId: string;
+  role: "teacher" | "student";
   selfName: string;
   otherName: string;
   startsAt: string;
@@ -137,7 +137,7 @@ export function LessonCallRoom({
     setBusy(true);
     setError(null);
     try {
-      const session = await joinLessonCall(bookingId);
+      const session = await joinLessonCall(lessonId);
       setBothConsented(session.bothConsented);
       setRecording(session.recording);
       setStage("connecting");
@@ -199,7 +199,7 @@ export function LessonCallRoom({
     } finally {
       setBusy(false);
     }
-  }, [bookingId, camOn, micOn, releasePreview]);
+  }, [lessonId, camOn, micOn, releasePreview]);
 
   // --- Controls --------------------------------------------------------
   const toggleMic = useCallback(async () => {
@@ -227,7 +227,7 @@ export function LessonCallRoom({
   const giveConsent = useCallback(async () => {
     setBusy(true);
     try {
-      const res = await consentToRecording(bookingId);
+      const res = await consentToRecording(lessonId);
       setConsented(true);
       setBothConsented(res.bothConsented);
     } catch (e) {
@@ -236,17 +236,17 @@ export function LessonCallRoom({
     } finally {
       setBusy(false);
     }
-  }, [bookingId]);
+  }, [lessonId]);
 
   const toggleRecording = useCallback(async () => {
     setBusy(true);
     try {
       if (recording) {
-        await stopLessonRecording(bookingId);
+        await stopLessonRecording(lessonId);
         setRecording(false);
         toast.success("Recording stopped");
       } else {
-        await startLessonRecording(bookingId);
+        await startLessonRecording(lessonId);
         setRecording(true);
         toast.success("Recording — this lesson will become study material");
       }
@@ -257,7 +257,7 @@ export function LessonCallRoom({
     } finally {
       setBusy(false);
     }
-  }, [bookingId, recording]);
+  }, [lessonId, recording]);
 
   const leave = useCallback(async () => {
     try {
@@ -266,12 +266,12 @@ export function LessonCallRoom({
       console.error("lesson call: leave failed", e);
     }
     try {
-      await endLessonCall(bookingId);
+      await endLessonCall(lessonId);
     } catch (e) {
       console.error("lesson call: ending the room failed", e);
     }
     setStage("ended");
-  }, [bookingId]);
+  }, [lessonId]);
 
   // --- Screens ---------------------------------------------------------
   if (!configured) {

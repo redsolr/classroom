@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { CalendarDays, Receipt } from "lucide-react";
 import { requireLearner } from "@/lib/auth";
 import { learnerBookings, learnerPayments } from "@/lib/tutor-queries";
@@ -100,17 +101,21 @@ export default async function LearnerBookingsPage() {
                       {booking.plan === "recurring" && " · weekly"}
                     </p>
                   </div>
-                  {/* The room is always reachable, not only in the
-                      minutes around the start time. A tutor testing
-                      their camera an hour early is doing the right
-                      thing, and a lesson that starts late is exactly
-                      when a locked door is most expensive. */}
-                  <a
-                    href={`/call/${booking.id}`}
-                    className="rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-hover"
-                  >
-                    Join lesson
-                  </a>
+                  {/* The room hangs off the LESSON the confirmed booking
+                      wrote, not off the booking — which is why an unpaid
+                      hold has no button here rather than a broken one.
+                      It is reachable well before the start time: a tutor
+                      testing their camera an hour early is doing the
+                      right thing, and a lesson running late is exactly
+                      when a locked door costs the most. */}
+                  {booking.lessonId && (
+                    <Link
+                      href={`/call/${booking.lessonId}`}
+                      className="rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-hover"
+                    >
+                      Join lesson
+                    </Link>
+                  )}
                   {/* Cancelling frees the tutor's calendar and records
                       what happened. It does NOT refund: a pilot with a
                       handful of tutors wants a human deciding that, not
