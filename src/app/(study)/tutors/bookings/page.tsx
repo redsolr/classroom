@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import { CalendarDays, Receipt } from "lucide-react";
 import { requireLearner } from "@/lib/auth";
 import { learnerBookings, learnerPayments } from "@/lib/tutor-queries";
-import { formatMoney } from "@/lib/tutor-pricing";
 import { cancelTutorBooking } from "@/lib/actions/tutors";
 import { Badge } from "@/components/ui/badge";
+import { PaymentsTable } from "@/components/study/payments-table";
 import { SubmitButton } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
@@ -151,65 +151,13 @@ export default async function LearnerBookingsPage() {
                 </span>
               }
             />
-            <div className="overflow-x-auto">
-              <table className="w-full text-[0.875rem]">
-                <thead>
-                  <tr className="border-b border-border text-left text-[0.78rem] text-fg-tertiary">
-                    <th className="px-4 py-2 font-medium">Date</th>
-                    <th className="px-4 py-2 font-medium">Tutor</th>
-                    <th className="px-4 py-2 text-right font-medium">
-                      You paid
-                    </th>
-                    <th className="px-4 py-2 text-right font-medium">
-                      Tutor received
-                    </th>
-                    <th className="px-4 py-2 text-center font-medium">
-                      Status
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {payments.map(({ payment, tutorName, tutorEmail }) => (
-                    <tr
-                      key={payment.id}
-                      className="border-b border-border last:border-0"
-                    >
-                      <td className="px-4 py-2.5 whitespace-nowrap">
-                        {new Intl.DateTimeFormat(undefined, {
-                          day: "numeric",
-                          month: "short",
-                          year: "numeric",
-                        }).format(payment.createdAt)}
-                      </td>
-                      <td className="px-4 py-2.5">
-                        {tutorName ?? tutorEmail.split("@")[0]}
-                      </td>
-                      <td className="px-4 py-2.5 text-right font-medium tabular-nums">
-                        {formatMoney(payment.grossCents, payment.currency)}
-                      </td>
-                      <td className="px-4 py-2.5 text-right tabular-nums text-fg-secondary">
-                        {formatMoney(payment.tutorNetCents, payment.currency)}
-                      </td>
-                      <td className="px-4 py-2.5 text-center">
-                        <Badge
-                          tone={
-                            payment.status === "succeeded"
-                              ? "success"
-                              : payment.status === "refunded"
-                                ? "info"
-                                : payment.status === "failed"
-                                  ? "danger"
-                                  : "warning"
-                          }
-                        >
-                          {payment.status}
-                        </Badge>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <PaymentsTable
+              audience="learner"
+              rows={payments.map(({ payment, tutorName, tutorEmail }) => ({
+                payment,
+                context: tutorName ?? tutorEmail.split("@")[0],
+              }))}
+            />
             <p className="border-t border-border px-4 py-2.5 text-[0.8125rem] text-fg-tertiary">
               The difference is Classroom&rsquo;s share, which also covers
               the card processing fee.

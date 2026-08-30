@@ -27,14 +27,14 @@ import {
   Trash2,
   TrendingUp,
 } from "lucide-react";
+import { deleteStudyProject } from "@/lib/actions/projects";
 import {
   createStudyThread,
-  deleteStudyProject,
   deleteStudyThread,
   moveStudyThreadToProject,
   renameStudyThread,
   toggleStudyThreadPin,
-} from "@/lib/actions/study";
+} from "@/lib/actions/threads";
 import {
   Dropdown,
   DropdownContent,

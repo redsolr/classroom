@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { createStudyProject } from "@/lib/actions/study";
+import { createStudyProject } from "@/lib/actions/projects";
 import { TransitionFormDialog } from "@/components/ui/form-dialog";
 import { ProjectFields } from "@/components/study/project-fields";
 

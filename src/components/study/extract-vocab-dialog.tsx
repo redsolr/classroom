@@ -4,7 +4,10 @@ import * as React from "react";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import type { VocabCandidate } from "@/lib/ai/vocab-extract";
-import { addStudyVocabBulk, extractStudyVocab } from "@/lib/actions/study";
+import {
+  addStudyVocabBulk,
+  extractStudyVocab,
+} from "@/lib/actions/vocab";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 

@@ -10,12 +10,12 @@ import {
   Trash2,
 } from "lucide-react";
 import type { StudyPack, StudyPackItem } from "@/db";
+import { removeFromStudyVocabList } from "@/lib/actions/books";
 import {
   addStudyPackItem,
-  deleteStudyVocab,
   importStudyPack,
-  removeFromStudyVocabList,
-} from "@/lib/actions/study";
+} from "@/lib/actions/packs";
+import { deleteStudyVocab } from "@/lib/actions/vocab";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/field";

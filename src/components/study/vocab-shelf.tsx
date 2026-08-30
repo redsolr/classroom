@@ -15,13 +15,13 @@ import {
   Trash2,
 } from "lucide-react";
 import {
-  addStudyVocab,
   createStudyVocabList,
   deleteStudyVocabList,
   renameStudyVocabList,
   setDefaultStudyVocabList,
   toggleStudyVocabListPin,
-} from "@/lib/actions/study";
+} from "@/lib/actions/books";
+import { addStudyVocab } from "@/lib/actions/vocab";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import {

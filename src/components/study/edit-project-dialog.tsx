@@ -1,7 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { deleteStudyProject, updateStudyProject } from "@/lib/actions/study";
+import {
+  deleteStudyProject,
+  updateStudyProject,
+} from "@/lib/actions/projects";
 import { ConfirmButton } from "@/components/ui/confirm-button";
 import { TransitionFormDialog } from "@/components/ui/form-dialog";
 import { ProjectFields } from "@/components/study/project-fields";

@@ -7,7 +7,7 @@ import {
   deleteStudyThread,
   moveStudyThreadToProject,
   toggleStudyThreadPin,
-} from "@/lib/actions/study";
+} from "@/lib/actions/threads";
 import {
   Dropdown,
   DropdownContent,

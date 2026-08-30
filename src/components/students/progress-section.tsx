@@ -2,88 +2,20 @@ import { TrendingUp } from "lucide-react";
 import type { StudentProfile } from "@/lib/queries";
 import { buildProgress } from "@/lib/progress";
 import { correctionCategoryLabel } from "@/components/ui/badge";
+import { PipelineBar } from "@/components/study/pipeline-bar";
 import { Card, CardHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
+import { StatTile } from "@/components/ui/stat-tile";
 
-const pipelineSegments = [
-  { key: "new", label: "New", fill: "bg-viz-info" },
-  { key: "learning", label: "Learning", fill: "bg-viz-warning" },
-  { key: "reviewing", label: "Reviewing", fill: "bg-viz-accent" },
-  { key: "mastered", label: "Mastered", fill: "bg-viz-success" },
-] as const;
-
-function StatTile({
-  label,
-  value,
-  detail,
-}: {
-  label: string;
-  value: string;
-  detail?: string;
-}) {
-  return (
-    <Card className="px-4 py-3.5">
-      <p className="text-[0.8125rem] font-medium text-fg-tertiary">{label}</p>
-      <p className="mt-1 text-[1.5rem] leading-none font-semibold tracking-tight">
-        {value}
-      </p>
-      {detail && (
-        <p className="mt-1.5 text-[0.8125rem] text-fg-tertiary">{detail}</p>
-      )}
-    </Card>
-  );
-}
-
-function VocabularyPipelineCard({
-  pipeline,
-}: {
-  pipeline: ReturnType<typeof buildProgress>["vocabulary"];
-}) {
-  return (
-    <Card>
-      <CardHeader title="Vocabulary pipeline" />
-      <div className="px-4 py-4">
-        {pipeline.total === 0 ? (
-          <p className="text-[0.875rem] text-fg-tertiary">
-            No vocabulary on record yet.
-          </p>
-        ) : (
-          <>
-            <div className="flex h-3 gap-[2px]">
-              {pipelineSegments
-                .filter((s) => pipeline[s.key] > 0)
-                .map((s) => (
-                  <div
-                    key={s.key}
-                    className={`${s.fill} first:rounded-l-full last:rounded-r-full`}
-                    style={{
-                      width: `${(pipeline[s.key] / pipeline.total) * 100}%`,
-                    }}
-                    title={`${s.label}: ${pipeline[s.key]} of ${pipeline.total}`}
-                  />
-                ))}
-            </div>
-            <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">
-              {pipelineSegments.map((s) => (
-                <span
-                  key={s.key}
-                  className="flex items-center gap-1.5 text-[0.8125rem] text-fg-secondary"
-                >
-                  <span
-                    aria-hidden
-                    className={`size-2 rounded-full ${s.fill}`}
-                  />
-                  {s.label}
-                  <span className="font-medium text-fg">{pipeline[s.key]}</span>
-                </span>
-              ))}
-            </div>
-          </>
-        )}
-      </div>
-    </Card>
-  );
-}
+/**
+ * The teacher's read on ONE student — counts and trends, no judgments.
+ *
+ * Shares its chart vocabulary with the learner's own `/progress` page
+ * (`PipelineBar`, `StatTile`). The two surfaces answer the same question
+ * from opposite sides of the table, and a product where the teacher's
+ * pipeline bar looks different from the learner's is one where they
+ * cannot sit down and discuss it.
+ */
 
 function CorrectionsPerLessonCard({
   rows,
@@ -127,8 +59,7 @@ function CorrectionsPerLessonCard({
                 Most corrected:{" "}
                 {topCategories
                   .map(
-                    (c) =>
-                      `${correctionCategoryLabel[c.category]} (${c.count})`,
+                    (c) => `${correctionCategoryLabel[c.category]} (${c.count})`,
                   )
                   .join(" · ")}
               </p>
@@ -190,7 +121,16 @@ export function ProgressSection({ profile }: { profile: StudentProfile }) {
         />
       </div>
 
-      <VocabularyPipelineCard pipeline={progress.vocabulary} />
+      <Card>
+        <CardHeader title="Vocabulary pipeline" />
+        <div className="px-4 py-4">
+          <PipelineBar
+            pipeline={progress.vocabulary}
+            unit="vocabulary on record"
+          />
+        </div>
+      </Card>
+
       <CorrectionsPerLessonCard
         rows={progress.correctionsPerLesson}
         topCategories={progress.topCategories}

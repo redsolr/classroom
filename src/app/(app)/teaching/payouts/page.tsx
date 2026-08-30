@@ -18,9 +18,10 @@ import {
   saveTutorProfile,
   setTutorListed,
   startPayoutOnboarding,
-} from "@/lib/actions/tutors";
+} from "@/lib/actions/tutor-listing";
 import { STUDY_LANGUAGES } from "@/lib/study-languages";
 import { Badge } from "@/components/ui/badge";
+import { PaymentsTable } from "@/components/study/payments-table";
 import { SubmitButton } from "@/components/ui/button";
 import { Field, Input, Select, Textarea } from "@/components/ui/field";
 import {
@@ -391,72 +392,20 @@ export default async function TeachingPayoutsPage() {
               paid for — before the lesson happens.
             </p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-[0.875rem]">
-                <thead>
-                  <tr className="border-b border-border text-left text-[0.78rem] text-fg-tertiary">
-                    <th className="px-4 py-2 font-medium">Date</th>
-                    <th className="px-4 py-2 font-medium">Lesson</th>
-                    <th className="px-4 py-2 text-right font-medium">
-                      Learner paid
-                    </th>
-                    <th className="px-4 py-2 text-right font-medium">
-                      Your share
-                    </th>
-                    <th className="px-4 py-2 text-center font-medium">
-                      Status
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {payments.map(({ payment, startsAt }) => (
-                    <tr
-                      key={payment.id}
-                      className="border-b border-border last:border-0"
-                    >
-                      <td className="px-4 py-2.5 whitespace-nowrap">
-                        {new Intl.DateTimeFormat(undefined, {
-                          day: "numeric",
-                          month: "short",
-                          year: "numeric",
-                        }).format(payment.createdAt)}
-                      </td>
-                      <td className="px-4 py-2.5 whitespace-nowrap text-fg-secondary">
-                        {startsAt
-                          ? new Intl.DateTimeFormat(undefined, {
-                              day: "numeric",
-                              month: "short",
-                              hour: "numeric",
-                              minute: "2-digit",
-                            }).format(startsAt)
-                          : "Weekly plan"}
-                      </td>
-                      <td className="px-4 py-2.5 text-right tabular-nums text-fg-secondary">
-                        {formatMoney(payment.grossCents, payment.currency)}
-                      </td>
-                      <td className="px-4 py-2.5 text-right font-medium tabular-nums">
-                        {formatMoney(payment.tutorNetCents, payment.currency)}
-                      </td>
-                      <td className="px-4 py-2.5 text-center">
-                        <Badge
-                          tone={
-                            payment.status === "succeeded"
-                              ? "success"
-                              : payment.status === "refunded"
-                                ? "info"
-                                : payment.status === "failed"
-                                  ? "danger"
-                                  : "warning"
-                          }
-                        >
-                          {payment.status}
-                        </Badge>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <PaymentsTable
+              audience="tutor"
+              rows={payments.map(({ payment, startsAt }) => ({
+                payment,
+                context: startsAt
+                  ? new Intl.DateTimeFormat(undefined, {
+                      day: "numeric",
+                      month: "short",
+                      hour: "numeric",
+                      minute: "2-digit",
+                    }).format(startsAt)
+                  : "Weekly plan",
+              }))}
+            />
           )}
 
           <p className="border-t border-border px-4 py-2.5 text-[0.8125rem] text-fg-tertiary">
@@ -471,16 +420,6 @@ export default async function TeachingPayoutsPage() {
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="px-4 py-3.5">
-      <p className="text-[0.8125rem] text-fg-tertiary">{label}</p>
-      <p className="mt-1 text-[1.25rem] leading-none font-semibold tracking-tight">
-        {value}
-      </p>
-    </div>
-  );
-}
 
 /** The onboarding link is minted per click — Stripe's account links
  * expire in minutes, so a stored one is a support ticket waiting to
@@ -492,5 +431,23 @@ function PayoutOnboardingButton({ hasAccount }: { hasAccount: boolean }) {
         {hasAccount ? "Finish payout setup" : "Set up payouts with Stripe"}
       </SubmitButton>
     </form>
+  );
+}
+
+/**
+ * The earnings header's three-across figure. Deliberately NOT `StatTile`:
+ * that one is a Card, and these three sit INSIDE a card as divided
+ * columns. Same information, different container — forcing them into one
+ * component would mean a `variant` prop whose only job is to remove the
+ * thing that makes a card a card.
+ */
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="px-4 py-3.5">
+      <p className="text-[0.8125rem] text-fg-tertiary">{label}</p>
+      <p className="mt-1 text-[1.25rem] leading-none font-semibold tracking-tight">
+        {value}
+      </p>
+    </div>
   );
 }

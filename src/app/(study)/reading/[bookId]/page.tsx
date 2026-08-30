@@ -6,7 +6,7 @@ import { format } from "date-fns";
 import { MessageCircle } from "lucide-react";
 import { db, studyBooks, studyNotes, studyThreads } from "@/db";
 import { deleteStudyBook, updateStudyBook } from "@/lib/actions/library";
-import { createStudyThread } from "@/lib/actions/study";
+import { createStudyThread } from "@/lib/actions/threads";
 import { requireLearner } from "@/lib/auth";
 import { BookCover } from "@/components/study/book-cover";
 import { BookFields } from "@/components/study/book-fields";

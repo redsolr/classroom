@@ -6,7 +6,7 @@ import { MessageCirclePlus, Sparkles, X } from "lucide-react";
 import {
   createStudyAskThread,
   loadStudyAskThread,
-} from "@/lib/actions/study";
+} from "@/lib/actions/threads";
 import { useAskDock } from "@/stores/use-ask-dock";
 import { StudyChat } from "@/components/study/study-chat";
 

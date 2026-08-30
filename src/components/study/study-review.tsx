@@ -3,7 +3,10 @@
 import * as React from "react";
 import Link from "next/link";
 import { Check, Minus, PartyPopper, RotateCcw, X, Zap } from "lucide-react";
-import { loadStudyPracticeDeck, reviewStudyVocab } from "@/lib/actions/study";
+import {
+  loadStudyPracticeDeck,
+  reviewStudyVocab,
+} from "@/lib/actions/vocab";
 import {
   loadStudySentencePracticeDeck,
   reviewStudySentence,

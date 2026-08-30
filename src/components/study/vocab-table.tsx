@@ -34,11 +34,13 @@ import type { StudyVocabItem } from "@/db";
 import {
   addToStudyVocabList,
   createStudyVocabList,
-  deleteStudyVocab,
   removeFromStudyVocabList,
   reorderStudyVocabListItem,
+} from "@/lib/actions/books";
+import {
+  deleteStudyVocab,
   updateStudyVocab,
-} from "@/lib/actions/study";
+} from "@/lib/actions/vocab";
 import { Badge, vocabularyStatusTone } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";

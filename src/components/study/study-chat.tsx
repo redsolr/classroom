@@ -13,7 +13,8 @@ import {
   Square,
   Volume2,
 } from "lucide-react";
-import { addStudyVocab, branchStudyThread } from "@/lib/actions/study";
+import { branchStudyThread } from "@/lib/actions/threads";
+import { addStudyVocab } from "@/lib/actions/vocab";
 import {
   Dropdown,
   DropdownContent,

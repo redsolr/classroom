@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { addStudyVocabToBook } from "@/lib/actions/study";
+import { addStudyVocabToBook } from "@/lib/actions/books";
 import { WordFormDialog } from "@/components/study/word-form-dialog";
 
 /**

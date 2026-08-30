@@ -15,7 +15,11 @@ import {
   deleteStudyMemory,
   setStudyMemoryEnabled,
   updateStudyInstructions,
-} from "@/lib/actions/study";
+} from "@/lib/actions/memory";
+import {
+  openStudyBillingPortal,
+  startStudyCheckout,
+} from "@/lib/actions/study-billing";
 import { ConfirmButton } from "@/components/ui/confirm-button";
 import { Field, Textarea } from "@/components/ui/field";
 import {
@@ -24,10 +28,6 @@ import {
   learnerHasPro,
   PRO_DAILY_CAP,
 } from "@/lib/billing";
-import {
-  openStudyBillingPortal,
-  startStudyCheckout,
-} from "@/lib/actions/study";
 import { STUDY_MODEL, STUDY_MODELS } from "@/lib/ai/study-tutor";
 import { requireLearner } from "@/lib/auth";
 import { countTutorMessagesLast24h } from "@/lib/study-usage";

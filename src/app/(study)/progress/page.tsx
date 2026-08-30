@@ -5,8 +5,15 @@ import { TrendingUp } from "lucide-react";
 import { db, studyReviews, studySentences, studyVocab } from "@/db";
 import { requireLearner } from "@/lib/auth";
 import { buildStudyProgress } from "@/lib/study-progress";
+import { PipelineBar } from "@/components/study/pipeline-bar";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Card, CardHeader, PageHeader, PageShell } from "@/components/ui/page-header";
+import { StatTile } from "@/components/ui/stat-tile";
+import {
+  Card,
+  CardHeader,
+  PageHeader,
+  PageShell,
+} from "@/components/ui/page-header";
 
 export const metadata: Metadata = { title: "Progress" };
 
@@ -17,104 +24,21 @@ export const metadata: Metadata = { title: "Progress" };
  * and what existed; it could not say whether four weeks had moved
  * anything, which is the question that decides whether someone keeps
  * going. Streaks and word counts are not decoration here — they are the
- * only evidence a self-directed learner has that the effort is
- * compounding.
+ * only evidence a self-directed learner has that the effort compounds.
  *
  * ── Every number is traceable ──────────────────────────────────────
  *
  * There is no level, no grade, no model-written assessment. Each figure
  * is a fact about something the learner did, derived from the review log
- * (`study_reviews`), and each one is phrased so they could check it
+ * (`study_reviews`), and each is phrased so they could check it
  * themselves. That is the standing doctrine and it is also the only
  * version that survives being doubted: the first time a "B1" disagrees
  * with how someone feels, they stop believing every number on the page.
- * "31 words you have got right on a later day" does not have that
- * failure mode.
+ * "31 words you have got right on a later day" has no such failure mode.
  *
- * The charts reuse the teacher-side idiom exactly (`viz-*` tokens,
- * segmented pipeline bar, labelled horizontal bars) rather than
- * introducing a second chart language for the same product.
+ * The charts are the SAME components the teacher's per-student progress
+ * section uses — one chart language for one product, not two that drift.
  */
-
-const PIPELINE_SEGMENTS = [
-  { key: "new", label: "New", fill: "bg-viz-info" },
-  { key: "learning", label: "Learning", fill: "bg-viz-warning" },
-  { key: "reviewing", label: "Reviewing", fill: "bg-viz-accent" },
-  { key: "mastered", label: "Mastered", fill: "bg-viz-success" },
-] as const;
-
-function StatTile({
-  label,
-  value,
-  detail,
-}: {
-  label: string;
-  value: string;
-  detail?: string;
-}) {
-  return (
-    <Card className="px-4 py-3.5">
-      <p className="text-[0.8125rem] font-medium text-fg-tertiary">{label}</p>
-      <p className="mt-1 text-[1.5rem] leading-none font-semibold tracking-tight">
-        {value}
-      </p>
-      {detail && (
-        <p className="mt-1.5 text-[0.8125rem] text-fg-tertiary">{detail}</p>
-      )}
-    </Card>
-  );
-}
-
-function PipelineCard({
-  title,
-  pipeline,
-  unit,
-}: {
-  title: string;
-  pipeline: { new: number; learning: number; reviewing: number; mastered: number; total: number };
-  unit: string;
-}) {
-  return (
-    <Card>
-      <CardHeader title={title} />
-      <div className="px-4 py-4">
-        {pipeline.total === 0 ? (
-          <p className="text-[0.875rem] text-fg-tertiary">
-            No {unit} yet.
-          </p>
-        ) : (
-          <>
-            <div className="flex h-3 gap-[2px]">
-              {PIPELINE_SEGMENTS.filter((s) => pipeline[s.key] > 0).map((s) => (
-                <div
-                  key={s.key}
-                  className={`${s.fill} first:rounded-l-full last:rounded-r-full`}
-                  style={{
-                    width: `${(pipeline[s.key] / pipeline.total) * 100}%`,
-                  }}
-                  title={`${s.label}: ${pipeline[s.key]} of ${pipeline.total}`}
-                />
-              ))}
-            </div>
-            <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">
-              {PIPELINE_SEGMENTS.map((s) => (
-                <span
-                  key={s.key}
-                  className="flex items-center gap-1.5 text-[0.8125rem] text-fg-secondary"
-                >
-                  <span aria-hidden className={`size-2 rounded-full ${s.fill}`} />
-                  {s.label}
-                  <span className="font-medium text-fg">{pipeline[s.key]}</span>
-                </span>
-              ))}
-            </div>
-          </>
-        )}
-      </div>
-    </Card>
-  );
-}
-
 export default async function StudyProgressPage() {
   const learner = await requireLearner();
   const now = new Date();
@@ -146,9 +70,9 @@ export default async function StudyProgressPage() {
       .from(studyReviews)
       .where(eq(studyReviews.learnerId, learner.id))
       .orderBy(desc(studyReviews.reviewedAt))
-      // A year of daily practice is ~10k rows; the summary reads a
-      // window well inside that and the cap keeps one very long-lived
-      // account from turning this page into a table scan.
+      // A year of daily practice is ~10k rows; the summary reads a window
+      // well inside that, and the cap keeps one very long-lived account
+      // from turning this page into a table scan.
       .limit(5000),
   ]);
 
@@ -229,9 +153,7 @@ export default async function StudyProgressPage() {
         {progress.newlyKnownLast30 > 0 && (
           <Card className="px-4 py-3.5">
             <p className="text-[0.9375rem]">
-              <span className="font-semibold">
-                {progress.newlyKnownLast30}
-              </span>{" "}
+              <span className="font-semibold">{progress.newlyKnownLast30}</span>{" "}
               card{progress.newlyKnownLast30 === 1 ? "" : "s"} moved into
               &ldquo;you know this&rdquo; in the last 30 days — you got
               {progress.newlyKnownLast30 === 1 ? " it" : " them"} right on a
@@ -262,7 +184,7 @@ export default async function StudyProgressPage() {
                         : "rounded-t-[3px] bg-surface-hover"
                     }
                     // A zero day keeps a 2px stub so the row still reads
-                    // as fourteen days rather than as a gap in the data.
+                    // as fourteen days rather than a gap in the data.
                     style={{
                       height:
                         day.count > 0
@@ -280,16 +202,19 @@ export default async function StudyProgressPage() {
           </div>
         </Card>
 
-        <PipelineCard
-          title="Words"
-          pipeline={progress.words}
-          unit="words saved"
-        />
-        <PipelineCard
-          title="Sentence cards"
-          pipeline={progress.sentences}
-          unit="sentence cards"
-        />
+        <Card>
+          <CardHeader title="Words" />
+          <div className="px-4 py-4">
+            <PipelineBar pipeline={progress.words} unit="words saved" />
+          </div>
+        </Card>
+
+        <Card>
+          <CardHeader title="Sentence cards" />
+          <div className="px-4 py-4">
+            <PipelineBar pipeline={progress.sentences} unit="sentence cards" />
+          </div>
+        </Card>
 
         <p className="px-1 text-[0.8125rem] text-fg-tertiary">
           &ldquo;Known&rdquo; means a card reached <em>reviewing</em> or{" "}

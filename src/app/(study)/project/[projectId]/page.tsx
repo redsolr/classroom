@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { and, desc, eq } from "drizzle-orm";
 import { Folder, Plus, Settings } from "lucide-react";
 import { db, studyProjects, studyThreads } from "@/db";
-import { createStudyThread } from "@/lib/actions/study";
+import { createStudyThread } from "@/lib/actions/threads";
 import { requireLearner } from "@/lib/auth";
 import { EditProjectDialog } from "@/components/study/edit-project-dialog";
 import { SubmitButton } from "@/components/ui/button";

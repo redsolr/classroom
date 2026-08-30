@@ -1,3 +1,4 @@
+import { coverHue } from "@/components/study/book-cover";
 import { cn } from "@/lib/utils";
 
 /**
@@ -15,15 +16,6 @@ import { cn } from "@/lib/utils";
  * product, and this row is a list of people.
  */
 
-/** Same hashing idea as the collection covers — a stable hue per name. */
-function hueFor(name: string): number {
-  let hash = 0;
-  for (let i = 0; i < name.length; i += 1) {
-    hash = (hash * 31 + name.charCodeAt(i)) % 360;
-  }
-  return hash;
-}
-
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return "?";
@@ -38,7 +30,11 @@ export function TutorAvatar({
   name: string;
   className?: string;
 }) {
-  const hue = hueFor(name);
+  // The SAME hash the book and review covers use. This file had its own
+  // near-copy, which differed in one detail (mod inside the loop rather
+  // than after it) and so produced a different hue for the same string —
+  // two functions claiming to be "the deterministic hue" that disagree.
+  const hue = coverHue(name);
   return (
     <span
       aria-hidden
