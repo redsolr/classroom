@@ -13,10 +13,35 @@ export type PackItemContent = {
   example?: string;
 };
 
+/**
+ * The shelf a book belongs on.
+ *
+ * Editorial, and authored here beside the book itself — the same kind of
+ * thing as its description. It exists so Home can group books into rows
+ * that mean something ("From anime & manga") instead of one long
+ * alphabetical wall, and so the grouping still holds as the catalog
+ * grows.
+ *
+ * Deliberately NOT derived from the name or the description. Guessing a
+ * theme from a string is the kind of signal that looks right across
+ * today's nine books and is quietly wrong on the twentieth.
+ */
+export type PackTheme = "anime" | "games" | "everyday";
+
+/** Fixed display order for the themed shelves. */
+export const PACK_THEME_ORDER: PackTheme[] = ["anime", "games", "everyday"];
+
+export const PACK_THEME_LABEL: Record<PackTheme, string> = {
+  anime: "From anime & manga",
+  games: "From games",
+  everyday: "Out in the world",
+};
+
 export type PackContent = {
   slug: string;
   name: string;
   language: string;
+  theme: PackTheme;
   description: string;
   items: PackItemContent[];
 };
@@ -26,6 +51,7 @@ export const STUDY_PACK_CATALOG: PackContent[] = [
     slug: "persona-5-japanese",
     name: "Persona 5 essentials",
     language: "Japanese",
+    theme: "games",
     description:
       "The kanji and phrases you'll actually meet playing Persona 5 — palaces, phantom thieves, and Tokyo school life.",
     items: [
@@ -53,6 +79,7 @@ export const STUDY_PACK_CATALOG: PackContent[] = [
     slug: "dragon-ball-japanese",
     name: "Dragon Ball essentials",
     language: "Japanese",
+    theme: "anime",
     description:
       "Ki, training arcs, and wish-granting dragons — the words Dragon Ball built a generation of shōnen vocabulary on.",
     items: [
@@ -81,6 +108,7 @@ export const STUDY_PACK_CATALOG: PackContent[] = [
     slug: "death-note-japanese",
     name: "Death Note essentials",
     language: "Japanese",
+    theme: "anime",
     description:
       "Death gods, criminal investigation, and the vocabulary of judgment — the darker, more adult register of shōnen.",
     items: [
@@ -108,6 +136,7 @@ export const STUDY_PACK_CATALOG: PackContent[] = [
     slug: "one-piece-japanese",
     name: "One Piece essentials",
     language: "Japanese",
+    theme: "anime",
     description:
       "Pirates, bounties, and Devil Fruits — the seafaring vocabulary of the best-selling manga ever printed.",
     items: [
@@ -135,6 +164,7 @@ export const STUDY_PACK_CATALOG: PackContent[] = [
     slug: "naruto-japanese",
     name: "Naruto essentials",
     language: "Japanese",
+    theme: "anime",
     description:
       "Ninja ranks, hand seals, and hidden villages — the words that carry almost every shinobi story.",
     items: [
@@ -165,6 +195,7 @@ export const STUDY_PACK_CATALOG: PackContent[] = [
     slug: "final-fantasy-vii-japanese",
     name: "Final Fantasy VII essentials",
     language: "Japanese",
+    theme: "games",
     description:
       "Mako, Materia, and a planet worth saving — the vocabulary of Japan's most-quoted RPG, remake included.",
     items: [
@@ -196,6 +227,7 @@ export const STUDY_PACK_CATALOG: PackContent[] = [
     slug: "anime-essentials-japanese",
     name: "Anime essentials",
     language: "Japanese",
+    theme: "anime",
     description:
       "The vocabulary every anime keeps reusing — heroes, rivals, training arcs, and dramatic declarations.",
     items: [
@@ -220,6 +252,7 @@ export const STUDY_PACK_CATALOG: PackContent[] = [
     slug: "gaming-japanese",
     name: "Gaming Japanese",
     language: "Japanese",
+    theme: "games",
     description:
       "Menu-screen and RPG vocabulary — read your equipment, quests, and boss fights without a guide.",
     items: [
@@ -244,6 +277,7 @@ export const STUDY_PACK_CATALOG: PackContent[] = [
     slug: "cafe-french",
     name: "Café survival French",
     language: "French",
+    theme: "everyday",
     description:
       "Order, pay, and small-talk your way through any Parisian café politely.",
     items: [

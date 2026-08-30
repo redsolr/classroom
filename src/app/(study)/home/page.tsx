@@ -17,6 +17,10 @@ import { requireLearner } from "@/lib/auth";
 import { dueIds, membersByDeck } from "@/lib/study-shelves";
 import { suggestedPath } from "@/lib/study-path-queries";
 import { threadTitle } from "@/lib/study-display";
+import {
+  PACK_THEME_LABEL,
+  PACK_THEME_ORDER,
+} from "@/content/study-packs";
 import { Greeting } from "@/components/study/greeting";
 import { SearchBar } from "@/components/study/search-bar";
 import { OfficialShelf } from "@/components/study/official-shelf";
@@ -116,6 +120,7 @@ export default async function StudyHomePage() {
           slug: studyPacks.slug,
           name: studyPacks.name,
           language: studyPacks.language,
+          theme: studyPacks.theme,
           itemCount: sql<number>`count(${studyPackItems.id})::int`,
         })
         .from(studyPacks)
@@ -300,6 +305,40 @@ export default async function StudyHomePage() {
   const path = await suggestedPath(learner.id);
 
   const firstRun = words.length === 0 && sentenceRows.length === 0;
+
+  /**
+   * The catalog, grouped onto editorial shelves.
+   *
+   * Order is fixed by `PACK_THEME_ORDER` rather than by size, so the page
+   * does not silently rearrange itself the week someone adds three books
+   * to one shelf. Empty shelves are dropped, which is what lets this
+   * scale down to a small catalog without ever rendering a titled row
+   * with nothing under it.
+   */
+  const themedShelves = PACK_THEME_ORDER.map((theme) => ({
+    theme,
+    label: PACK_THEME_LABEL[theme],
+    packs: officialRows.filter((pack) => pack.theme === theme),
+  })).filter((shelf) => shelf.packs.length > 0);
+
+  /**
+   * One tile per language we actually ship books in, with what is behind
+   * it. The counts are the honest part: "Japanese · 8 books · 142 words"
+   * is checkable, and it is the difference between offering a language
+   * and merely naming one.
+   */
+  const languages = [...new Set(officialRows.map((pack) => pack.language))]
+    .map((name) => {
+      const inLanguage = officialRows.filter((pack) => pack.language === name);
+      return {
+        name,
+        books: inLanguage.length,
+        words: inLanguage.reduce((sum, pack) => sum + pack.itemCount, 0),
+      };
+    })
+    // Most to offer first — with two languages this is cosmetic, with ten
+    // it is the difference between a shelf and a lucky dip.
+    .sort((a, b) => b.words - a.words);
 
   // The covers the spotlight fans out: the decks that actually have
   // something due, in the order the picks already ranked them. Real
@@ -612,6 +651,67 @@ export default async function StudyHomePage() {
             })}
           </Shelf>
         )}
+
+        {/* PICK A LANGUAGE — first run only.
+            On a brand-new account the five rows above are all empty by
+            construction: no decks, no sentence cards, no language to
+            recommend against, no chats. What was left was one strip and
+            a wall of official books, which reads as an app with nothing
+            in it rather than one waiting for a first decision.
+            The first decision IS the language, so it gets a row. It
+            disappears the moment there is one, because by then the
+            learner has answered it. */}
+        {firstRun && languages.length > 0 && (
+          <Shelf
+            title="Pick a language"
+            subtitle="Everything else follows from this — books, decks, the guided path, and the tutor."
+            className="home-languages"
+          >
+            {languages.map((lang) => (
+              <ShelfCard
+                key={lang.name}
+                href={`/official?language=${encodeURIComponent(lang.name)}`}
+                name={lang.name}
+                detail={`${lang.books} book${lang.books === 1 ? "" : "s"} · ${lang.words} words`}
+                cover={<CollectionCover art="book" name={lang.name} />}
+              />
+            ))}
+          </Shelf>
+        )}
+
+        {/* THEMED SHELVES — always, not only on first run.
+            The catalog row answers "what is there"; these answer "what
+            is it LIKE", which is the question someone browsing actually
+            has. The theme is authored per book in
+            `src/content/study-packs.ts`, never guessed from the title —
+            a grouping inferred from a string looks right across nine
+            books and is quietly wrong on the twentieth.
+            A theme with nothing in it renders nothing, so the rows shrink
+            honestly rather than standing empty. */}
+        {themedShelves.map((shelf) => (
+          <Shelf
+            key={shelf.theme}
+            title={shelf.label}
+            seeAllHref="/official"
+            className={`home-theme-${shelf.theme}`}
+          >
+            {shelf.packs.map((pack) => (
+              <ShelfCard
+                key={pack.id}
+                href={`/official/${pack.slug}`}
+                name={pack.name}
+                detail={`${pack.language} · ${pack.itemCount} word${pack.itemCount === 1 ? "" : "s"}`}
+                cover={
+                  <PackCover
+                    slug={pack.slug}
+                    name={pack.name}
+                    language={pack.language}
+                  />
+                }
+              />
+            ))}
+          </Shelf>
+        ))}
 
         {/* ROW 6 — the whole catalog, for when none of the above was it.
             Inside the same stack as the rest: it used to sit outside and

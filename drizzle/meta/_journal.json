@@ -169,6 +169,13 @@
       "when": 1788069090456,
       "tag": "0023_lesson_calls",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1788069476788,
+      "tag": "0024_pack_theme",
+      "breakpoints": true
     }
   ]
 }

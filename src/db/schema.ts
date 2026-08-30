@@ -1033,6 +1033,11 @@ export const studyPacks = pgTable(
     slug: text("slug").notNull(),
     name: text("name").notNull(),
     language: text("language").notNull(),
+    /** Editorial shelf ("anime" | "games" | "everyday"), authored in
+     * `src/content/study-packs.ts` and synced by the seeder. Plain text
+     * rather than an enum: adding a shelf is a content decision, and it
+     * should not need a migration to make one. */
+    theme: text("theme"),
     description: text("description"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()

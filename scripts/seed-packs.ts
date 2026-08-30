@@ -31,6 +31,7 @@ async function main() {
         .set({
           name: pack.name,
           language: pack.language,
+          theme: pack.theme,
           description: pack.description,
           updatedAt: new Date(),
         })
@@ -43,6 +44,7 @@ async function main() {
           slug: pack.slug,
           name: pack.name,
           language: pack.language,
+          theme: pack.theme,
           description: pack.description,
         })
         .returning({ id: studyPacks.id });

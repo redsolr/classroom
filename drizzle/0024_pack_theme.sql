@@ -1,0 +1,1 @@
+ALTER TABLE "study_packs" ADD COLUMN "theme" text;

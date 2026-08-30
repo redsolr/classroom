@@ -111,6 +111,16 @@ export default async function StudentSchedulePage({
                         {` · ${formatDistanceToNow(new Date(l.startedAt), { addSuffix: true })}`}
                       </span>
                     </span>
+                    {/* The student's only way into the room. Without it
+                        the call is a feature only the teacher can reach,
+                        and the other half of the lesson is left pasting
+                        a URL someone sent them. */}
+                    <Link
+                      href={`/call/${l.id}`}
+                      className="shrink-0 rounded-lg bg-accent px-3 py-1.5 text-[0.8125rem] font-medium text-white hover:bg-accent-hover"
+                    >
+                      Join call
+                    </Link>
                     <Badge tone={lessonStatusTone[l.status]}>{l.status}</Badge>
                   </li>
                 ))}
