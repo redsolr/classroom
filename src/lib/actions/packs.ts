@@ -8,12 +8,12 @@ import {
   studyPackItems,
   studyPacks,
   studyVocab,
-  studyVocabListItems,
-  studyVocabLists,
+  studyDeckItems,
+  studyDecks,
 } from "@/db";
 import { requireLearner } from "@/lib/auth";
-import { nextListPosition } from "@/lib/study-books";
-import { requireOwnVocabList } from "@/lib/study-guards";
+import { nextDeckPosition } from "@/lib/study-decks";
+import { requireOwnDeck } from "@/lib/study-guards";
 
 /**
  * Official books — copying our shipped content into a learner's own
@@ -50,11 +50,11 @@ async function savedTermsFor(learnerId: string, language: string) {
  */
 export async function addStudyPackItem(
   itemId: string,
-  target?: { listId?: string; newListName?: string },
+  target?: { deckId?: string; newListName?: string },
 ): Promise<{
   added: boolean;
   vocabId: string;
-  listId: string | null;
+  deckId: string | null;
   listName: string | null;
 }> {
   const learner = await requireLearner();
@@ -99,50 +99,50 @@ export async function addStudyPackItem(
     vocabId = created.id;
   }
 
-  let listId: string | null = null;
+  let deckId: string | null = null;
   let listName: string | null = null;
   // No explicit target = the one-tap save. It always joins the
   // vocabulary; it ALSO files into the learner's default book when they
   // have set one, which is the whole point of having a default.
   if (target === undefined) {
-    const fallback = await db.query.studyVocabLists.findFirst({
+    const fallback = await db.query.studyDecks.findFirst({
       where: and(
-        eq(studyVocabLists.learnerId, learner.id),
-        eq(studyVocabLists.isDefault, true),
+        eq(studyDecks.learnerId, learner.id),
+        eq(studyDecks.isDefault, true),
       ),
       columns: { id: true, name: true },
     });
-    if (fallback) target = { listId: fallback.id };
+    if (fallback) target = { deckId: fallback.id };
   }
   if (target?.newListName !== undefined) {
     const name = z.string().trim().min(1).max(120).parse(target.newListName);
     const [list] = await db
-      .insert(studyVocabLists)
+      .insert(studyDecks)
       .values({ learnerId: learner.id, name })
       .returning();
-    await db.insert(studyVocabListItems).values({
-      listId: list.id,
+    await db.insert(studyDeckItems).values({
+      deckId: list.id,
       vocabId,
-      position: await nextListPosition(list.id),
+      position: await nextDeckPosition(list.id),
     });
-    listId = list.id;
+    deckId = list.id;
     listName = list.name;
-  } else if (target?.listId) {
-    const list = await requireOwnVocabList(learner.id, target.listId);
+  } else if (target?.deckId) {
+    const list = await requireOwnDeck(learner.id, target.deckId);
     await db
-      .insert(studyVocabListItems)
+      .insert(studyDeckItems)
       .values({
-        listId: list.id,
+        deckId: list.id,
         vocabId,
-        position: await nextListPosition(list.id),
+        position: await nextDeckPosition(list.id),
       })
       .onConflictDoNothing(); // already filed here = no-op
-    listId = list.id;
+    deckId = list.id;
     listName = list.name;
   }
 
   revalidatePath("/books");
-  return { added, vocabId, listId, listName };
+  return { added, vocabId, deckId, listName };
 }
 
 /**
@@ -154,7 +154,7 @@ export async function addStudyPackItem(
 export async function importStudyPack(packId: string): Promise<{
   added: number;
   list: string;
-  listId: string;
+  deckId: string;
   /** Lowercased term → the learner's own vocab row id, so the pack page
    * can refresh its saved-state without a reload. */
   vocabIdsByTerm: Record<string, string>;
@@ -203,25 +203,25 @@ export async function importStudyPack(packId: string): Promise<{
     .map((i) => byTerm.get(i.term.toLowerCase()))
     .filter((v): v is string => !!v);
 
-  let list = await db.query.studyVocabLists.findFirst({
+  let list = await db.query.studyDecks.findFirst({
     where: and(
-      eq(studyVocabLists.learnerId, learner.id),
-      eq(studyVocabLists.name, pack.name),
+      eq(studyDecks.learnerId, learner.id),
+      eq(studyDecks.name, pack.name),
     ),
   });
   if (!list) {
     [list] = await db
-      .insert(studyVocabLists)
+      .insert(studyDecks)
       .values({ learnerId: learner.id, name: pack.name })
       .returning();
   } else {
     await db
-      .delete(studyVocabListItems)
-      .where(eq(studyVocabListItems.listId, list.id));
+      .delete(studyDeckItems)
+      .where(eq(studyDeckItems.deckId, list.id));
   }
-  await db.insert(studyVocabListItems).values(
+  await db.insert(studyDeckItems).values(
     orderedIds.map((vocabId, position) => ({
-      listId: list.id,
+      deckId: list.id,
       vocabId,
       position,
     })),
@@ -234,7 +234,7 @@ export async function importStudyPack(packId: string): Promise<{
   return {
     added: fresh.length,
     list: pack.name,
-    listId: list.id,
+    deckId: list.id,
     vocabIdsByTerm: Object.fromEntries(
       items
         .map((i) => [i.term.toLowerCase(), byTerm.get(i.term.toLowerCase())])

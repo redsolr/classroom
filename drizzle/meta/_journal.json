@@ -134,6 +134,20 @@
       "when": 1788046944877,
       "tag": "0018_lucky_ares",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1788051815129,
+      "tag": "0019_books_become_containers",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1788051922058,
+      "tag": "0020_legal_rage",
+      "breakpoints": true
     }
   ]
 }

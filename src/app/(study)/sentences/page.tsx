@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { asc, desc, eq } from "drizzle-orm";
 import { MessageSquareQuote, Play } from "lucide-react";
-import { db, studySentences, studyVocabLists } from "@/db";
+import { db, studySentences, studyDecks } from "@/db";
 import { requireLearner } from "@/lib/auth";
 import { isCardDue } from "@/lib/srs";
 import { SentenceList } from "@/components/study/sentence-list";
@@ -29,10 +29,10 @@ export default async function StudySentencesPage() {
       .where(eq(studySentences.learnerId, learner.id))
       .orderBy(desc(studySentences.createdAt)),
     db
-      .select({ id: studyVocabLists.id, name: studyVocabLists.name })
-      .from(studyVocabLists)
-      .where(eq(studyVocabLists.learnerId, learner.id))
-      .orderBy(asc(studyVocabLists.createdAt)),
+      .select({ id: studyDecks.id, name: studyDecks.name })
+      .from(studyDecks)
+      .where(eq(studyDecks.learnerId, learner.id))
+      .orderBy(asc(studyDecks.createdAt)),
   ]);
 
   const dueCount = sentences.filter((s) => isCardDue(s.srsDueAt, now)).length;

@@ -137,7 +137,14 @@ test("deleting a book keeps its notes as loose notes", async ({ page }) => {
   await page.waitForURL(/\/reading\/[0-9a-f-]{36}/);
 
   await page.getByRole("button", { name: "Delete book" }).click();
-  await page.waitForURL(/\/reading$/);
+  // Deleting has ONE destination whichever surface deleted it
+  // (2026-08-30): the page you were on no longer exists, and the reading
+  // list is a filter over the books shelf rather than its own place.
+  await page.waitForURL(/\/books$/);
+  await expect(
+    page.locator(".books-shelf").getByText(BOOK_TITLE),
+  ).toBeHidden();
+  await page.goto("/reading");
   await expect(
     page.getByRole("link", { name: new RegExp(BOOK_TITLE) }),
   ).not.toBeVisible();

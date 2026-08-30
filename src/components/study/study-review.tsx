@@ -2,6 +2,9 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { finishDeckRun } from "@/lib/actions/runs";
+import type { RunComparison } from "@/lib/deck-runs";
+import { RunSummaryCard } from "@/components/study/run-summary";
 import { Check, Minus, PartyPopper, RotateCcw, X, Zap } from "lucide-react";
 import {
   loadStudyPracticeDeck,
@@ -231,7 +234,7 @@ function CardFace({
 export function StudyReview({
   deck: initialDeck,
   totalWords,
-  listId = null,
+  deckId = null,
   packSlug = null,
   initialMode = "due",
   deckKind = "word",
@@ -243,7 +246,7 @@ export function StudyReview({
   /** Book this session is scoped to, null for the whole vocabulary.
    * Carried so a cram round redeals from the SAME scope instead of
    * silently widening to every word the learner owns. */
-  listId?: string | null;
+  deckId?: string | null;
   /** Official book being drilled without saving it. Its cards aren't the
    * learner's rows, so the session starts (and stays) in practice mode —
    * there's no schedule to move. */
@@ -259,6 +262,16 @@ export function StudyReview({
   const [index, setIndex] = React.useState(0);
   const [revealed, setRevealed] = React.useState(false);
   const [graded, setGraded] = React.useState(0);
+  /**
+   * Every grade this session, in order — the raw material for the run
+   * summary. Kept as the ANSWERS rather than a running accuracy so the
+   * server can re-derive the numbers it is about to store; a client that
+   * posts its own "100%" is making a claim, not reporting a fact.
+   */
+  const gradesRef = React.useRef<ReviewGrade[]>([]);
+  const startedAtRef = React.useRef<number | null>(null);
+  const [runResult, setRunResult] = React.useState<RunComparison | null>(null);
+  const runSavedRef = React.useRef(false);
   const [saveError, setSaveError] = React.useState(false);
   const [drag, setDrag] = React.useState<{ dx: number; dy: number } | null>(
     null,
@@ -294,7 +307,12 @@ export function StudyReview({
     // Optimistic: the animation IS the pacing — a save failure surfaces
     // as a note under the deck instead of freezing the session.
     // Practice rounds never persist (cram must not reschedule).
+    // Practice rounds are excluded from the record board for the same
+    // reason they are excluded from scheduling: otherwise the way to a
+    // perfect score is to re-drill the easy deck.
     if (mode === "due") {
+      gradesRef.current.push(grade);
+      startedAtRef.current ??= Date.now();
       const cardId = card.id;
       const cardKind = card.kind;
       startTransition(async () => {
@@ -377,8 +395,8 @@ export function StudyReview({
       try {
         const cards =
           deckKind === "sentence"
-            ? toSentenceCards(await loadStudySentencePracticeDeck(listId))
-            : toWordCards(await loadStudyPracticeDeck(listId));
+            ? toSentenceCards(await loadStudySentencePracticeDeck(deckId))
+            : toWordCards(await loadStudyPracticeDeck(deckId));
         if (cards.length === 0) return;
         setMode("practice");
         setDeck(cards);
@@ -392,6 +410,37 @@ export function StudyReview({
     });
   };
 
+  /**
+   * The deck is empty: record the run, once.
+   *
+   * In an effect rather than inline, because this renders during the
+   * completion branch and a server action fired from a render body would
+   * run on every re-render. The ref is what makes "once" true even
+   * though the effect's deps legitimately change.
+   */
+  React.useEffect(() => {
+    if (card || runSavedRef.current) return;
+    if (gradesRef.current.length === 0) return;
+    runSavedRef.current = true;
+    const grades = gradesRef.current;
+    const startedAt = startedAtRef.current;
+    void (async () => {
+      try {
+        const result = await finishDeckRun({
+          deckId,
+          kind: deckKind,
+          grades,
+          durationMs: startedAt ? Date.now() - startedAt : null,
+        });
+        setRunResult(result);
+      } catch (error) {
+        // A lost run summary is a cosmetic loss — the schedule was
+        // already saved card by card — so this never blocks the screen.
+        console.error("study review: failed to record the run", error);
+      }
+    })();
+  }, [card, deckId, deckKind]);
+
   if (!card) {
     return (
       <div className="rounded-lg bg-surface px-6 py-10 text-center shadow-card">
@@ -401,6 +450,11 @@ export function StudyReview({
             ? `Nice — ${graded} card${graded === 1 ? "" : "s"} ${mode === "practice" ? "practiced" : "reviewed"}.`
             : "Nothing due right now."}
         </h2>
+
+        {/* How THIS run went, and how it compares. The end of a session
+            is where a game puts the score, and finishing something to be
+            told nothing about it feels like it didn't count. */}
+        {runResult && <RunSummaryCard result={runResult} />}
         <p className="mt-1 text-[0.9375rem] text-fg-secondary">
           {totalWords > 0
             ? "Deal the deck again any time — practice rounds don't change your schedule."

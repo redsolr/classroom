@@ -147,6 +147,12 @@ export const pathStepKindEnum = pgEnum("path_step_kind", [
   "lesson",
 ]);
 
+/** Which card a review or a run was over. */
+export const studyCardKindEnum = pgEnum("study_card_kind", [
+  "word",
+  "sentence",
+]);
+
 export const insightTypeEnum = pgEnum("insight_type", [
   "recurringMistake",
   "learningPreference",
@@ -592,12 +598,28 @@ export const learners = pgTable(
 );
 
 // ---------------------------------------------------------------------------
-// Reading library — one entry per book/article the learner reads (HBR
-// pieces count), holding a short summary + their atomic NOTES (below).
-// Not the vocab "books" (study_vocab_lists): this is the general-learning
-// shelf — what I read, what I took from it, discussable in a chat.
-// Covers are generated from the title (src/lib/reading-cover.ts) — no
-// stored artwork.
+// BOOKS — the container, and the app's one meaning of the word.
+//
+// This table used to be the READING LIST only, while `study_vocab_lists`
+// was separately shown to learners as "Books". Two tables, one word, in
+// a product whose stated rule is one word one meaning — and the 2026-08-29
+// naming pass killed "Dictionary" and "Curated lists" while walking past
+// this one.
+//
+// They are merged here (2026-08-30, founder decision). A book is a
+// container that holds:
+//
+//   decks   — the word lists you drill (study_decks, below)
+//   notes   — atomic Notion-style notes (study_notes, unchanged)
+//   reading — whether you have read it, which is now a FLAG on the
+//             container rather than a separate kind of thing
+//
+// The tell that this was the right merge: `study_notes.book_id` already
+// pointed here and did not have to move. Notes were hanging off the
+// right table the whole time; there just wasn't a deck beside them.
+//
+// Covers stay generated from the title (no stored artwork, no uploads —
+// the standing "organize MEANING, not files" cut).
 // ---------------------------------------------------------------------------
 
 export const studyBooks = pgTable(
@@ -609,8 +631,28 @@ export const studyBooks = pgTable(
       .references(() => learners.id, { onDelete: "cascade" }),
     title: text("title").notNull(),
     author: text("author"),
-    /** What this book/article was about — one short paragraph. */
+    /** What this book is about — one short paragraph. */
     summary: text("summary"),
+    /** Pinned books surface in the sidebar for one-tap open. */
+    pinned: boolean("pinned").notNull().default(false),
+    /**
+     * Set = the learner has READ this. The reading list is now a filter
+     * over books rather than its own table, which is what lets a book
+     * you read carry the words you took out of it.
+     */
+    readAt: timestamp("read_at", { withTimezone: true }),
+    /**
+     * Presence of a token means the book has a live public link; null
+     * disables it, and regenerating revokes the old one. Same shape as
+     * the student portal's `students.portal_token`, deliberately: a
+     * revocable capability URL is a pattern this codebase already has,
+     * already tests, and already knows the failure modes of.
+     *
+     * Read-only by design. Collaborative editing needs the realtime
+     * transport decision that is still open (docs/realtime-collab.md),
+     * and shipping a share link does not require answering it.
+     */
+    shareToken: text("share_token"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -618,7 +660,10 @@ export const studyBooks = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (t) => [index("study_books_learner_id_idx").on(t.learnerId)],
+  (t) => [
+    index("study_books_learner_id_idx").on(t.learnerId),
+    uniqueIndex("study_books_share_token_idx").on(t.shareToken),
+  ],
 );
 
 // ---------------------------------------------------------------------------
@@ -785,22 +830,41 @@ export const studyVocab = pgTable(
 );
 
 // ---------------------------------------------------------------------------
-// Vocabulary lists — learner-curated, ORDERED collections of their own
-// vocab ("Common French verbs", "Restaurant phrases", …). Position is the
-// learner's manual order; deleting a word cascades it out of every list.
+// DECKS — an ordered list of the learner's own words, and the thing you
+// actually drill.
+//
+// This was `study_vocab_lists`, shown to learners as "Books". The rename
+// is the founder's own sentence: "books is a container, decks is just a
+// vocab list that you can Anki through". A deck is the small unit — the
+// forty words from chapter one — and a book is what holds several of
+// them next to your notes.
+//
+// `bookId` is NULLABLE: a loose deck is still legal, because the fastest
+// way to start is a pile of words with nowhere to put them yet, and
+// forcing a container first is exactly the friction that stops people
+// saving the word.
+//
+// Position is the learner's manual order; deleting a word cascades it
+// out of every deck.
 // ---------------------------------------------------------------------------
 
-export const studyVocabLists = pgTable(
-  "study_vocab_lists",
+export const studyDecks = pgTable(
+  "study_decks",
   {
     id: uuid("id").primaryKey().defaultRandom(),
     learnerId: uuid("learner_id")
       .notNull()
       .references(() => learners.id, { onDelete: "cascade" }),
+    /** The book this deck sits in. SET NULL, never cascade: deleting a
+     * book must not destroy the words inside it — the deck comes loose
+     * and keeps every card's review history. */
+    bookId: uuid("book_id").references(() => studyBooks.id, {
+      onDelete: "set null",
+    }),
     name: text("name").notNull(),
-    /** Pinned books surface in the sidebar for one-tap open/quick-add. */
+    /** Pinned decks surface in the sidebar for one-tap open/quick-add. */
     pinned: boolean("pinned").notNull().default(false),
-    /** The book a one-tap save files into, on top of the word joining the
+    /** The deck a one-tap save files into, on top of the word joining the
      * vocabulary (the "liked" layer). At most one per learner — the
      * partial unique index below is the enforcement, not app code. */
     isDefault: boolean("is_default").notNull().default(false),
@@ -812,32 +876,86 @@ export const studyVocabLists = pgTable(
       .defaultNow(),
   },
   (t) => [
-    index("study_vocab_lists_learner_id_idx").on(t.learnerId),
-    uniqueIndex("study_vocab_lists_one_default_idx")
+    index("study_decks_learner_id_idx").on(t.learnerId),
+    index("study_decks_book_id_idx").on(t.bookId),
+    uniqueIndex("study_decks_one_default_idx")
       .on(t.learnerId)
       .where(sql`${t.isDefault}`),
   ],
 );
 
-export const studyVocabListItems = pgTable(
-  "study_vocab_list_items",
+export const studyDeckItems = pgTable(
+  "study_deck_items",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    listId: uuid("list_id")
+    deckId: uuid("deck_id")
       .notNull()
-      .references(() => studyVocabLists.id, { onDelete: "cascade" }),
+      .references(() => studyDecks.id, { onDelete: "cascade" }),
     vocabId: uuid("vocab_id")
       .notNull()
       .references(() => studyVocab.id, { onDelete: "cascade" }),
-    /** Manual order within the list — contiguous from 0 per list. */
+    /** Manual order within the deck — contiguous from 0 per deck. */
     position: integer("position").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
   (t) => [
-    uniqueIndex("study_vocab_list_items_list_vocab_idx").on(t.listId, t.vocabId),
-    index("study_vocab_list_items_list_position_idx").on(t.listId, t.position),
+    uniqueIndex("study_deck_items_deck_vocab_idx").on(t.deckId, t.vocabId),
+    index("study_deck_items_deck_position_idx").on(t.deckId, t.position),
+  ],
+);
+
+// ---------------------------------------------------------------------------
+// DECK RUNS — one row per finished drill, so a session can end with
+// something to say.
+//
+// The drill used to finish on a blank "nothing due" screen, which is the
+// least interesting moment in the app to say nothing: the learner has
+// just done the work and is deciding whether to do it again tomorrow.
+// A run row is what lets the last card show how THIS session went and
+// how it compares to the best one.
+//
+// Only COMPLETED runs are written. A session abandoned halfway is not a
+// record anyone should be measured against, and counting it would make
+// the "best" number depend on how often you got interrupted.
+//
+// Cram rounds are excluded for the same reason they are excluded from
+// scheduling (Anki convention, `loadStudyPracticeDeck`): they are
+// schedule-neutral practice, and letting them set records would mean the
+// way to a perfect score is to drill the easy deck repeatedly.
+// ---------------------------------------------------------------------------
+
+export const studyDeckRuns = pgTable(
+  "study_deck_runs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    learnerId: uuid("learner_id")
+      .notNull()
+      .references(() => learners.id, { onDelete: "cascade" }),
+    /** Null = a run over "All words" or all sentences, which have no
+     * deck row of their own. SET NULL so deleting a deck doesn't erase
+     * the fact that you did the work. */
+    deckId: uuid("deck_id").references(() => studyDecks.id, {
+      onDelete: "set null",
+    }),
+    kind: studyCardKindEnum("kind").notNull(),
+    /** Cards answered in this run. */
+    cards: integer("cards").notNull(),
+    /** Answered anything but "again" — the same definition the retention
+     * figure uses, so two numbers in one product can't disagree. */
+    correct: integer("correct").notNull(),
+    /** Longest unbroken correct streak within the run. */
+    bestStreak: integer("best_streak").notNull().default(0),
+    /** Wall-clock, for "you did 20 cards in four minutes". */
+    durationMs: integer("duration_ms"),
+    finishedAt: timestamp("finished_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("study_deck_runs_learner_deck_idx").on(t.learnerId, t.deckId),
+    index("study_deck_runs_learner_time_idx").on(t.learnerId, t.finishedAt),
   ],
 );
 
@@ -877,9 +995,9 @@ export const studySentences = pgTable(
     vocabId: uuid("vocab_id").references(() => studyVocab.id, {
       onDelete: "set null",
     }),
-    /** The book it was generated from, so a book can have its own
+    /** The deck it was generated from, so a deck can have its own
      * sentence deck. SET NULL for the same reason. */
-    listId: uuid("list_id").references(() => studyVocabLists.id, {
+    deckId: uuid("deck_id").references(() => studyDecks.id, {
       onDelete: "set null",
     }),
     status: vocabularyStatusEnum("status").notNull().default("new"),
@@ -897,7 +1015,7 @@ export const studySentences = pgTable(
   },
   (t) => [
     index("study_sentences_learner_due_idx").on(t.learnerId, t.srsDueAt),
-    index("study_sentences_learner_list_idx").on(t.learnerId, t.listId),
+    index("study_sentences_learner_deck_idx").on(t.learnerId, t.deckId),
   ],
 );
 
@@ -968,11 +1086,6 @@ export const studyPackItems = pgTable(
 // erase the fact that you practised that day. `kind` is stored so the
 // row still says what it was after its card is gone.
 // ---------------------------------------------------------------------------
-
-export const studyCardKindEnum = pgEnum("study_card_kind", [
-  "word",
-  "sentence",
-]);
 
 export const studyReviews = pgTable(
   "study_reviews",
@@ -1373,8 +1486,9 @@ export type StudyProject = typeof studyProjects.$inferSelect;
 export type StudyThread = typeof studyThreads.$inferSelect;
 export type StudyMessage = typeof studyMessages.$inferSelect;
 export type StudyVocabItem = typeof studyVocab.$inferSelect;
-export type StudyVocabList = typeof studyVocabLists.$inferSelect;
-export type StudyVocabListItem = typeof studyVocabListItems.$inferSelect;
+export type StudyDeck = typeof studyDecks.$inferSelect;
+export type StudyDeckItem = typeof studyDeckItems.$inferSelect;
+export type StudyDeckRun = typeof studyDeckRuns.$inferSelect;
 export type StudySentence = typeof studySentences.$inferSelect;
 export type VocabularyBook = typeof vocabularyBooks.$inferSelect;
 export type StudyPack = typeof studyPacks.$inferSelect;

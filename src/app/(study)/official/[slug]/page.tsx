@@ -6,8 +6,8 @@ import {
   studyPackItems,
   studyPacks,
   studyVocab,
-  studyVocabListItems,
-  studyVocabLists,
+  studyDeckItems,
+  studyDecks,
 } from "@/db";
 import { requireLearner } from "@/lib/auth";
 import { PackView } from "@/components/study/pack-view";
@@ -55,24 +55,24 @@ export default async function StudyPackPage({
       ),
     db
       .select({
-        id: studyVocabLists.id,
-        name: studyVocabLists.name,
-        isDefault: studyVocabLists.isDefault,
+        id: studyDecks.id,
+        name: studyDecks.name,
+        isDefault: studyDecks.isDefault,
       })
-      .from(studyVocabLists)
-      .where(eq(studyVocabLists.learnerId, learner.id))
-      .orderBy(asc(studyVocabLists.createdAt)),
+      .from(studyDecks)
+      .where(eq(studyDecks.learnerId, learner.id))
+      .orderBy(asc(studyDecks.createdAt)),
     db
       .select({
-        listId: studyVocabListItems.listId,
-        vocabId: studyVocabListItems.vocabId,
+        deckId: studyDeckItems.deckId,
+        vocabId: studyDeckItems.vocabId,
       })
-      .from(studyVocabListItems)
+      .from(studyDeckItems)
       .innerJoin(
-        studyVocabLists,
-        eq(studyVocabListItems.listId, studyVocabLists.id),
+        studyDecks,
+        eq(studyDeckItems.deckId, studyDecks.id),
       )
-      .where(eq(studyVocabLists.learnerId, learner.id)),
+      .where(eq(studyDecks.learnerId, learner.id)),
   ]);
 
   // term (lowercased) → the learner's row + the books holding it, which
@@ -85,7 +85,7 @@ export default async function StudyPackPage({
         reviewed: row.srsReps > 0,
         bookIds: membershipRows
           .filter((m) => m.vocabId === row.id)
-          .map((m) => m.listId),
+          .map((m) => m.deckId),
       },
     ]),
   );

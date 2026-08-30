@@ -20,8 +20,8 @@ import {
   studyProjects,
   studyThreads,
   studyVocab,
-  studyVocabListItems,
-  studyVocabLists,
+  studyDeckItems,
+  studyDecks,
 } from "../src/db";
 
 const MINUTE = 60 * 1000;
@@ -215,11 +215,11 @@ async function main() {
       ),
     );
   await db
-    .delete(studyVocabLists)
+    .delete(studyDecks)
     .where(
       and(
-        eq(studyVocabLists.learnerId, learner.id),
-        inArray(studyVocabLists.name, [...SEED_LISTS]),
+        eq(studyDecks.learnerId, learner.id),
+        inArray(studyDecks.name, [...SEED_LISTS]),
       ),
     );
   const seedTerms = [
@@ -338,12 +338,12 @@ async function main() {
   const verbRows = frenchRows.filter((r) => verbTerms.has(r.term));
   // Pinned — the sidebar quick-add example book.
   const [list] = await db
-    .insert(studyVocabLists)
+    .insert(studyDecks)
     .values({ learnerId: learner.id, name: "Common French verbs", pinned: true })
-    .returning({ id: studyVocabLists.id });
-  await db.insert(studyVocabListItems).values(
+    .returning({ id: studyDecks.id });
+  await db.insert(studyDeckItems).values(
     verbRows.map((row, position) => ({
-      listId: list.id,
+      deckId: list.id,
       vocabId: row.id,
       position,
     })),

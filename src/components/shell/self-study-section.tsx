@@ -390,7 +390,7 @@ function StudyChatTree({ study }: { study: SidebarStudy }) {
         {showMore && MORE_ITEMS.map(navTab)}
       </div>
 
-      {(study.pinned.length > 0 || study.pinnedBooks.length > 0) && (
+      {(study.pinned.length > 0 || study.pinnedDecks.length > 0) && (
         <div>
           <SectionLabel>Pinned</SectionLabel>
           <div className="space-y-0.5">
@@ -404,13 +404,13 @@ function StudyChatTree({ study }: { study: SidebarStudy }) {
             ))}
             {/* Pinned vocabulary BOOKS — name opens the book, + adds a
                 word straight into it from anywhere. */}
-            {study.pinnedBooks.map((book) => (
+            {study.pinnedDecks.map((book) => (
               <div
                 key={book.id}
                 className="book-row group flex items-center rounded-md pr-1 pl-2.5 transition-colors hover:bg-surface-hover"
               >
                 <Link
-                  href={`/books?book=${book.id}`}
+                  href={`/decks/${book.id}`}
                   className="flex min-w-0 flex-1 items-center gap-2 py-1.5 pr-1 text-[0.9375rem] text-fg"
                 >
                   <BookMarked className="size-3.5 shrink-0 text-fg-tertiary" />

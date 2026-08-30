@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
-import { db, studyVocabLists } from "@/db";
+import { db, studyBooks, studyDecks } from "@/db";
 
 /**
  * Ownership guards for learner-owned study rows.
@@ -18,21 +18,28 @@ import { db, studyVocabLists } from "@/db";
  */
 
 /**
- * The learner owns this vocabulary book, or the call fails.
+ * The learner owns this deck, or the call fails.
  *
- * "Vocabulary book" rather than plain "book" in the message: the
- * reading list has books too (`study_books`), and two entities sharing
- * one error string is how a debugging session goes looking in the wrong
- * table.
+ * The message says "Deck", not "Book" — they are different entities now
+ * (a book CONTAINS decks), and two entities sharing one error string is
+ * how a debugging session goes looking in the wrong table. That was a
+ * real risk while both were called book.
  */
-export async function requireOwnVocabList(learnerId: string, listId: string) {
-  const id = z.string().uuid().parse(listId);
-  const list = await db.query.studyVocabLists.findFirst({
-    where: and(
-      eq(studyVocabLists.id, id),
-      eq(studyVocabLists.learnerId, learnerId),
-    ),
+export async function requireOwnDeck(learnerId: string, deckId: string) {
+  const id = z.string().uuid().parse(deckId);
+  const deck = await db.query.studyDecks.findFirst({
+    where: and(eq(studyDecks.id, id), eq(studyDecks.learnerId, learnerId)),
   });
-  if (!list) throw new Error("Vocabulary book not found");
-  return list;
+  if (!deck) throw new Error("Deck not found");
+  return deck;
+}
+
+/** The learner owns this book (the container), or the call fails. */
+export async function requireOwnBook(learnerId: string, bookId: string) {
+  const id = z.string().uuid().parse(bookId);
+  const book = await db.query.studyBooks.findFirst({
+    where: and(eq(studyBooks.id, id), eq(studyBooks.learnerId, learnerId)),
+  });
+  if (!book) throw new Error("Book not found");
+  return book;
 }

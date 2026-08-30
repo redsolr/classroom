@@ -2,9 +2,20 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { desc, eq } from "drizzle-orm";
 import { TrendingUp } from "lucide-react";
-import { db, studyReviews, studySentences, studyVocab } from "@/db";
+import {
+  db,
+  studyPackItems,
+  studyPacks,
+  studyReviews,
+  studySentences,
+  studyVocab,
+} from "@/db";
 import { requireLearner } from "@/lib/auth";
 import { buildStudyProgress } from "@/lib/study-progress";
+import { awards, conversationAreas } from "@/lib/study-grading";
+import { loadDecks } from "@/lib/study-book-queries";
+import { AwardShelf } from "@/components/study/award-shelf";
+import { ConversationAreas } from "@/components/study/conversation-areas";
 import { PipelineBar } from "@/components/study/pipeline-bar";
 import { EmptyState } from "@/components/ui/empty-state";
 import { StatTile } from "@/components/ui/stat-tile";
@@ -76,6 +87,53 @@ export default async function StudyProgressPage() {
       .limit(5000),
   ]);
 
+  /**
+   * TOPIC COVERAGE — matched on TERM against each official book.
+   *
+   * The same signal the pack page's ♥ and the learning path already use.
+   * Recording where a word came from and only counting words that came
+   * from HERE would punish someone for having known 猫 before they found
+   * the book.
+   */
+  const [topicRows, decks] = await Promise.all([
+    db
+      .select({
+        slug: studyPacks.slug,
+        name: studyPacks.name,
+        term: studyPackItems.term,
+      })
+      .from(studyPacks)
+      .innerJoin(studyPackItems, eq(studyPackItems.packId, studyPacks.id)),
+    loadDecks(learner.id),
+  ]);
+
+  const ownedByTerm = new Map(
+    (
+      await db
+        .select({ term: studyVocab.term, status: studyVocab.status })
+        .from(studyVocab)
+        .where(eq(studyVocab.learnerId, learner.id))
+    ).map((row) => [row.term, row.status]),
+  );
+
+  const topics = new Map<
+    string,
+    { slug: string; name: string; cards: { status: "new" | "learning" | "reviewing" | "mastered" }[]; total: number }
+  >();
+  for (const row of topicRows) {
+    const entry = topics.get(row.slug) ?? {
+      slug: row.slug,
+      name: row.name,
+      cards: [],
+      total: 0,
+    };
+    entry.total += 1;
+    const status = ownedByTerm.get(row.term);
+    if (status) entry.cards.push({ status });
+    topics.set(row.slug, entry);
+  }
+  const areas = conversationAreas([...topics.values()]);
+
   const progress = buildStudyProgress({
     words,
     sentences,
@@ -87,6 +145,24 @@ export default async function StudyProgressPage() {
       correct: r.grade !== "again",
     })),
     now,
+  });
+
+  const earned = awards({
+    knownCards: progress.knownCards,
+    streakDays: progress.streakDays,
+    platinumDecks: decks.filter((d) => d.platinum).length,
+    retentionPercent: progress.retentionPercent,
+    wordClassesKnown: new Set(
+      (
+        await db
+          .select({ category: studyVocab.category })
+          .from(studyVocab)
+          .where(eq(studyVocab.learnerId, learner.id))
+      )
+        .map((r) => r.category)
+        .filter((c): c is string => Boolean(c)),
+    ).size,
+    readyAreas: areas.filter((a) => a.ready).length,
   });
 
   if (progress.totalCards === 0) {
@@ -146,6 +222,10 @@ export default async function StudyProgressPage() {
             detail={`${progress.activeDaysLast30} of the last 30 days`}
           />
         </div>
+
+        {earned.length > 0 && <AwardShelf awards={earned} />}
+
+        {areas.length > 0 && <ConversationAreas areas={areas} />}
 
         {/* The one sentence that answers "is this working". Counted, not
             judged — and it names the window, because "31 words" with no

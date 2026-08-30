@@ -7,8 +7,8 @@ import {
   studyNotes,
   studySentences,
   studyVocab,
-  studyVocabListItems,
-  studyVocabLists,
+  studyDeckItems,
+  studyDecks,
 } from "@/db";
 import { markCloze } from "@/lib/cloze";
 import { escapeLike } from "@/lib/sql-like";
@@ -399,10 +399,10 @@ export function createStudyToolExecutor(scope: {
   };
 
   const findList = async (name: string) => {
-    return db.query.studyVocabLists.findFirst({
+    return db.query.studyDecks.findFirst({
       where: and(
-        eq(studyVocabLists.learnerId, learnerId),
-        ilike(studyVocabLists.name, name),
+        eq(studyDecks.learnerId, learnerId),
+        ilike(studyDecks.name, name),
       ),
     });
   };
@@ -502,12 +502,12 @@ export function createStudyToolExecutor(scope: {
             );
           }
           const [list] = await db
-            .insert(studyVocabLists)
+            .insert(studyDecks)
             .values({ learnerId, name: args.name })
-            .returning({ id: studyVocabLists.id });
-          await db.insert(studyVocabListItems).values(
+            .returning({ id: studyDecks.id });
+          await db.insert(studyDeckItems).values(
             resolved.map((word, position) => ({
-              listId: list.id,
+              deckId: list.id,
               vocabId: word.id,
               position,
             })),
@@ -527,13 +527,13 @@ export function createStudyToolExecutor(scope: {
           if (!word) return fail(`No saved word matches “${args.term}”.`);
           const [{ max }] = await db
             .select({
-              max: sql<number>`coalesce(max(${studyVocabListItems.position}), -1)`,
+              max: sql<number>`coalesce(max(${studyDeckItems.position}), -1)`,
             })
-            .from(studyVocabListItems)
-            .where(eq(studyVocabListItems.listId, list.id));
+            .from(studyDeckItems)
+            .where(eq(studyDeckItems.deckId, list.id));
           await db
-            .insert(studyVocabListItems)
-            .values({ listId: list.id, vocabId: word.id, position: Number(max) + 1 })
+            .insert(studyDeckItems)
+            .values({ deckId: list.id, vocabId: word.id, position: Number(max) + 1 })
             .onConflictDoNothing();
           return ok({ added: true, list: list.name, term: word.term });
         }
@@ -574,6 +574,12 @@ export function createStudyToolExecutor(scope: {
             title: args.title,
             author: args.author || null,
             summary: args.summary || null,
+            // The tutor's add_book is always "I read this" — it fires
+            // when a learner is discussing something they read. The
+            // reading list is a FILTER on readAt now (2026-08-30), so
+            // without this the book lands on the Books shelf and the
+            // person who just asked for it cannot find it.
+            readAt: new Date(),
           });
           return ok({ saved: true, title: args.title });
         }
@@ -718,11 +724,11 @@ export function createStudyToolExecutor(scope: {
           const word = await findWord(args.term, null);
           if (!word) return fail(`No saved word matches “${args.term}”.`);
           await db
-            .delete(studyVocabListItems)
+            .delete(studyDeckItems)
             .where(
               and(
-                eq(studyVocabListItems.listId, list.id),
-                eq(studyVocabListItems.vocabId, word.id),
+                eq(studyDeckItems.deckId, list.id),
+                eq(studyDeckItems.vocabId, word.id),
               ),
             );
           return ok({ removed: true, list: list.name, term: word.term });

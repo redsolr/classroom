@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
 import { BookOpen, LibraryBig, Plus } from "lucide-react";
 import { db, studyBooks, studyNotes } from "@/db";
 import { requireLearner } from "@/lib/auth";
@@ -13,10 +13,17 @@ import { PageHeader, PageShell } from "@/components/ui/page-header";
 export const metadata: Metadata = { title: "Reading list" };
 
 /**
- * The reading library shelf — one generated cover per book/article the
- * learner reads. A cover opens the book's page: summary, notes, and its
- * discussion chats. General learning, not vocab (that shelf lives under
- * Vocabulary).
+ * THE READING LIST — books you have READ.
+ *
+ * A filter over books now, not its own kind of thing (2026-08-30 merge).
+ * That is the whole point of merging the two: a book you read can carry
+ * the words you took out of it in a deck, beside your notes about it,
+ * rather than the vocabulary living in a different table that happened
+ * to share the word "book".
+ *
+ * So this page shows books with `readAt` set, and everything else about
+ * a book — its decks, its notes, its share link — lives on the book page
+ * a cover here opens.
  */
 export default async function LibraryPage() {
   const learner = await requireLearner();
@@ -30,16 +37,24 @@ export default async function LibraryPage() {
     })
     .from(studyBooks)
     .leftJoin(studyNotes, eq(studyNotes.bookId, studyBooks.id))
-    .where(eq(studyBooks.learnerId, learner.id))
+    .where(
+      and(
+        eq(studyBooks.learnerId, learner.id),
+        // The filter that makes this a reading list rather than the Books
+        // shelf. A book you haven't read is still a book; it just belongs
+        // on the other page.
+        isNotNull(studyBooks.readAt),
+      ),
+    )
     .groupBy(studyBooks.id)
-    .orderBy(desc(studyBooks.createdAt));
+    .orderBy(desc(studyBooks.readAt));
 
   return (
     <PageShell className="library-page">
       <PageHeader
         icon={LibraryBig}
         title="Reading list"
-        subtitle="What you're reading, and what you took from it."
+        subtitle="Books you've marked as read. What you took from one lives on its page — your notes, and any words you turned into a deck."
         actions={
           <AddBookDialog>
             <Button variant="primary">

@@ -71,6 +71,11 @@ export default MOCK_AUTH_ENABLED
           // Persistent student portal — same token-in-path model,
           // revocable per student (regenerate/disable).
           "/p/:path*",
+          // A learner's SHARED BOOK — same model again: the token in the
+          // path is the sole authorization, the page is read-only, and
+          // the query behind it returns a fixed shape rather than a row,
+          // so a column added later cannot leak by being added.
+          "/b/:path*",
           // Session-refresh bounce (see src/app/auth/refresh/route.ts).
           "/auth/refresh",
         ],

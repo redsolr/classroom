@@ -15,12 +15,12 @@ import {
   Trash2,
 } from "lucide-react";
 import {
-  createStudyVocabList,
-  deleteStudyVocabList,
-  renameStudyVocabList,
-  setDefaultStudyVocabList,
-  toggleStudyVocabListPin,
-} from "@/lib/actions/books";
+  createStudyDeck,
+  deleteStudyDeck,
+  renameStudyDeck,
+  setDefaultStudyDeck,
+  toggleStudyDeckPin,
+} from "@/lib/actions/decks";
 import { addStudyVocab } from "@/lib/actions/vocab";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
@@ -35,13 +35,19 @@ import { Input } from "@/components/ui/field";
 import { InlineRenameInput } from "@/components/ui/inline-rename-input";
 import { WordFormDialog } from "@/components/study/word-form-dialog";
 import { BookTile, LikedCover } from "@/components/study/study-covers";
-import type { VocabListSummary } from "@/components/study/vocab-table";
+import type { DeckSummaryRow } from "@/components/study/vocab-table";
 
 /**
- * The vocabulary landing: the learner's BOOKSHELF. All words + one row
- * per book (imported packs land here too), each openable in one tap —
- * no giant table or add-form up front. Book management (pin to sidebar,
- * rename inline, delete) lives on each row's ⋯ menu.
+ * THE DECK LIST — All words plus one row per deck, each openable in one
+ * tap, with management (pin to sidebar, rename inline, set default,
+ * delete) on the row's ⋯ menu.
+ *
+ * It was the "bookshelf" until books became containers (2026-08-30).
+ * The rows never changed — they were always decks — but the page around
+ * them did, so it now sits UNDER the book shelf on /books rather than
+ * being the whole landing. Managing a deck and choosing one to drill are
+ * different jobs: /decks is where you pick something to drill, this is
+ * where you tidy up.
  */
 
 /** "New word" for the general vocabulary — the shared form, as a dialog. */
@@ -56,7 +62,13 @@ export function AddWordDialogButton() {
   );
 }
 
-function NewBookDialog() {
+/**
+ * A new, empty DECK — it always was one; it just said "book" back when
+ * decks were called books. Two controls on the same page saying "New
+ * book" while one makes a deck is the exact confusion the merge exists
+ * to end (and it made the label ambiguous to a screen reader too).
+ */
+function NewDeckDialog() {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
   const [pending, startTransition] = React.useTransition();
@@ -67,11 +79,11 @@ function NewBookDialog() {
     if (!name) return;
     startTransition(async () => {
       try {
-        const { id } = await createStudyVocabList(name, []);
+        const { id } = await createStudyDeck(name, []);
         setOpen(false);
-        router.push(`/books?book=${id}`);
+        router.push(`/decks/${id}`);
       } catch (err) {
-        console.error("vocab: failed to create book", err);
+        console.error("vocab: failed to create deck", err);
       }
     });
   };
@@ -81,12 +93,12 @@ function NewBookDialog() {
       <DialogTrigger asChild>
         <Button>
           <Plus className="size-3.5" />
-          New book
+          New deck
         </Button>
       </DialogTrigger>
       <DialogContent
-        title="New book"
-        description="A themed collection inside your vocabulary — pin it to the sidebar for one-tap access."
+        title="New deck"
+        description="A list of words you can drill — pin it to the sidebar for one-tap access, or file it into a book."
       >
         <form onSubmit={onSubmit} className="flex items-center gap-2">
           <Input
@@ -95,7 +107,7 @@ function NewBookDialog() {
             autoFocus
             maxLength={80}
             placeholder="FF7 vocab · Travel phrases · …"
-            aria-label="Book name"
+            aria-label="Deck name"
           />
           <Button type="submit" variant="primary" loading={pending}>
             Create
@@ -106,7 +118,7 @@ function NewBookDialog() {
   );
 }
 
-function BookRow({ list }: { list: VocabListSummary }) {
+function BookRow({ list }: { list: DeckSummaryRow }) {
   const router = useRouter();
   const [renaming, setRenaming] = React.useState(false);
   const [pending, startTransition] = React.useTransition();
@@ -114,7 +126,7 @@ function BookRow({ list }: { list: VocabListSummary }) {
   const commitRename = (name: string) => {
     startTransition(async () => {
       try {
-        await renameStudyVocabList(list.id, name);
+        await renameStudyDeck(list.id, name);
       } catch (err) {
         console.error("vocab: failed to rename book", err);
       }
@@ -134,7 +146,7 @@ function BookRow({ list }: { list: VocabListSummary }) {
         />
       ) : (
         <Link
-          href={`/books?book=${list.id}`}
+          href={`/decks/${list.id}`}
           className="min-w-0 flex-1"
         >
           <span className="block truncate text-[0.9375rem] font-medium">
@@ -173,7 +185,7 @@ function BookRow({ list }: { list: VocabListSummary }) {
             onSelect={() => {
               startTransition(async () => {
                 try {
-                  await setDefaultStudyVocabList(list.id, !list.isDefault);
+                  await setDefaultStudyDeck(list.id, !list.isDefault);
                   router.refresh();
                 } catch (err) {
                   console.error("vocab: failed to set default book", err);
@@ -193,7 +205,7 @@ function BookRow({ list }: { list: VocabListSummary }) {
             onSelect={() => {
               startTransition(async () => {
                 try {
-                  await toggleStudyVocabListPin(list.id);
+                  await toggleStudyDeckPin(list.id);
                   router.refresh();
                 } catch (err) {
                   console.error("vocab: failed to toggle book pin", err);
@@ -225,7 +237,7 @@ function BookRow({ list }: { list: VocabListSummary }) {
                 return;
               startTransition(async () => {
                 try {
-                  await deleteStudyVocabList(list.id);
+                  await deleteStudyDeck(list.id);
                 } catch (err) {
                   console.error("vocab: failed to delete book", err);
                 }
@@ -245,14 +257,14 @@ export function VocabShelf({
   lists,
   totalWords,
 }: {
-  lists: VocabListSummary[];
+  lists: DeckSummaryRow[];
   totalWords: number;
 }) {
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <AddWordDialogButton />
-        <NewBookDialog />
+        <NewDeckDialog />
         <Link
           href="/official"
           className="inline-flex h-9 items-center gap-1.5 rounded-md px-2.5 text-[0.9375rem] font-medium text-accent-text transition-colors hover:bg-surface-hover"
@@ -262,16 +274,16 @@ export function VocabShelf({
         </Link>
       </div>
 
-      {/* Named container: the official cover shelf below can hold a book
-          with the SAME title (saving an official book names your copy
-          after it), so "the learner's OWN books" has to be addressable
-          on its own. */}
-      <ul className="books-shelf divide-y divide-border overflow-hidden rounded-xl bg-surface shadow-card">
+      {/* Named container: the official cover shelf elsewhere on the page
+          can hold a book with the SAME title (saving an official book
+          names your copy after it), so the learner's OWN decks have to
+          be addressable on their own. */}
+      <ul className="decks-shelf divide-y divide-border overflow-hidden rounded-xl bg-surface shadow-card">
         {/* Your vocabulary IS the liked layer — a word is in it or it
             isn't — so it wears the liked tile, not a book cover. */}
         <li className="transition-colors hover:bg-surface-hover">
           <Link
-            href="/books?book=all"
+            href="/decks/all"
             className="flex items-center gap-3 px-3 py-2.5 sm:px-4"
           >
             <LikedCover className="w-11 shrink-0" />
