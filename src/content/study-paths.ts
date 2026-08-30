@@ -31,6 +31,27 @@
  * have never once said out loud, and every learner who has done that
  * knows the feeling of freezing in a real conversation.
  *
+ * ── A tree is only as full as this file ────────────────────────────
+ *
+ * The tree draws one node per step, so DENSITY LIVES HERE, not in the
+ * geometry. The first cut of the Japanese path was eleven steps, and the
+ * tree drew eleven circles in a canvas built for a hundred: correct, and
+ * empty. What fixed it was not smaller nodes — it was admitting that
+ * "learn the everyday core" is not one piece of work. It is eight words,
+ * and then a finished book, and those are two different days.
+ *
+ * Two rules keep that from becoming padding:
+ *
+ *   1. A step is a threshold someone can actually reach today, against
+ *      content that actually ships. `seed-paths.ts` fails on a target
+ *      bigger than its book, so a node that can never light up cannot
+ *      reach production.
+ *   2. Steps may SHARE a counter — "learn eight of this book" and
+ *      "finish it" both count words known from one book — and the limb's
+ *      headline groups by (kind, book) so one word is never counted
+ *      twice. Stacking thresholds is honest here in a way it would not
+ *      be if the hub simply added targets up.
+ *
  * `packSlug` must match a slug in `study-packs.ts`, and `target` must be
  * reachable from that pack's own word count — `seed-paths.ts` fails
  * loudly on either rather than shipping a node that can never light up.
@@ -69,15 +90,15 @@ export const STUDY_PATH_CATALOG: PathContent[] = [
     name: "Japanese from zero",
     language: "Japanese",
     description:
-      "The first three months, in the order that actually works: a core of words you will meet constantly, then the same words inside sentences, then saying them to someone.",
+      "The first year, in the order that actually works: a core of words you will meet constantly, the same words inside sentences, and someone to say them to — repeated across every book we ship until none of it is new.",
     steps: [
       {
         kind: "pack",
         title: "Learn the everyday core",
         detail:
-          "Anime essentials is the fastest honest start — these are the words that appear in almost everything, so every one you learn pays off immediately.",
+          "Anime essentials is the fastest honest start — these are the words that appear in almost everything, so every one you learn pays off immediately. Eight of them is one sitting.",
         packSlug: "anime-essentials-japanese",
-        target: 10,
+        target: 8,
       },
       {
         kind: "sentences",
@@ -85,68 +106,153 @@ export const STUDY_PATH_CATALOG: PathContent[] = [
         detail:
           "Recognising a word is not knowing it. Cloze cards ask whether you can still supply it when a sentence needs it — which is the thing that transfers to speaking.",
         packSlug: "anime-essentials-japanese",
-        target: 8,
+        target: 6,
       },
       {
         kind: "chat",
-        title: "Use them with the tutor",
+        title: "Say something, badly",
         detail:
-          "Have a real conversation using what you have. The tutor corrects as you go and offers to save anything new — this is where words stop being cards.",
-        target: 10,
+          "Five messages. The point is not to be understood well, it is to break the habit of waiting until you are ready — which for most people means never.",
+        target: 5,
+      },
+      {
+        kind: "pack",
+        title: "Finish the core book",
+        detail:
+          "All fifteen, including the four you have been quietly skipping. A book you half-know is the one that fails you mid-sentence.",
+        packSlug: "anime-essentials-japanese",
+        target: 15,
+      },
+      {
+        kind: "sentences",
+        title: "The same book, under pressure",
+        detail:
+          "A second pass over the same words, in sentences you have not seen. Nothing new is taught here; what is tested is whether the first pass survived the week.",
+        packSlug: "anime-essentials-japanese",
+        target: 12,
+      },
+      {
+        kind: "chat",
+        title: "Keep going past the first reply",
+        detail:
+          "Fifteen messages is roughly where a conversation stops being a script you prepared and starts being one you did not.",
+        target: 15,
       },
       {
         kind: "pack",
         title: "Widen into what you actually watch",
         detail:
-          "Dragon Ball, or any title book you like better. Vocabulary sticks when it comes from something you care about, and this is where studying stops feeling like studying.",
+          "Dragon Ball's vocabulary is the shonen baseline — fights, training, shouting at the sky. Ten words in and the subtitles start feeling optional.",
         packSlug: "dragon-ball-japanese",
-        target: 12,
-      },
-      {
-        kind: "sentences",
-        title: "Same words, harder sentences",
-        detail:
-          "The second round of cloze cards is where the gap shows: words you were sure of at the flashcard stage go missing the moment a sentence has to be finished around them.",
-        packSlug: "dragon-ball-japanese",
-        target: 8,
-      },
-      {
-        kind: "chat",
-        title: "Hold a longer conversation",
-        detail:
-          "Ten messages is a demo; forty is a conversation. Ask the tutor to stop switching to English and to correct you as you go rather than at the end.",
-        target: 40,
-      },
-      {
-        kind: "lesson",
-        title: "Take a lesson with a tutor",
-        detail:
-          "A person hears what a model cannot: what you avoid saying, what you say too slowly, what you are afraid to try. One lesson at this point is worth a month of cards.",
-        target: 1,
-      },
-      {
-        kind: "pack",
-        title: "Add the words you meet in games",
-        detail:
-          "Menus, saves, items, damage. Unglamorous and constantly on screen, which makes them some of the highest-frequency words you will ever learn.",
-        packSlug: "gaming-japanese",
         target: 10,
       },
       {
         kind: "sentences",
-        title: "Produce them without the prompt",
+        title: "Put the new ones to work",
         detail:
-          "Cards from the gaming book, drilled the hard way round. By now the point is not new words — it is closing the gap between recognising and reaching for.",
-        packSlug: "gaming-japanese",
+          "Fresh words are the ones most likely to evaporate. Sentence cards while they are still fresh is what stops that.",
+        packSlug: "dragon-ball-japanese",
         target: 8,
       },
       {
-        kind: "pack",
-        title: "Take on a full title book",
+        kind: "lesson",
+        title: "Take one lesson with a person",
         detail:
-          "One Piece, with nothing propping it up. A whole book at this stage is the honest test of whether the first three stuck.",
+          "One hour with a human being who can hear what you are actually doing to the vowels. The tutor chat cannot hear you, and it never will.",
+        target: 1,
+      },
+      {
+        kind: "pack",
+        title: "Finish Dragon Ball",
+        detail:
+          "All nineteen. The last few words in any book are the ones that keep turning up in the episodes you had to pause.",
+        packSlug: "dragon-ball-japanese",
+        target: 19,
+      },
+      {
+        kind: "pack",
+        title: "Start a second series",
+        detail:
+          "One Piece, and the first ten words. A second book is where you find out how much of the first one was the book and how much was you.",
         packSlug: "one-piece-japanese",
+        target: 10,
+      },
+      {
+        kind: "sentences",
+        title: "Sentences from the second book",
+        detail:
+          "Same drill, new material. Interleaving two books beats finishing one and then starting the other, however much worse it feels while you are doing it.",
+        packSlug: "one-piece-japanese",
+        target: 8,
+      },
+      {
+        kind: "chat",
+        title: "A conversation with no English in it",
+        detail:
+          "Thirty messages, and tell the tutor to refuse to translate. Working around a word you do not have is a skill, and it is only trainable when the escape hatch is shut.",
+        target: 30,
+      },
+      {
+        kind: "pack",
+        title: "Finish One Piece",
+        detail:
+          "All eighteen. Two finished books is the point where the third gets noticeably easier.",
+        packSlug: "one-piece-japanese",
+        target: 18,
+      },
+      {
+        kind: "lesson",
+        title: "Go back to the same tutor",
+        detail:
+          "The second lesson is worth more than the first: someone now knows what you did last time, and can ask whether you actually did it.",
+        target: 2,
+      },
+      {
+        kind: "pack",
+        title: "Naruto: the shonen staples",
+        detail:
+          "Twelve words that Dragon Ball and One Piece both assumed you already had. This is the book that fills the gaps the other two left.",
+        packSlug: "naruto-japanese",
         target: 12,
+      },
+      {
+        kind: "sentences",
+        title: "Drill the staples",
+        detail:
+          "Ten cards from the words you have just met. A word you can only produce in the book you met it in is not yours yet.",
+        packSlug: "naruto-japanese",
+        target: 10,
+      },
+      {
+        kind: "chat",
+        title: "Sixty messages in",
+        detail:
+          "Long enough that the tutor has seen your habits twice over. Ask it what you keep getting wrong — it has the history, and it will tell you.",
+        target: 60,
+      },
+      {
+        kind: "pack",
+        title: "Finish Naruto",
+        detail:
+          "All twenty-one, the longest book so far. Finishing a long one is how you find out that the hard part was never the size.",
+        packSlug: "naruto-japanese",
+        target: 21,
+      },
+      {
+        kind: "pack",
+        title: "Something written for adults",
+        detail:
+          "Death Note's vocabulary is colder and more abstract than anything above it — the first book here where the words are ideas rather than actions.",
+        packSlug: "death-note-japanese",
+        target: 10,
+      },
+      {
+        kind: "sentences",
+        title: "Abstract words, in context",
+        detail:
+          "Abstract vocabulary is where cloze cards earn their place: you can recognise a word like it all day and still not be able to put it in a sentence.",
+        packSlug: "death-note-japanese",
+        target: 8,
       },
       {
         kind: "lesson",
@@ -154,6 +260,122 @@ export const STUDY_PATH_CATALOG: PathContent[] = [
         detail:
           "Four lessons, not one. The first tells you where you are; it is the fourth that changes how you sound, because by then someone knows your habits well enough to interrupt them.",
         target: 4,
+      },
+      {
+        kind: "pack",
+        title: "Finish Death Note",
+        detail:
+          "All eighteen. Four finished books, and the language has stopped arriving one word at a time.",
+        packSlug: "death-note-japanese",
+        target: 18,
+      },
+      {
+        kind: "sentences",
+        title: "Go back and finish Dragon Ball's sentences",
+        detail:
+          "Sixteen cards from a book you finished months ago. Coming back to old material after a long gap is the single most useful thing on this path, and the least popular.",
+        packSlug: "dragon-ball-japanese",
+        target: 16,
+      },
+      {
+        kind: "pack",
+        title: "The words games actually use",
+        detail:
+          "Menus, saves, items, damage. Eight of these and a Japanese-language game stops being a wall of unreadable buttons.",
+        packSlug: "gaming-japanese",
+        target: 8,
+      },
+      {
+        kind: "sentences",
+        title: "Read the menu without guessing",
+        detail:
+          "Game text is short, repetitive and unforgiving — which makes it the best sentence practice there is, once you have the nouns.",
+        packSlug: "gaming-japanese",
+        target: 8,
+      },
+      {
+        kind: "chat",
+        title: "A hundred messages",
+        detail:
+          "The point at which most people stop translating in their head for short sentences. It is not a milestone anyone hands you; it is just what the counter says when it happens.",
+        target: 100,
+      },
+      {
+        kind: "pack",
+        title: "Finish the gaming book",
+        detail:
+          "All fifteen. A small book with disproportionate payoff — you will meet these every time you open anything.",
+        packSlug: "gaming-japanese",
+        target: 15,
+      },
+      {
+        kind: "pack",
+        title: "Persona 5",
+        detail:
+          "Twelve words of school, social life and the everyday register the shonen books never needed. This is the closest the catalog gets to how people actually talk.",
+        packSlug: "persona-5-japanese",
+        target: 12,
+      },
+      {
+        kind: "sentences",
+        title: "Everyday register, produced",
+        detail:
+          "Ten cards. Casual speech is the hardest thing to produce from a book and the easiest to recognise, which is exactly the gap a cloze card measures.",
+        packSlug: "persona-5-japanese",
+        target: 10,
+      },
+      {
+        kind: "lesson",
+        title: "Two months of lessons",
+        detail:
+          "Eight lessons. Somewhere in here a tutor stops correcting your grammar and starts arguing with your opinions, which is the actual goal.",
+        target: 8,
+      },
+      {
+        kind: "pack",
+        title: "Finish Persona 5",
+        detail:
+          "All eighteen. Six finished books; the seventh is the first one you could probably have written yourself.",
+        packSlug: "persona-5-japanese",
+        target: 18,
+      },
+      {
+        kind: "sentences",
+        title: "Naruto, every word in a sentence",
+        detail:
+          "Eighteen cards from a book you finished long ago. If these still land, the vocabulary has moved somewhere that does not need this path any more.",
+        packSlug: "naruto-japanese",
+        target: 18,
+      },
+      {
+        kind: "pack",
+        title: "The long book",
+        detail:
+          "Final Fantasy VII, all twenty-two — the biggest in the catalog, and deliberately last. By now a twenty-two word book is a week, not a season.",
+        packSlug: "final-fantasy-vii-japanese",
+        target: 22,
+      },
+      {
+        kind: "sentences",
+        title: "Sentences from the long book",
+        detail:
+          "Twelve cards to close it out: the last sentence work on the path, on the last book on the path.",
+        packSlug: "final-fantasy-vii-japanese",
+        target: 12,
+      },
+      {
+        kind: "chat",
+        title: "A hundred and sixty messages",
+        detail:
+          "Not a target so much as a description of someone who now uses the tutor the way people use a language — to say something, rather than to practise saying something.",
+        target: 160,
+      },
+      {
+        kind: "lesson",
+        title: "A year of showing up",
+        detail:
+          "Twelve lessons. Nothing on this path matters as much as the fact that you were still here for the twelfth one.",
+        target: 12,
       },
     ],
   },
@@ -170,7 +392,7 @@ export const STUDY_PATH_CATALOG: PathContent[] = [
         detail:
           "The phrases you need before you need anything else. Small, concrete, and immediately usable — which is what makes the first week stick.",
         packSlug: "cafe-french",
-        target: 8,
+        target: 6,
       },
       {
         kind: "sentences",
@@ -178,14 +400,14 @@ export const STUDY_PATH_CATALOG: PathContent[] = [
         detail:
           "French word order and liaison are where beginners come apart. Cloze cards make you produce the word inside a real sentence instead of recognising it alone.",
         packSlug: "cafe-french",
-        target: 8,
+        target: 5,
       },
       {
         kind: "chat",
         title: "Order something, in French",
         detail:
-          "Tell the tutor to be the waiter and to refuse to switch to English. Ten messages of this is worth an hour of review.",
-        target: 10,
+          "Tell the tutor to be the waiter and to refuse to switch to English. Five messages of this is worth an hour of review.",
+        target: 5,
       },
       {
         kind: "pack",
@@ -216,6 +438,13 @@ export const STUDY_PATH_CATALOG: PathContent[] = [
         detail:
           "Book a lesson and have the same conversation with a human being. The gap between the two is the thing you are actually training away.",
         target: 1,
+      },
+      {
+        kind: "lesson",
+        title: "Come back a second time",
+        detail:
+          "One lesson is a test; two is a habit forming. The second is where a tutor can hold you to what you said you would do.",
+        target: 2,
       },
     ],
   },

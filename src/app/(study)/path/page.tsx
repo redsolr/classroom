@@ -95,7 +95,14 @@ export default async function StudyPathPage() {
           </p>
         </div>
 
+        {/* The tree takes the shell's side padding back. Every pixel of
+            width is a pixel the whole tree can be visible in rather than
+            panned around: on a 1440 laptop the padding alone was the
+            difference between fitting and dropping into the phone's
+            frame-and-pan mode. Nothing else on the page wants that, so
+            it is here rather than in PageShell. */}
         <PathTree
+          className="-mx-4 sm:-mx-6 lg:-mx-16 xl:-mx-[5.5rem]"
           pathSlug={lead.slug}
           pathName={lead.name}
           steps={lead.steps}

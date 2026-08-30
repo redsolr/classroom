@@ -122,75 +122,107 @@ export function branchOf(kind: PathStepProgress["kind"]): BranchKey {
 }
 
 // ---------------------------------------------------------------------------
-// Geometry. One coordinate space (TREE_WIDTH × computed height), origin
-// top-left, tree growing UP from a root at the bottom. The component
+// Geometry. One coordinate space, both dimensions computed from how deep
+// the limbs go, origin top-left, tree growing UP from a root at the
+// bottom. The component
 // scales the whole thing and never recomputes these numbers, so what is
 // tested here is what is drawn.
 // ---------------------------------------------------------------------------
 
 /**
- * The canvas is deliberately WIDE — roughly 16:9 — because the card it
- * is drawn in is. The first cut was 1120×1040, near square, so on a
- * monitor it fitted to the card's HEIGHT and left a third of the width
- * empty on either side: a small tree marooned in a big panel. Limbs
- * spread instead of stacking now.
+ * The canvas's MINIMUM width — it grows from here when the limbs need
+ * the room (see `reach` in the layout). Deliberately wide, roughly 16:9,
+ * because the card it is drawn in is: the first cut was 1120×1040, near
+ * square, so on a monitor it fitted to the card's HEIGHT and left a
+ * third of the width empty on either side — a small tree marooned in a
+ * big panel.
  */
-export const TREE_WIDTH = 1480;
+export const TREE_WIDTH = 2200;
 /**
- * Two node sizes, the way the reference art does it: the FIRST node on a
- * limb is a keystone — the foundation the rest of that limb is built on,
- * and the one we would point a beginner at — and the rest are the same
- * smaller size. A tree of identical circles has no anchor for the eye to
- * start from.
+ * THREE node sizes, the way the reference art does it — and each one
+ * means something structural rather than decorative:
+ *
+ *   KEYSTONE  the first node on a limb: the foundation the rest of it
+ *             is built on, and where we would point a beginner.
+ *   JUNCTION  a node the limb's two strands both run into. It is where
+ *             the branch is a single cable again, so it carries the
+ *             weight of everything feeding it.
+ *   NODE      a node on one of the two strands.
+ *
+ * Size is STRUCTURE, never permission: a junction is not a gate, and
+ * nothing behind it is locked. A tree of identical circles has no anchor
+ * for the eye to start from, which is most of why a dense tree of one
+ * size reads as scatter.
  */
-export const NODE_RADIUS = 32;
-export const KEYSTONE_RADIUS = 44;
+export const NODE_RADIUS = 26;
+export const JUNCTION_RADIUS = 38;
+export const KEYSTONE_RADIUS = 48;
 export const HUB_RADIUS = 64;
 
-const CENTER = TREE_WIDTH / 2;
-const BRANCH_SPREAD = 440;
-// Room for the trunk to split between the root and the hubs, and for
-// the root's own caption below it. The hubs' captions need no vertical
-// room here: they sit BESIDE their disc, off the trunk.
-const HUB_FROM_BOTTOM = 330;
-const ROOT_FROM_BOTTOM = 104;
-/** Hub → first node. Longer than a tier gap so the hub reads as a base. */
-const FIRST_NODE_GAP = 132;
-/** Tiers pack tightly now that nodes carry an icon and a rank pill
- * instead of a two-line caption — which is most of why the reference
- * reads as a tree and the first cut read as a list drawn with curves. */
-const TIER_GAP = 118;
-/** Limbs lean further out as they climb, the way a real branch does. */
-const TIER_DRIFT = 20;
+const BRANCH_SPREAD = 600;
+// Room for the TRUNK SECTION between the root and the hubs — the three
+// cables run side by side through it — and for the root's own caption
+// below. The hubs' captions need no vertical room here: they sit BESIDE
+// their disc, off the trunk.
+const HUB_FROM_BOTTOM = 440;
+const ROOT_FROM_BOTTOM = 100;
+/** Hub → first tier. Longer than a tier gap so the hub reads as a base. */
+const FIRST_NODE_GAP = 134;
+/** Tiers pack tightly: nodes carry an icon and a rank pill, not a
+ * caption, so there is nothing between them that needs room. */
+const TIER_RISE = 88;
+/** Limbs lean further out as they climb, the way a real branch does.
+ * Uncapped now — the canvas is wide enough to let a long limb keep
+ * walking outward, and a lean that stops looks like a mistake. */
+const TIER_RUN = 42;
 /**
- * The two LANES each limb alternates between. With elbow routing this is
- * what produces the git-graph look — a cable runs up its lane, steps
- * across, and carries on up.
+ * The two STRANDS a limb runs on, either side of its own axis. A tier
+ * holding two nodes puts one on each; a tier holding one is a junction
+ * sitting on the axis itself, which is what closes the diamond.
  */
-const ZIGZAG = 78;
-const TOP_MARGIN = 84;
+const STRAND = 84;
+const TOP_MARGIN = 70;
 /** Corner radius where an elbow turns. Big enough to read as a cable
  * bend, small enough that it never becomes a curve. */
 const BEND = 24;
 /**
- * How far above the root the three limbs peel off the trunk. LONG on
- * purpose: in the reference the stem runs most of the screen before it
- * splits, and that single unbroken cable is what makes the thing read as
- * one tree rather than three columns that happen to share a bottom edge.
+ * THE TRUNK IS THREE PARALLEL CABLES, NOT ONE STEM.
+ *
+ * The reference's trunk is a bundle: three coloured lines running side
+ * by side out of the bottom of the frame, each already belonging to its
+ * own limb. Ours was a single stem that split — which drew better than
+ * three columns sharing a bottom edge, but said something we do not
+ * believe: that the three kinds of work come from one source and
+ * diverge. They do not. Vocabulary, grammar and conversation run in
+ * parallel from the first day, and the trunk now says so.
+ *
+ * `TRUNK_LANE` is the gap between neighbouring cables in the bundle;
+ * `TRUNK_RUN` is how far they run parallel before splaying to their
+ * hubs. The run is long on purpose — it is the stretch that reads as a
+ * trunk rather than as three cables that happen to start near each
+ * other.
  */
-const TRUNK_SPLIT = 150;
+export const TRUNK_LANE = 40;
+const TRUNK_RUN = 250;
 
 export type NodeState = "complete" | "next" | "started" | "untouched";
 
 export type TreeNode = {
   step: PathStepProgress;
   branch: BranchKey;
-  /** 0-based position along its own limb. */
+  /** 0-based tier along its own limb. A tier holds one node or two. */
   tier: number;
+  /**
+   * Which strand it sits on: `-1` inner (toward the trunk), `1` outer,
+   * `0` on the limb's own axis — which is what a junction and a keystone
+   * are. The component does not use it; the layout spec does, to prove
+   * the limb actually forks rather than merely zig-zagging.
+   */
+  strand: -1 | 0 | 1;
   x: number;
   y: number;
   state: NodeState;
-  /** Disc radius: keystones (the first node on a limb) are bigger. */
+  /** Disc radius — keystone, junction or strand node. See the sizes. */
   radius: number;
 };
 
@@ -208,6 +240,13 @@ export type TreeBranch = {
 export type TreeLink = {
   d: string;
   branch: BranchKey;
+  /**
+   * `trunk` is the limb's own cable through the bundle at the bottom;
+   * `limb` is everything above the hub. Named rather than inferred so
+   * the layout spec can prove the trunk is three parallel cables and not
+   * one stem — the thing that most makes this read as the reference.
+   */
+  kind: "trunk" | "limb";
   /** Lit when the node it leads TO is complete — the limb fills in as
    * the work lands, which is the whole reason to draw it. */
   lit: boolean;
@@ -292,39 +331,115 @@ export function buildPathTree(
     steps: steps.filter((step) => branchOf(step.kind) === spec.key),
   }));
 
-  const deepest = Math.max(1, ...grouped.map((group) => group.steps.length));
+  const tallest = Math.max(
+    1,
+    ...grouped.map((group) => tierSizes(group.steps.length).length),
+  );
   const height =
-    HUB_FROM_BOTTOM + FIRST_NODE_GAP + (deepest - 1) * TIER_GAP + TOP_MARGIN;
+    HUB_FROM_BOTTOM + FIRST_NODE_GAP + (tallest - 1) * TIER_RISE + TOP_MARGIN;
   const hubY = height - HUB_FROM_BOTTOM;
-  const root = { x: CENTER, y: height - ROOT_FROM_BOTTOM };
+  /**
+   * The canvas is `TREE_WIDTH` unless the limbs have outgrown it. A limb
+   * leans further out with every tier it climbs, so a long path needs a
+   * wider canvas — and widening it is the right answer, because the card
+   * scales the whole tree to fit. The alternative, which this replaced,
+   * was to STOP the lean after four tiers: it kept everything on a fixed
+   * canvas and made every long limb bend and then go rigid, which reads
+   * as a mistake rather than as growth.
+   */
+  const reach =
+    BRANCH_SPREAD + tallest * TIER_RUN + STRAND + KEYSTONE_RADIUS + 60;
+  const width = Math.max(TREE_WIDTH, reach * 2);
+  const center = width / 2;
+  const root = { x: center, y: height - ROOT_FROM_BOTTOM };
+  /** Where the parallel bundle ends and each cable peels off to its hub. */
+  const splayY = root.y - TRUNK_RUN;
 
   const branches: TreeBranch[] = [];
   const links: TreeLink[] = [];
 
   for (const { spec, steps: branchSteps } of grouped) {
-    const hub = { x: CENTER + spec.lean * BRANCH_SPREAD, y: hubY };
-    const nodes: TreeNode[] = branchSteps.map((step, tier) => {
-      // The lean is capped: a limb that kept drifting would walk its
-      // labels off the canvas on a long path, and a curve that keeps
-      // curving reads as a mistake rather than as growth.
-      const drift = spec.lean * Math.min(tier + 1, 4) * TIER_DRIFT;
-      const swing = (tier % 2 === 0 ? -ZIGZAG : ZIGZAG) * (spec.lean || 1);
-      return {
-        step,
-        branch: spec.key,
-        tier,
-        x: hub.x + drift + swing,
-        y: hubY - FIRST_NODE_GAP - tier * TIER_GAP,
-        state: stateOf(step, nextId),
-        radius: tier === 0 ? KEYSTONE_RADIUS : NODE_RADIUS,
-      };
+    const hub = { x: center + spec.lean * BRANCH_SPREAD, y: hubY };
+    // Which way this limb walks as it climbs. The centre limb has no
+    // outward side, so it grows straight up and uses the right-hand
+    // strand as its "outer".
+    const out = spec.lean || 1;
+
+    const sizes = tierSizes(branchSteps.length);
+    const nodes: TreeNode[] = [];
+    /** Tier index → the nodes on it, so links can be drawn tier to tier. */
+    const rows: TreeNode[][] = [];
+    let taken = 0;
+
+    sizes.forEach((size, tier) => {
+      const axisX = hub.x + spec.lean * (tier + 1) * TIER_RUN;
+      const y = hubY - FIRST_NODE_GAP - tier * TIER_RISE;
+      const row: TreeNode[] = [];
+
+      for (let slot = 0; slot < size; slot += 1) {
+        const step = branchSteps[taken];
+        taken += 1;
+        // A tier of one sits ON the axis — keystone or junction. A tier
+        // of two puts its FIRST step on the inner strand, so catalog
+        // order still reads outward from the trunk.
+        const strand: -1 | 0 | 1 =
+          size === 1 ? 0 : slot === 0 ? -1 : 1;
+        const node: TreeNode = {
+          step,
+          branch: spec.key,
+          tier,
+          strand,
+          x: axisX + strand * out * STRAND,
+          y,
+          state: stateOf(step, nextId),
+          radius:
+            tier === 0
+              ? KEYSTONE_RADIUS
+              : size === 1
+                ? JUNCTION_RADIUS
+                : NODE_RADIUS,
+        };
+        row.push(node);
+        nodes.push(node);
+      }
+
+      rows.push(row);
     });
 
-    const done = nodes.reduce(
-      (sum, node) => sum + banked(node.step),
-      0,
-    );
-    const target = nodes.reduce((sum, node) => sum + node.step.target, 0);
+    /**
+     * A LIMB'S HEADLINE COUNTS DISTINCT EVIDENCE, NOT A SUM OF STEPS.
+     *
+     * Several nodes can read the same counter. "Learn eight words of
+     * this book" and "finish it" both count words known from one book;
+     * every chat step counts the same messages you have ever sent. Add
+     * their targets up and the hub asks for 218 words from a language
+     * that ships 146, and counts one message five times on the way
+     * there — a number nobody can trace, which is the one thing this
+     * app's statistics may never be.
+     *
+     * So steps that share a counter — same kind, same book — are
+     * grouped, and the group contributes the DEEPEST target in it. The
+     * bug was invisible while a limb held four nodes on four different
+     * books; it is the first thing that breaks when a limb holds
+     * fifteen.
+     */
+    const counters = new Map<string, { done: number; target: number }>();
+    for (const node of nodes) {
+      const key = `${node.step.kind}:${node.step.packSlug ?? ""}`;
+      const counter = counters.get(key);
+      if (!counter) {
+        counters.set(key, { done: node.step.done, target: node.step.target });
+      } else {
+        counter.done = Math.max(counter.done, node.step.done);
+        counter.target = Math.max(counter.target, node.step.target);
+      }
+    }
+    let done = 0;
+    let target = 0;
+    for (const counter of counters.values()) {
+      done += banked(counter);
+      target += counter.target;
+    }
 
     branches.push({
       spec,
@@ -335,28 +450,76 @@ export function buildPathTree(
       completeNodes: nodes.filter((node) => node.state === "complete").length,
     });
 
-    // Trunk → hub, then hub → node → node up the limb. The trunk link
-    // lights when anything on that limb is done: the root is where you
-    // came from, so it has no "next" of its own to be honest about.
+    // THE TRUNK: this limb's own cable, running up its lane in the
+    // bundle before peeling off to its hub. It lights when anything on
+    // the limb is done — the root is where you came from, so it has no
+    // "next" of its own to be honest about.
     links.push({
-      // The trunk splits low — one stem out of the root, three cables
-      // peeling off it just above, exactly the way the reference does
-      // it. Split at the halfway point and the horizontal run lands at
-      // the hubs' own height, drawing a line through all three of them.
-      d: elbow(root, hub, root.y - TRUNK_SPLIT),
+      d: elbow(
+        { x: center + spec.lean * TRUNK_LANE, y: root.y },
+        hub,
+        splayY,
+      ),
       branch: spec.key,
+      kind: "trunk",
       lit: nodes.some((node) => node.state === "complete"),
     });
-    let from: { x: number; y: number } = hub;
-    for (const node of nodes) {
+
+    // Hub → first tier, then tier to tier. Where a tier of one meets a
+    // tier of two the cable FORKS (or merges); where two meet two the
+    // strands run parallel. That is what draws the reference's diamonds,
+    // and it is why a fifteen-node limb is eight tiers tall instead of
+    // fifteen.
+    for (const node of rows[0] ?? []) {
       links.push({
-        d: elbow(from, node),
+        d: elbow(hub, node),
         branch: spec.key,
+        kind: "limb",
         lit: node.state === "complete",
       });
-      from = node;
+    }
+    for (let tier = 0; tier + 1 < rows.length; tier += 1) {
+      for (const to of rows[tier + 1]) {
+        for (const from of rows[tier]) {
+          // Two strands stay two strands: inner feeds inner, outer feeds
+          // outer. Cross-linking them would draw an X through the middle
+          // of every pair and say nothing.
+          if (from.strand !== 0 && to.strand !== 0 && from.strand !== to.strand)
+            continue;
+          links.push({
+            d: elbow(from, to),
+            branch: spec.key,
+            kind: "limb",
+            lit: to.state === "complete",
+          });
+        }
+      }
     }
   }
 
-  return { width: TREE_WIDTH, height, root, branches, links };
+  return { width, height, root, branches, links };
+}
+
+/**
+ * How a limb's nodes divide into tiers: one keystone, then a repeating
+ * fork-fork-merge. The last tier takes whatever is left.
+ *
+ * The pattern is what turns a limb from a CHAIN into a branch. A chain
+ * of fifteen nodes is fifteen tiers tall, which on any real canvas fits
+ * to height and shrinks every node past the size where it is still worth
+ * aiming at — the same trap the near-square first canvas fell into, in
+ * the other axis. Forked, the same fifteen nodes are eight tiers, and
+ * the limb spends the room sideways where there is room to spend.
+ */
+function tierSizes(count: number): number[] {
+  if (count <= 0) return [];
+  const sizes = [1];
+  let left = count - 1;
+  const pattern = [2, 2, 1];
+  for (let i = 0; left > 0; i += 1) {
+    const take = Math.min(pattern[i % pattern.length], left);
+    sizes.push(take);
+    left -= take;
+  }
+  return sizes;
 }

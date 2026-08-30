@@ -659,9 +659,16 @@ body {
   display: grid;
   place-items: center;
   border-radius: 9999px;
-  background: var(--surface-hover);
-  border: 2px solid color-mix(in oklab, var(--branch) 20%, var(--border-strong));
-  color: color-mix(in oklab, var(--branch) 26%, var(--text-tertiary));
+  /* A dark puck that still BELONGS to its limb. The rim and the glyph
+   * carry enough of the branch colour to read as green, amber or rose
+   * from across the room: at zero progress the entire tree is made of
+   * these, and at 20% they drew a grey diagram of a tree rather than a
+   * picture of one — the single biggest reason a dense tree still looked
+   * empty. Owned nodes stay unmistakable, because they are SOLID and
+   * their glyph is cut out in near-black. */
+  background: color-mix(in oklab, var(--branch) 9%, var(--surface-hover));
+  border: 2px solid color-mix(in oklab, var(--branch) 48%, var(--border-strong));
+  color: color-mix(in oklab, var(--branch) 62%, var(--text-tertiary));
   transition:
     transform 140ms ease,
     box-shadow 140ms ease,

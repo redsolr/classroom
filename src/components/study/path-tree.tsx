@@ -4,6 +4,7 @@ import * as React from "react";
 import { Check, Maximize2, Minus, Plus, Route } from "lucide-react";
 import {
   branchColor,
+  branchSpec,
   buildPathTree,
   type TreeBranch,
   type TreeNode,
@@ -54,7 +55,7 @@ import { cn } from "@/lib/utils";
  * shrinking the whole tree into illegibility. Measured: every desktop
  * and tablet width clears it; only a phone does not.
  */
-const FIT_FLOOR = 0.45;
+const FIT_FLOOR = 0.40;
 const FOCUS_SCALE = 0.66;
 
 export function PathTree({
@@ -126,7 +127,7 @@ export function PathTree({
         // and the root was still off-screen. Clamped at both ends so a
         // short window keeps a usable canvas and a tall one does not
         // stretch the tree into a poster.
-        className="path-tree-viewport relative h-[clamp(26rem,calc(100svh-22rem),46rem)] touch-none select-none"
+        className="path-tree-viewport relative h-[clamp(26rem,calc(100svh-19rem),54rem)] touch-none select-none"
         {...handlers}
       >
         <div
@@ -286,7 +287,7 @@ function TreeLinks({
           // limb. Three identical grey curves is a diagram of a tree
           // rather than a picture of one.
           style={{
-            stroke: `color-mix(in oklab, ${branchColor(link.branch)} 34%, var(--border-strong))`,
+            stroke: `color-mix(in oklab, ${branchColor(link.branch)} 52%, var(--border-strong))`,
           }}
           // Heavy enough to read as a limb. At 3px against 90px discs
           // the tree looked like circles connected by hairlines.
@@ -426,8 +427,20 @@ function NodeButton({
       onBlur={() => onInspect(null)}
       aria-label={`${node.step.title} — ${done} of ${node.step.target} ${stepUnit(node.step.kind)}${node.state === "next" ? ", start here" : ""}`}
     >
+      {/* "Start here" hangs OUTWARD off the node, away from the trunk —
+          never above it. Above, it landed in the gap between this node
+          and the two on the tier over it, and on a dense limb that gap
+          is 88px: the chip sat across both of them. Outward is the one
+          direction a limb never grows into. */}
       {node.state === "next" && (
-        <span className="path-node-chip absolute -top-7 left-1/2 -translate-x-1/2 path-node-chip-fill rounded-full px-2 py-px text-[0.62rem] font-semibold tracking-wide whitespace-nowrap uppercase">
+        <span
+          className={cn(
+            "path-node-chip path-node-chip-fill absolute top-1/2 -translate-y-1/2 rounded-full px-2 py-px text-[0.62rem] font-semibold tracking-wide whitespace-nowrap uppercase",
+            branchSpec(node.branch).lean === -1
+              ? "right-full mr-2"
+              : "left-full ml-2",
+          )}
+        >
           Start here
         </span>
       )}
