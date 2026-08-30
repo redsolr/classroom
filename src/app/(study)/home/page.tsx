@@ -200,10 +200,11 @@ export default async function StudyHomePage() {
   ].slice(0, MAX_PICKS);
 
   // What to RECOMMEND: official books in languages the learner already
-  // studies, minus the ones they've already saved (importing a pack
-  // creates a book named after it, so a name match is the honest
-  // "already have this" signal). Real personalisation from real signal —
-  // no model involved, and it can say WHY.
+  // studies, minus the ones they've already saved. Importing a pack
+  // creates a DECK named after it (2026-08-30 — it used to be called a
+  // book), which is why the match is against `listRows`: a name match
+  // there is the honest "already have this" signal. Real personalisation
+  // from real signal — no model involved, and it can say WHY.
   const studiedLanguages = [...new Set(words.map((w) => w.language))];
   const ownedNames = new Set(listRows.map((l) => l.name.toLowerCase()));
   const recommended = officialRows

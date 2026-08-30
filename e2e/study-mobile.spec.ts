@@ -59,7 +59,7 @@ test("chat is fully usable at phone width: type, send, reply", async ({
 test("vocabulary at phone width: books shelf, dialog add, compact table, edit", async ({
   page,
 }) => {
-  // The landing is the bookshelf; adding goes through the dialog.
+  // The landing is the shelf of BOOKS; adding goes through the dialog.
   await page.goto("/books");
   await page.getByRole("button", { name: "New word" }).click();
   const addDialog = page.getByRole("dialog");
@@ -70,8 +70,14 @@ test("vocabulary at phone width: books shelf, dialog add, compact table, edit", 
   await expect(addDialog).not.toBeVisible();
 
   // One compact TABLE on every viewport — usable at 390px, no card fork.
-  await page.getByRole("link", { name: /All words/ }).click();
-  await page.waitForURL(/book=all/);
+  // The word table lives on the DECK page since books became containers;
+  // "All words" is the liked layer and reaches it in one tap. Scoped to
+  // the book shelf because the deck list under it offers the same row.
+  await page
+    .locator(".books-shelf")
+    .getByRole("link", { name: /All words/ })
+    .click();
+  await page.waitForURL(/\/decks\/all$/);
   const table = page.getByRole("main").locator("table");
   const row = table.locator("tbody tr").filter({ hasText: "chien" });
   await expect(row).toBeVisible();

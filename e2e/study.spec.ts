@@ -776,10 +776,12 @@ test("categories filter the table; save-as-book, reorder, remove", async ({
   await dialog.getByRole("button", { name: "Save" }).click();
   await expect(dialog).not.toBeVisible();
 
-  // The book is on the shelf; open it — manual order, no gare.
+  // The deck is on the shelf; open it — manual order, no gare. It is a
+  // DECK, so it lives in the deck list under the book shelf and opens at
+  // /decks/<id> rather than the old ?book= filter over this page.
   await page.goto("/books");
-  await main.getByRole("link", { name: /Mes verbes/ }).click();
-  await page.waitForURL(/book=/);
+  await page.locator(".decks-shelf").getByRole("link", { name: /Mes verbes/ }).click();
+  await page.waitForURL(/\/decks\/[0-9a-f-]{36}$/);
   const rows = table.locator("tbody tr");
   await expect(table.getByRole("cell", { name: "gare" })).not.toBeVisible();
 
@@ -812,8 +814,8 @@ test("categories filter the table; save-as-book, reorder, remove", async ({
 
   // Order + membership are server state — they survive a fresh visit.
   await page.goto("/books");
-  await main.getByRole("link", { name: /Mes verbes/ }).click();
-  await page.waitForURL(/book=/);
+  await page.locator(".decks-shelf").getByRole("link", { name: /Mes verbes/ }).click();
+  await page.waitForURL(/\/decks\/[0-9a-f-]{36}$/);
   await expect(rows.first()).toContainText("aller");
   await expect(table.getByRole("cell", { name: "faire" })).not.toBeVisible();
 });
@@ -843,9 +845,9 @@ test("pinned book: sidebar row opens it, + quick-adds a word into it", async ({
   await dialog.getByRole("button", { name: "Add word" }).click();
   await expect(dialog).not.toBeVisible();
 
-  // The sidebar row opens the book — the new word is at the end.
+  // The sidebar row opens the deck — the new word is at the end.
   await sidebar.getByRole("link", { name: /Mes verbes/ }).click();
-  await page.waitForURL(/book=/);
+  await page.waitForURL(/\/decks\/[0-9a-f-]{36}$/);
   const table = page.getByRole("main").locator("table");
   await expect(
     table.locator("tbody tr").filter({ hasText: "manger" }),
@@ -908,13 +910,14 @@ test("curated packs: browse, add one word, import all as a personal list", async
   await expect(page.getByText(/saved the pack as your/)).toBeVisible();
 
   await page.goto("/books");
-  // Scoped to the learner's OWN books: the official cover shelf on the
-  // same page carries a book of the same name.
+  // Importing a pack makes a DECK of the learner's own, so it lands in
+  // the deck list rather than the book shelf. Scoped, because the
+  // official cover shelf on the same page carries the same name.
   await page
-    .locator(".books-shelf")
+    .locator(".decks-shelf")
     .getByRole("link", { name: /Café survival French/ })
     .click();
-  await page.waitForURL(/book=/);
+  await page.waitForURL(/\/decks\/[0-9a-f-]{36}$/);
   await expect(
     table.locator("tbody tr").filter({ hasText: "l'addition" }),
   ).toBeVisible();
@@ -1154,10 +1157,13 @@ test("practice again: finishing the deck offers an SRS-neutral cram round", asyn
   await expect(page.getByText(/practice — doesn/)).toBeVisible();
   await page.getByRole("button", { name: "Good" }).click();
 
-  // Cram never reschedules: nothing became due again.
-  await page.goto("/books");
+  // Cram never reschedules: nothing became due again. Asserted on the
+  // DECK page, which is where the Review CTA lives now — /books is a
+  // shelf of containers and carries no such link, so checking it there
+  // would pass without testing anything.
+  await page.goto("/decks/all");
   await expect(
-    page.getByRole("link", { name: /Review \d+ due/ }),
+    page.getByRole("link", { name: /Review \d+/ }),
   ).not.toBeVisible();
 });
 
@@ -1271,7 +1277,9 @@ test("books: a default book is where a one-tap heart files words", async ({
   page,
 }) => {
   await page.goto("/books");
-  const shelf = page.locator(".books-shelf");
+  // The default is a DECK — where a one-tap heart files the word — so
+  // the menu that sets it is on the deck list, not the book shelf.
+  const shelf = page.locator(".decks-shelf");
   await shelf.getByRole("button", { name: "Filing Test options" }).click();
   await page.getByRole("menuitem", { name: "Make default book" }).click();
   await expect(shelf.getByText("Default")).toBeVisible();
@@ -1390,7 +1398,7 @@ test("home: waiting-first quick picks, shelves, and a way back into a chat", asy
   const bookDialog = page.getByRole("dialog");
   await bookDialog.getByLabel("Deck name").fill("Home Test");
   await bookDialog.getByRole("button", { name: "Create" }).click();
-  await page.waitForURL(/book=/);
+  await page.waitForURL(/\/decks\/[0-9a-f-]{36}$/);
 
   await page.goto("/home");
   // The greeting IS the title here — on Home that's honest, where on
