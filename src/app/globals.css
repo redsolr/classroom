@@ -828,3 +828,35 @@ button.micro-node:hover {
   color: var(--on-brand);
 }
 
+
+/* MOTION IS A PREFERENCE, and honouring it is not only courtesy.
+ *
+ * Radix mounts overlays, sheets and menus with enter animations, and an
+ * element mid-animation is neither stable nor safe to click — it can
+ * still be moving, or be detached and remounted under the pointer. On a
+ * fast machine that window is invisible; on CI, which runs this suite
+ * about six times slower, it is wide enough that a click lands on
+ * nothing, the handler never runs, and the failure surfaces later as an
+ * assertion that cannot explain itself. Three separate CI failures
+ * traced back here.
+ *
+ * So this block is doing two jobs at once, and both are real: people who
+ * ask their OS for less motion get less of it (WCAG 2.3.3, and the
+ * vestibular reason behind it), and anything driving the app gets a UI
+ * that settles immediately.
+ *
+ * `0.01ms`, never `none`: Radix drives unmount off `animationend`, and an
+ * animation that never runs never ends — `none` would leave closed menus
+ * mounted forever. Near-zero keeps the event, removes the wait. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

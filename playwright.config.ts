@@ -55,6 +55,12 @@ export default defineConfig({
     baseURL: "http://localhost:3020",
     trace: "retain-on-failure",
     ...devices["Desktop Chrome"],
+    // Ask the app for no animation. Radix overlays and menus animate on
+    // open, and a click dispatched mid-animation lands where the element
+    // WAS — it is not stable, or it is detached and remounted under the
+    // pointer. Invisible locally, wide enough to fail on CI. globals.css
+    // honours the preference for everyone, not just for tests.
+    reducedMotion: "reduce",
     // A real call needs a camera and a microphone. Chromium's fake
     // devices produce an actual tone and test pattern, so the recording
     // under test contains audio rather than silence; without these the
