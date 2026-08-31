@@ -60,7 +60,10 @@ export default defineConfig({
     // WAS — it is not stable, or it is detached and remounted under the
     // pointer. Invisible locally, wide enough to fail on CI. globals.css
     // honours the preference for everyone, not just for tests.
-    reducedMotion: "reduce",
+    // Not a top-level `use` option in this Playwright version — it lives
+    // on the browser context, which `contextOptions` is the supported
+    // way to reach.
+    contextOptions: { reducedMotion: "reduce" },
     // A real call needs a camera and a microphone. Chromium's fake
     // devices produce an actual tone and test pattern, so the recording
     // under test contains audio rather than silence; without these the
