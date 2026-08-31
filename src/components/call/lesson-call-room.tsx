@@ -36,9 +36,13 @@ import {
  * A ONE-TO-ONE LESSON ROOM — not a meeting app.
  *
  * There are two people, always. So there is no participant list, no grid
- * layout, no stage management, no chat panel: the other person fills the
+ * layout, no stage management, no chat panel: the other person takes the
  * screen and you sit in the corner, which is the arrangement every video
  * call between two people converges on anyway.
+ *
+ * "Takes the screen", not "fills" it — their frame is shown WHOLE and
+ * letterboxed. A webcam sends 4:3 or 16:9 into a window wider than
+ * either, so filling it means cropping the top of someone's head off.
  *
  * The order of the screens is the product's ethics made concrete:
  * device check → consent → call. You see yourself, you are told in plain
@@ -337,7 +341,7 @@ export function LessonCallRoom({
               autoPlay
               playsInline
               muted
-              className="aspect-video w-full object-cover"
+              className="aspect-video w-full object-contain"
             />
           </div>
 
@@ -431,11 +435,19 @@ export function LessonCallRoom({
   // --- Live ------------------------------------------------------------
   return (
     <div className="relative h-dvh w-full overflow-hidden bg-black">
+      {/* CONTAIN, never cover.
+          A webcam sends 4:3 or 16:9; a desktop window is wider than
+          either. `object-cover` fills that width and pays for it by
+          cropping the top and bottom off — which on a 2560px monitor
+          means a face scaled past life size with the top of the head
+          gone. Letterboxing is what every video app does here, and the
+          black it reveals is the same black the page already is, so it
+          reads as framing rather than as a gap. */}
       <video
         ref={peerVideo}
         autoPlay
         playsInline
-        className="h-full w-full object-cover"
+        className="h-full w-full object-contain"
       />
       <audio ref={peerAudio} autoPlay />
 
@@ -458,7 +470,7 @@ export function LessonCallRoom({
         autoPlay
         playsInline
         muted
-        className="absolute right-4 top-4 aspect-video w-32 rounded-xl object-cover shadow-card sm:w-44"
+        className="absolute top-4 right-4 aspect-video w-32 rounded-xl bg-black object-cover shadow-card sm:w-44 lg:w-56"
       />
 
       {/* The indicator that must never be absent while recording. */}
