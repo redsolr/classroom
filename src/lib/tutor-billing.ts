@@ -41,28 +41,80 @@ function appUrl(): string {
 /**
  * Create the tutor's connected account. Called once; the id is stored on
  * their profile and everything afterwards refers to it.
+ *
+ * ACCOUNTS V2, and not for fashion. Stripe refuses v1 account creation
+ * for new Connect integrations outright — "Stripe no longer recommends
+ * Accounts v1 for new Connect integrations. Create connected accounts
+ * with POST /v2/core/accounts instead" — and only restores it behind a
+ * compatibility switch. Building on the path a provider is walking away
+ * from buys a forced migration later, which is why this repo's rule is
+ * to take the provider's current recommendation.
+ *
+ * WHY THIS EXACT SHAPE, WHICH IS NOT THE ONE THE DOCS LEAD WITH.
+ *
+ * The obvious translation of the old `type: "express"` is
+ * `dashboard: "express"`, and it cannot be used here. Express requires
+ * the PLATFORM to be loss-liable, and Stripe blocks that for Thai
+ * platforms outright:
+ *
+ *   "Platforms in TH cannot create accounts where the platform is
+ *    loss-liable, due to risk control measures."
+ *
+ * Probing every combination against a Thai platform leaves exactly one
+ * that Stripe accepts:
+ *
+ *   dashboard: none · fees_collector: application · losses_collector: stripe
+ *
+ * So this is not a v1-vs-v2 choice. Express was never available to us —
+ * the old `type: "express"` call would have failed the same way the
+ * moment it ran, and the failure would have looked like a Stripe outage
+ * rather than a country rule.
+ *
+ * What it costs and what it does not: we still collect our commission
+ * (`fees_collector: application` is what keeps `application_fee_amount`
+ * working on destination charges), and Stripe carries dispute losses
+ * instead of us, which for a pilot is a better trade than the one we
+ * thought we were making. What we lose is the Express DASHBOARD —
+ * `dashboard: "none"` means Stripe hosts no payouts UI for the tutor,
+ * so `payoutDashboardLink` sends them to Stripe's hosted account form
+ * instead, and their earnings live on our own page.
+ *
+ * The account still reads back through the v1 endpoints — `fetchAccount`
+ * and `accountIsReady` are unchanged, because Stripe returns a v2
+ * account in v1 shape when a v1 endpoint asks for it.
  */
 export async function createConnectedAccount(input: {
   email: string;
   country?: string;
 }): Promise<string> {
   const stripe = getStripe();
-  const account = await stripe.accounts.create({
-    // `express` is the type; `controller` defaults suit it. Fees are
-    // taken as application fees on destination charges, so the platform
-    // is the one Stripe bills — see lib/tutor-pricing.ts for why we
-    // chose to absorb processing rather than push it to the tutor.
-    type: "express",
-    email: input.email,
-    // Two-letter ISO country. Stripe needs it at creation and it cannot
-    // be changed afterwards, which is why the listing form asks for it
-    // before anything else.
-    country: input.country,
-    capabilities: {
-      transfers: { requested: true },
-      card_payments: { requested: true },
+  const account = await stripe.v2.core.accounts.create({
+    contact_email: input.email,
+    // Two-letter ISO country, lowercase for v2. Stripe needs it at
+    // creation and it cannot be changed afterwards, which is why the
+    // listing form asks for it before anything else.
+    identity: {
+      country: (input.country ?? "th").toLowerCase(),
+      entity_type: "individual",
     },
-    business_type: "individual",
+    configuration: {
+      // `recipient` is what lets the account be paid by a destination
+      // charge; `merchant` is not optional alongside it — Stripe refuses
+      // stripe_transfers without card_payments.
+      merchant: { capabilities: { card_payments: { requested: true } } },
+      recipient: {
+        capabilities: {
+          stripe_balance: { stripe_transfers: { requested: true } },
+        },
+      },
+    },
+    defaults: {
+      responsibilities: {
+        fees_collector: "application",
+        losses_collector: "stripe",
+      },
+    },
+    dashboard: "none",
   });
   return account.id;
 }
@@ -83,10 +135,25 @@ export async function onboardingLink(accountId: string): Promise<string> {
   return link.url;
 }
 
-/** The Express dashboard, where a tutor sees their own payouts. */
+/**
+ * Where a tutor manages their own payout details.
+ *
+ * NOT a login link: `createLoginLink` needs an Express dashboard, and a
+ * Thai platform cannot create Express accounts (see
+ * `createConnectedAccount`). Stripe's hosted account form is the
+ * equivalent that exists — it is where they change a bank account or
+ * clear a new requirement. What they EARNED is on our own page, from
+ * `tutor_payments`, which is the more honest source anyway: it is the
+ * ledger we bill from.
+ */
 export async function payoutDashboardLink(accountId: string): Promise<string> {
   const stripe = getStripe();
-  const link = await stripe.accounts.createLoginLink(accountId);
+  const link = await stripe.accountLinks.create({
+    account: accountId,
+    type: "account_update",
+    refresh_url: `${appUrl()}/teaching/payouts?refresh=1`,
+    return_url: `${appUrl()}/teaching/payouts?done=1`,
+  });
   return link.url;
 }
 
