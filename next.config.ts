@@ -62,6 +62,11 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  // Agents connect to the clean /mcp URL; mcp-handler requires the
+  // [transport] segment underneath. Same arrangement as the CRM.
+  async rewrites() {
+    return [{ source: "/mcp", destination: "/api/mcp/mcp" }];
+  },
 };
 
 export default nextConfig;

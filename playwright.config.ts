@@ -112,6 +112,12 @@ export default defineConfig({
           STRIPE_SECRET_KEY: "",
           STRIPE_WEBHOOK_SECRET: "",
           STRIPE_STUDY_PRICE_ID: "",
+          // The agent door, so e2e/mcp.spec.ts can prove it refuses the
+          // callers it should. A fixed value: the point of those tests is
+          // the refusals, and a random token would make a failure read as
+          // flakiness rather than a broken gate.
+          CLASSROOM_MCP_TOKEN: "e2e-mcp-token",
+          CLASSROOM_MCP_TEACHER_EMAILS: "teacher@class-room.dev",
         },
   },
 });
