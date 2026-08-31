@@ -11,6 +11,7 @@ import {
   Video,
 } from "lucide-react";
 import type { LessonDetail } from "@/lib/queries";
+import { callPath } from "@/lib/call-path";
 import {
   cancelLesson,
   markLessonAttended,
@@ -48,7 +49,7 @@ export function ScheduledLessonPanel({ detail }: { detail: LessonDetail }) {
                 around the start time. A teacher checking their camera an
                 hour early is doing the right thing, and a lesson running
                 late is exactly when a locked door costs the most. */}
-            <LinkButton href={`/call/${lesson.id}`}>
+            <LinkButton href={callPath(lesson.id)}>
               <Video className="size-3.5 text-fg-tertiary" />
               Join call
             </LinkButton>

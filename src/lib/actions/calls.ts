@@ -11,6 +11,7 @@ import {
   type LessonCall,
 } from "@/db";
 import { requireLearner } from "@/lib/auth";
+import { callPath } from "@/lib/call-path";
 import {
   bothConsented,
   ensureCall,
@@ -65,6 +66,11 @@ async function openLesson(
   const lessonId = lessonIdSchema.parse(rawLessonId);
   const me = await requireCallParticipant(caller, lessonId);
   return { me, call: await findCall(lessonId) };
+}
+
+/** Every surface that shows this call, in one place. */
+function revalidateCall(lessonId: string): void {
+  revalidatePath(callPath(lessonId));
 }
 
 /** The room, or a refusal a person can read. */
@@ -152,7 +158,7 @@ export async function consentToRecording(
     .where(eq(lessonCalls.id, room.id))
     .returning();
 
-  revalidatePath(`/call/${me.lesson.id}`);
+  revalidateCall(me.lesson.id);
   return { bothConsented: bothConsented(updated) };
 }
 
@@ -241,7 +247,7 @@ export async function startLessonRecording(
     })),
   );
 
-  revalidatePath(`/call/${me.lesson.id}`);
+  revalidateCall(me.lesson.id);
   return { recordingId: providerRecordingId };
 }
 
@@ -264,7 +270,7 @@ export async function stopLessonRecording(
     .set({ state: "recording_complete", stoppedAt: new Date(), updatedAt: new Date() })
     .where(eq(lessonRecordings.id, active.id));
 
-  revalidatePath(`/call/${me.lesson.id}`);
+  revalidateCall(me.lesson.id);
   return { stopped: true };
 }
 
@@ -278,7 +284,7 @@ export async function endLessonCall(rawLessonId: string): Promise<void> {
     .update(lessonCalls)
     .set({ endedAt: new Date(), updatedAt: new Date() })
     .where(eq(lessonCalls.id, call.id));
-  revalidatePath(`/call/${me.lesson.id}`);
+  revalidateCall(me.lesson.id);
 }
 
 // ---------------------------------------------------------------------------

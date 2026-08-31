@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { callPath } from "@/lib/call-path";
 import { CalendarDays, Receipt } from "lucide-react";
 import { requireLearner } from "@/lib/auth";
 import { learnerBookings, learnerPayments } from "@/lib/tutor-queries";
@@ -110,7 +111,7 @@ export default async function LearnerBookingsPage() {
                       when a locked door costs the most. */}
                   {booking.lessonId && (
                     <Link
-                      href={`/call/${booking.lessonId}`}
+                      href={callPath(booking.lessonId)}
                       className="rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-hover"
                     >
                       Join lesson

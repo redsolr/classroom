@@ -1,7 +1,8 @@
 import "server-only";
 import { and, asc, desc, eq } from "drizzle-orm";
 import { db, lessons, students, teachers } from "@/db";
-import { requireAllowedTeacher } from "@/lib/mcp-auth";
+import { callPath } from "@/lib/call-path";
+import { allowedTeacherEmails, requireAllowedTeacher } from "@/lib/mcp-auth";
 
 /**
  * WHAT AN AGENT CAN DO TO A CLASSROOM.
@@ -135,7 +136,7 @@ export async function scheduleLesson(input: {
 
   return {
     lesson,
-    callPath: `/call/${lesson.id}`,
+    callPath: callPath(lesson.id),
     teacher: teacher.email,
     student: student.email,
   };
@@ -162,7 +163,7 @@ export async function listLessons(input: {
     .limit(Math.min(input.limit ?? 20, 100));
   return {
     teacher: teacher.email,
-    lessons: rows.map((row) => ({ ...row, callPath: `/call/${row.id}` })),
+    lessons: rows.map((row) => ({ ...row, callPath: callPath(row.id) })),
   };
 }
 
@@ -170,7 +171,6 @@ export async function listLessons(input: {
  * each has actually signed in yet. A first call that answers "what can I
  * even do here" saves a round of guessing. */
 export async function whoAmI(): Promise<ToolResult> {
-  const { allowedTeacherEmails } = await import("@/lib/mcp-auth");
   const allowed = allowedTeacherEmails();
   const rows = await db
     .select({ email: teachers.email, name: teachers.name })

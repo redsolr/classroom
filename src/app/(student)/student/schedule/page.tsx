@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { callPath } from "@/lib/call-path";
 import { and, asc, desc, eq, gte, lt, notInArray } from "drizzle-orm";
 import { format, formatDistanceToNow } from "date-fns";
 import { ArrowRight, CalendarClock } from "lucide-react";
@@ -116,7 +117,7 @@ export default async function StudentSchedulePage({
                         and the other half of the lesson is left pasting
                         a URL someone sent them. */}
                     <Link
-                      href={`/call/${l.id}`}
+                      href={callPath(l.id)}
                       className="shrink-0 rounded-lg bg-accent px-3 py-1.5 text-[0.8125rem] font-medium text-white hover:bg-accent-hover"
                     >
                       Join call
