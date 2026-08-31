@@ -15,6 +15,21 @@ import type { Learner } from "@/db";
 const SECRET_KEY = process.env.STRIPE_SECRET_KEY;
 const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
 const PRICE_ID = process.env.STRIPE_STUDY_PRICE_ID;
+/**
+ * The signing secret for the CONNECT-scoped endpoint.
+ *
+ * Stripe scopes a webhook endpoint to either your own account or your
+ * connected accounts — never both — so events about a tutor's account
+ * (`account.updated`, which is how we learn Stripe disabled their
+ * payouts) arrive at a different endpoint from checkout and payment
+ * events, with a different secret.
+ *
+ * Optional on purpose. Without it the platform events still work and the
+ * tutor's payout state is only refreshed when someone presses "Check
+ * status" — degraded, but honest, and it keeps a deployment that has not
+ * configured Connect webhooks from failing every platform event too.
+ */
+const CONNECT_WEBHOOK_SECRET = process.env.STRIPE_CONNECT_WEBHOOK_SECRET;
 
 export function billingConfigured(): boolean {
   return Boolean(SECRET_KEY && WEBHOOK_SECRET && PRICE_ID);
@@ -45,6 +60,20 @@ export function stripeWebhookSecret(): string {
     );
   }
   return WEBHOOK_SECRET;
+}
+
+/**
+ * Every secret a delivery to our webhook URL could legitimately carry.
+ *
+ * The platform secret is required; the Connect one is optional, so a
+ * deployment that has not registered the connected-account endpoint
+ * still processes checkout and payment events normally instead of
+ * rejecting all of them.
+ */
+export function stripeWebhookSecrets(): string[] {
+  return [WEBHOOK_SECRET, CONNECT_WEBHOOK_SECRET].filter(
+    (secret): secret is string => Boolean(secret),
+  );
 }
 
 /** Entitlement is exactly "Stripe says the subscription is active". */

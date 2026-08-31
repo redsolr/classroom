@@ -5,7 +5,7 @@ import {
   billingConfigured,
   getStripe,
   planStatusFromStripe,
-  stripeWebhookSecret,
+  stripeWebhookSecrets,
 } from "@/lib/billing";
 import { handleTutorEvent, isTutorSubscription } from "@/lib/tutor-webhook";
 
@@ -58,15 +58,30 @@ export async function POST(req: Request) {
   const stripe = getStripe();
   const payload = await req.text();
 
-  let event: Stripe.Event;
-  try {
-    event = stripe.webhooks.constructEvent(
-      payload,
-      signature,
-      stripeWebhookSecret(),
-    );
-  } catch (error) {
-    console.error("stripe webhook: signature verification failed", error);
+  /**
+   * Verify against EVERY secret this endpoint could legitimately be
+   * signed with.
+   *
+   * Stripe scopes a webhook endpoint to your own account or to your
+   * connected accounts, never both — so this same URL is registered
+   * twice, and the two registrations sign with different secrets.
+   * Checking only the platform one silently drops every
+   * `account.updated`, which is how we learn Stripe has disabled a
+   * tutor's payouts. A tutor we can no longer pay would stay listed and
+   * bookable, and the money for the next lesson would have nowhere to
+   * land.
+   */
+  let event: Stripe.Event | null = null;
+  for (const secret of stripeWebhookSecrets()) {
+    try {
+      event = stripe.webhooks.constructEvent(payload, signature, secret);
+      break;
+    } catch {
+      // Wrong secret for this delivery — try the next one.
+    }
+  }
+  if (!event) {
+    console.error("stripe webhook: signature matched no configured secret");
     return Response.json({ error: "invalid_signature" }, { status: 400 });
   }
 
