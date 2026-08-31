@@ -3,5 +3,11 @@
   "regions": ["sin1"],
   "git": {
     "deploymentEnabled": false
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/calls/reconcile",
+      "schedule": "0 17 * * *"
+    }
+  ]
 }

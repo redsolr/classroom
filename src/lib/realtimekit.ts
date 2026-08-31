@@ -1,4 +1,9 @@
 import "server-only";
+import type { CallRole } from "@/lib/call-participants";
+import {
+  parseRecordingManifest,
+  type RecordingManifest,
+} from "@/lib/recording-manifest";
 
 /**
  * CLOUDFLARE REALTIMEKIT — the only module that knows which company runs
@@ -19,8 +24,6 @@ import "server-only";
  */
 
 const API_BASE = "https://api.realtime.cloudflare.com/v2";
-
-export type CallRole = "teacher" | "student";
 
 export function realtimeKitConfigured(): boolean {
   return Boolean(
@@ -194,4 +197,58 @@ export async function stopRecording(recordingId: string): Promise<void> {
     method: "PUT",
     body: { action: "stop" },
   });
+}
+
+/**
+ * What the provider holds for one recording, right now.
+ *
+ * The pipeline is always webhook → FETCH → copy, never webhook → copy.
+ * The `UPLOADED` webhook carries the expiry but not the download URLs,
+ * and the URLs are short-lived presigned links that would be stale by the
+ * time a retry used them anyway. Asking is also what makes the reconciler
+ * a real safety net rather than a replay of missed webhooks: it can find
+ * out that a recording finished even if no webhook ever arrived.
+ */
+export async function fetchRecording(
+  providerRecordingId: string,
+): Promise<RecordingManifest> {
+  return parseRecordingManifest(
+    await rtk<unknown>(`/recordings/${providerRecordingId}`),
+  );
+}
+
+/**
+ * Pull one participant's audio into memory.
+ *
+ * Buffered rather than streamed: the file has to be hashed before it can
+ * be signed, stored and recorded, and a lesson track is tens of megabytes
+ * — small enough that holding it is simpler and honest, where a stream
+ * would need the digest computed twice or the integrity claim dropped.
+ * A track that ever outgrows this should become a multipart upload, not
+ * an unverified one.
+ */
+export async function downloadTrackFile(
+  downloadUrl: string,
+): Promise<{ body: Buffer; contentType: string }> {
+  // Presigned: the credential is in the URL, so this request carries no
+  // provider auth of ours.
+  const res = await fetch(downloadUrl, { cache: "no-store" });
+  if (!res.ok) {
+    throw new Error(
+      `downloading a track file failed (${res.status}) — the link may have expired`,
+    );
+  }
+  const body = Buffer.from(await res.arrayBuffer());
+  const declared = res.headers.get("content-length");
+  // A truncated download is the failure this catches: the connection ends
+  // early, the response is still 200, and the bytes are half a lesson.
+  if (declared !== null && Number(declared) !== body.length) {
+    throw new Error(
+      `track file arrived truncated — ${body.length} bytes of a declared ${declared}`,
+    );
+  }
+  return {
+    body,
+    contentType: res.headers.get("content-type") ?? "audio/webm",
+  };
 }

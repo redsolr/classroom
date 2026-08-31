@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { db, lessonCallWebhooks, lessonRecordings } from "@/db";
+import { ingestRecording } from "@/lib/lesson-ingest";
 
 /**
  * REALTIMEKIT WEBHOOKS — the provider telling us a recording finished.
@@ -161,6 +162,28 @@ async function handle(
         updatedAt: now,
       })
       .where(eq(lessonRecordings.id, recording.id));
+
+    // COPY IT NOW. The seven-day clock on the provider's own copy starts
+    // here, and the cheapest moment to own the bytes is the one where we
+    // have just been told they exist.
+    //
+    // `after` rather than awaiting it inline: copying two audio files
+    // takes far longer than a webhook should wait, and a delivery that
+    // times out is retried with a NEW delivery id — which our idempotency
+    // table cannot recognise as the same event, so it would start a
+    // second ingest of the same recording. Retrying is the reconciler's
+    // job, on its own clock, and a failure here is loud rather than
+    // silent because nothing else in this handler will notice it.
+    after(async () => {
+      try {
+        const outcome = await ingestRecording(recording.id);
+        console.log(
+          `[ingest] ${recording.id}: ${outcome.state} (copied ${outcome.copied}, already stored ${outcome.alreadyStored})`,
+        );
+      } catch (error) {
+        console.error(`[ingest] ${recording.id}: ingestion threw`, error);
+      }
+    });
     return;
   }
 

@@ -17,10 +17,10 @@ import {
   ensureCall,
   findCall,
   requireCallParticipant,
-  roleFromParticipantId,
   selfConsentAt,
   type CallParticipant,
 } from "@/lib/call-guards";
+import { roleFromParticipantId } from "@/lib/call-participants";
 import {
   addParticipant,
   listActiveParticipants,
