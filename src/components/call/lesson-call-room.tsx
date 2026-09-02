@@ -10,11 +10,16 @@ import {
   PhoneOff,
   Circle,
   Loader2,
+  MessageSquare,
+  MonitorUp,
   ShieldCheck,
   Wifi,
   WifiOff,
 } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+import { CallChat } from "@/components/call/call-chat";
+import { CallTabs } from "@/components/call/call-tabs";
 import {
   CallShell,
   ControlButton,
@@ -24,6 +29,7 @@ import type {
   RealtimeKitClientStatic,
   RealtimeKitMeeting,
 } from "@/components/call/realtimekit-client";
+import { useCallChat } from "@/components/call/use-call-chat";
 import {
   consentToRecording,
   endLessonCall,
@@ -31,14 +37,25 @@ import {
   startLessonRecording,
   stopLessonRecording,
 } from "@/lib/actions/calls";
+import {
+  buildCallTabs,
+  resolveActiveTab,
+  shouldFollowShare,
+  type CallTabKind,
+} from "@/lib/call-tabs";
 
 /**
  * A ONE-TO-ONE LESSON ROOM — not a meeting app.
  *
  * There are two people, always. So there is no participant list, no grid
- * layout, no stage management, no chat panel: the other person takes the
- * screen and you sit in the corner, which is the arrangement every video
- * call between two people converges on anyway.
+ * layout and no stage management: the other person takes the screen and
+ * you sit in the corner, which is the arrangement every video call
+ * between two people converges on anyway.
+ *
+ * There IS a chat pane, and it is deliberately not a meeting-app chat —
+ * it is a window onto the same `/messages` thread these two already
+ * have, so a spelling written down mid-lesson is still there on
+ * Thursday. See `call-chat.tsx`.
  *
  * "Takes the screen", not "fills" it — their frame is shown WHOLE and
  * letterboxed. A webcam sends 4:3 or 16:9 into a window wider than
@@ -87,14 +104,42 @@ export function LessonCallRoom({
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [audioIn, setAudioIn] = useState<string>("");
   const [videoIn, setVideoIn] = useState<string>("");
+  const [sharing, setSharing] = useState(false);
+  const [peerSharing, setPeerSharing] = useState(false);
+  const [requestedTab, setRequestedTab] = useState<CallTabKind>("lesson");
+  // Whether the preset lets THIS person share. A button the provider
+  // will refuse is worse than no button; hidden the moment the room says no.
+  const [canShare, setCanShare] = useState(true);
+  const chat = useCallChat({ lessonId, role, otherName });
+  const { attach: chatAttach } = chat;
 
   const selfVideo = useRef<HTMLVideoElement>(null);
   const peerVideo = useRef<HTMLVideoElement>(null);
   const peerAudio = useRef<HTMLAudioElement>(null);
+  const peerScreen = useRef<HTMLVideoElement>(null);
+  // A shared tab's SOUND. A tutor sharing a listening clip is a core move
+  // in a language lesson, and a share that arrives silent is the wrong
+  // half of it.
+  const peerScreenAudio = useRef<HTMLAudioElement>(null);
   const previewStream = useRef<MediaStream | null>(null);
   // The SDK's shape is broad and event-driven; `unknown` here would mean
   // casting at every call site instead of once.
   const meeting = useRef<RealtimeKitMeeting | null>(null);
+
+  // --- What is open in the room ----------------------------------------
+  const tabs = buildCallTabs({ peerSharing, selfSharing: sharing, otherName });
+  // Never trusted directly: a share ending takes its tab with it, and
+  // whoever was looking at it lands back on the lesson rather than on a
+  // frame with nothing in it.
+  const activeTab = resolveActiveTab(requestedTab, tabs);
+
+  const peerWasSharing = useRef(false);
+  useEffect(() => {
+    if (shouldFollowShare(peerWasSharing.current, peerSharing)) {
+      setRequestedTab("peer-screen");
+    }
+    peerWasSharing.current = peerSharing;
+  }, [peerSharing]);
 
   // --- Pre-call preview -----------------------------------------------
   // A call you join without seeing yourself is a call that starts with
@@ -169,6 +214,12 @@ export function LessonCallRoom({
 
       m.self.on("roomJoined", () => {
         setStage("live");
+        // Read, never assumed: the student preset may say NOT_ALLOWED or
+        // CAN_REQUEST, and there is no request flow to offer. Unknown is
+        // treated as allowed so an SDK that stops reporting it does not
+        // silently remove the button for everyone.
+        const permission = m.self.permissions?.canProduceScreenshare;
+        setCanShare(permission === undefined || permission === "ALLOWED");
         if (selfVideo.current && m.self.videoTrack) {
           selfVideo.current.srcObject = new MediaStream([m.self.videoTrack]);
         }
@@ -185,11 +236,33 @@ export function LessonCallRoom({
         if (peerAudio.current && other.audioTrack) {
           peerAudio.current.srcObject = new MediaStream([other.audioTrack]);
         }
+        const shared = other.screenShareTracks?.video;
+        const sharedAudio = other.screenShareTracks?.audio;
+        setPeerSharing(Boolean(other.screenShareEnabled && shared));
+        if (peerScreen.current && shared) {
+          peerScreen.current.srcObject = new MediaStream([shared]);
+        }
+        if (peerScreenAudio.current) {
+          peerScreenAudio.current.srcObject = sharedAudio
+            ? new MediaStream([sharedAudio])
+            : null;
+        }
       };
       m.participants.joined.on("participantJoined", attachPeer);
       m.participants.joined.on("videoUpdate", attachPeer);
       m.participants.joined.on("audioUpdate", attachPeer);
-      m.participants.joined.on("participantLeft", () => setPeerHere(false));
+      m.participants.joined.on("screenShareUpdate", attachPeer);
+      m.participants.joined.on("participantLeft", () => {
+        setPeerHere(false);
+        setPeerSharing(false);
+      });
+
+      // The browser's own "Stop sharing" bar ends the track without
+      // telling this component, so what the button says comes from the
+      // meeting rather than from what we last asked for.
+      m.self.on("screenShareUpdate", (payload: { screenShareEnabled?: boolean }) => {
+        setSharing(Boolean(payload?.screenShareEnabled));
+      });
 
       // Connection quality — shown because a lesson degrading is
       // something both people need to be able to name, rather than
@@ -204,6 +277,8 @@ export function LessonCallRoom({
         toast.success("Reconnected");
       });
 
+      chatAttach(m);
+
       await m.join();
     } catch (e) {
       console.error("lesson call: join failed", e);
@@ -212,7 +287,7 @@ export function LessonCallRoom({
     } finally {
       setBusy(false);
     }
-  }, [lessonId, camOn, micOn, releasePreview]);
+  }, [lessonId, camOn, micOn, releasePreview, chatAttach]);
 
   // --- Controls --------------------------------------------------------
   const toggleMic = useCallback(async () => {
@@ -236,6 +311,25 @@ export function LessonCallRoom({
     else await m.self.enableVideo();
     setCamOn((v) => !v);
   }, [camOn]);
+
+  const toggleShare = useCallback(async () => {
+    const m = meeting.current;
+    if (!m) return;
+    try {
+      if (sharing) {
+        await m.self.disableScreenShare();
+        setSharing(false);
+      } else {
+        await m.self.enableScreenShare();
+        setSharing(true);
+      }
+    } catch (e) {
+      // Cancelling the browser's own picker lands here, which is not an
+      // error worth shouting about; anything else is.
+      console.error("lesson call: screen share toggle failed", e);
+      if (!sharing) toast.error("Could not share your screen.");
+    }
+  }, [sharing]);
 
   const giveConsent = useCallback(async () => {
     setBusy(true);
@@ -435,6 +529,13 @@ export function LessonCallRoom({
   // --- Live ------------------------------------------------------------
   return (
     <div className="relative h-dvh w-full overflow-hidden bg-black">
+      <CallTabs tabs={tabs} active={activeTab} onSelect={setRequestedTab} />
+
+      {/* Every frame stays MOUNTED whatever tab is showing. The streams
+          are attached imperatively as the SDK hands them over, so
+          unmounting one would drop a track that nothing re-delivers —
+          the tab would come back black until the next renegotiation. */}
+
       {/* CONTAIN, never cover.
           A webcam sends 4:3 or 16:9; a desktop window is wider than
           either. `object-cover` fills that width and pays for it by
@@ -447,9 +548,55 @@ export function LessonCallRoom({
         ref={peerVideo}
         autoPlay
         playsInline
-        className="h-full w-full object-contain"
+        className={cn(
+          "object-contain",
+          activeTab === "lesson"
+            ? "h-full w-full"
+            : // Their face does not leave when their screen is up:
+              // reading someone's reaction to what they are showing you
+              // is most of why this is a video call rather than a
+              // screen share.
+              "absolute right-4 top-4 aspect-video w-32 rounded-xl bg-black shadow-card sm:w-44 lg:w-56",
+        )}
       />
+      <video
+        ref={peerScreen}
+        autoPlay
+        playsInline
+        className={cn(
+          "h-full w-full object-contain",
+          activeTab === "peer-screen" ? "" : "hidden",
+        )}
+      />
+
+      {/* Your own share is a PANEL, not a mirror. Rendering the screen
+          you are looking at, inside the window that is on it, is the
+          infinite-corridor effect every meeting app avoids — and what
+          the tab is actually for is answering "can they see this?". */}
+      {activeTab === "self-screen" ? (
+        <div className="absolute inset-0 grid place-items-center px-6 text-center">
+          <div>
+            <MonitorUp size={28} className="mx-auto text-white/70" />
+            <p className="mt-3 text-sm font-medium text-white">
+              You are sharing your screen
+            </p>
+            <p className="mt-1 text-sm text-white/60">
+              {otherName} can see it. Nothing shared is recorded — only the
+              two voices are.
+            </p>
+            <button
+              type="button"
+              onClick={() => void toggleShare()}
+              className="mt-4 rounded-lg bg-white/10 px-3 py-1.5 text-sm font-medium text-white backdrop-blur hover:bg-white/20"
+            >
+              Stop sharing
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       <audio ref={peerAudio} autoPlay />
+      <audio ref={peerScreenAudio} autoPlay />
 
       {!peerHere ? (
         <div className="absolute inset-0 grid place-items-center text-center">
@@ -464,13 +611,23 @@ export function LessonCallRoom({
         </div>
       ) : null}
 
-      {/* Self, small, in the corner. */}
+      {/* Self, small, in the corner — one row down when their face has
+          been moved up there by whatever is on the main frame. */}
       <video
         ref={selfVideo}
         autoPlay
         playsInline
         muted
-        className="absolute top-4 right-4 aspect-video w-32 rounded-xl bg-black object-cover shadow-card sm:w-44 lg:w-56"
+        className={cn(
+          "absolute right-4 aspect-video w-32 rounded-xl bg-black object-cover shadow-card sm:w-44 lg:w-56",
+          // 1rem inset + their tile's own height (16:9 of w-32/44/56) +
+          // a gap. Measured rather than eyeballed: a value that is close
+          // makes the two tiles overlap by a few pixels, which reads as a
+          // rendering bug rather than as a layout choice.
+          activeTab === "lesson"
+            ? "top-4"
+            : "top-[6.25rem] sm:top-[8rem] lg:top-[9.75rem]",
+        )}
       />
 
       {/* The indicator that must never be absent while recording. */}
@@ -496,6 +653,44 @@ export function LessonCallRoom({
         <ControlButton on={camOn} onClick={toggleCam} label="Camera" dark>
           {camOn ? <Video size={20} /> : <VideoOff size={20} />}
         </ControlButton>
+
+        {/* `on` means SHARING here, so the button is filled while it is —
+            the same reading as the mic being on, not the inverse the
+            muted controls use. */}
+        {canShare ? (
+          // Not a ControlButton: that component's "<label> on/off" wording
+          // is for things that are on by default, and a share is off by
+          // default — borrowing it announced "Screen share on" while off.
+          <button
+            type="button"
+            onClick={() => void toggleShare()}
+            aria-label={sharing ? "Stop sharing your screen" : "Share your screen"}
+            aria-pressed={sharing}
+            className={cn(
+              "grid h-12 w-12 place-items-center rounded-full backdrop-blur",
+              sharing
+                ? "bg-white text-black"
+                : "bg-white/10 text-white hover:bg-white/20",
+            )}
+          >
+            <MonitorUp size={20} />
+          </button>
+        ) : null}
+
+        <button
+          type="button"
+          onClick={() => (chat.open ? chat.closePane() : void chat.openPane())}
+          aria-label={chat.unread > 0 ? `Messages, ${chat.unread} unread` : "Messages"}
+          aria-pressed={chat.open}
+          className="relative grid h-12 w-12 place-items-center rounded-full bg-white/10 text-white backdrop-blur hover:bg-white/20"
+        >
+          <MessageSquare size={20} />
+          {chat.unread > 0 ? (
+            <span className="absolute -right-0.5 -top-0.5 grid h-5 min-w-5 place-items-center rounded-full bg-accent px-1 text-[0.65rem] font-semibold text-white">
+              {chat.unread > 9 ? "9+" : chat.unread}
+            </span>
+          ) : null}
+        </button>
 
         {role === "teacher" ? (
           <button
@@ -526,6 +721,17 @@ export function LessonCallRoom({
           <PhoneOff size={20} />
         </button>
       </div>
+
+      <CallChat
+        open={chat.open}
+        onClose={chat.closePane}
+        messages={chat.messages}
+        selfRole={role}
+        otherName={otherName}
+        onSend={(body) => void chat.send(body)}
+        sending={chat.sending}
+        error={chat.error}
+      />
 
       <span className="sr-only">
         In a lesson with {otherName}. You are {selfName}.

@@ -9,6 +9,7 @@ import {
   lessonRecordings,
   lessonRecordingTracks,
   type LessonCall,
+  type Message,
 } from "@/db";
 import { requireLearner } from "@/lib/auth";
 import { callPath } from "@/lib/call-path";
@@ -21,6 +22,9 @@ import {
   type CallParticipant,
 } from "@/lib/call-guards";
 import { roleFromParticipantId } from "@/lib/call-participants";
+import { ensureThread, studentIsReachable } from "@/lib/message-guards";
+import { latestMessages } from "@/lib/message-queries";
+import { postMessage } from "@/lib/messages";
 import {
   addParticipant,
   listActiveParticipants,
@@ -48,6 +52,33 @@ import {
 
 const lessonIdSchema = z.string().uuid();
 
+/** The same bounds `/messages` puts on a message, for the same reasons. */
+const chatBodySchema = z.string().trim().min(1).max(4000);
+
+/**
+ * A message as the call pane needs it.
+ *
+ * Deliberately NOT the `messages` row: the pane builds these from the
+ * live broadcast too, where there is no row to copy — and a shape that
+ * can only be made by reading the database is a shape the wire cannot
+ * speak. `createdAt` is an ISO string for the same reason.
+ */
+export type CallChatMessage = {
+  id: string;
+  author: "teacher" | "student" | "system";
+  body: string;
+  createdAt: string;
+};
+
+function toCallChatMessage(row: Message): CallChatMessage {
+  return {
+    id: row.id,
+    author: row.author,
+    body: row.body,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
 /**
  * The part of every action's preamble that is genuinely the same:
  * validate the id, prove the caller belongs to this lesson, and find the
@@ -71,6 +102,25 @@ async function openLesson(
 /** Every surface that shows this call, in one place. */
 function revalidateCall(lessonId: string): void {
   revalidatePath(callPath(lessonId));
+}
+
+/**
+ * The thread these two share, opened if this is the first thing said.
+ *
+ * A student nobody can reach gets no thread — the same rule
+ * `postThreadEventForStudent` applies, for the same reason: a hand-typed
+ * roster row with no email can never have an account, so a thread for it
+ * is a conversation with one reader sitting in the teacher's inbox. Here
+ * it can only happen to a teacher alone in a room, and the refusal is
+ * written to be read by the person who sees it.
+ */
+async function callThread(me: CallParticipant) {
+  if (!studentIsReachable(me.student)) {
+    throw new Error(
+      "There is nobody to message yet — this student has no email on their record, so they have no account to read it.",
+    );
+  }
+  return ensureThread(me.teacher.id, me.student.id);
 }
 
 /** The room, or a refusal a person can read. */
@@ -272,6 +322,61 @@ export async function stopLessonRecording(
 
   revalidateCall(me.lesson.id);
   return { stopped: true };
+}
+
+/**
+ * What the two of them typed, most recent last.
+ *
+ * The SAME thread `/messages` shows — not a second, in-call-only chat.
+ * The pane opens on what was already said, so a lesson starts from the
+ * homework question asked on Tuesday rather than from an empty box, and
+ * anything typed during the hour is still there afterwards.
+ */
+export async function callChatHistory(
+  rawLessonId: string,
+): Promise<CallChatMessage[]> {
+  const caller = await requireLearner();
+  const { me } = await openLesson(caller, rawLessonId);
+
+  const thread = await callThread(me);
+  // Newest-first from the query, reversed for reading order. Capped
+  // because this is a side panel during a lesson, not the archive.
+  const rows = await latestMessages(thread.id, 50);
+  return rows.reverse().map(toCallChatMessage);
+}
+
+/**
+ * Say something without interrupting the lesson.
+ *
+ * The database write is the record and comes FIRST; the live broadcast
+ * to the other side is the caller's job afterwards, over the meeting
+ * they are both already in. That order is deliberate — a line the other
+ * person saw but that was never stored is a line neither of them can
+ * find tomorrow, which is worse than one that arrives a moment late.
+ *
+ * The author is taken from the server's own view of who is calling, so
+ * neither participant can post as the other.
+ */
+export async function sendCallChatMessage(
+  rawLessonId: string,
+  rawBody: string,
+): Promise<CallChatMessage> {
+  const caller = await requireLearner();
+  const { me } = await openLesson(caller, rawLessonId);
+  const body = chatBodySchema.parse(rawBody);
+
+  const thread = await callThread(me);
+  const message = await postMessage(thread.id, {
+    author: me.role,
+    body,
+    // Stamped, so the thread can later say this was said DURING the
+    // lesson rather than in the days around it.
+    lessonId: me.lesson.id,
+    // They are in the room with you.
+    silent: true,
+  });
+
+  return toCallChatMessage(message);
 }
 
 /** Mark the room closed. The provider ends its own session on idle. */

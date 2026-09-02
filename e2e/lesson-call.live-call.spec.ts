@@ -1,4 +1,5 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
+import postgres from "postgres";
 import {
   callState,
   consentAsStudent,
@@ -113,12 +114,16 @@ async function joinAsStudent(
         }) => Promise<{ join: () => Promise<void> }>;
       };
       __joined?: boolean;
+      __meeting?: unknown;
     };
     const meeting = await w.RealtimeKitClient.init({
       authToken: token,
       defaults: { audio: true, video: true },
     });
     await meeting.join();
+    // Kept so the chat test can put a payload on the wire the way the
+    // student's own app would.
+    w.__meeting = meeting;
     w.__joined = true;
   }, participant.data.token);
   await page.waitForFunction(
@@ -248,6 +253,110 @@ test("a lesson call records one audio track per person, and only after both cons
   await student.close();
   await resetCallLessons();
 });
+
+test("a line typed in the lesson is the same thread as /messages", async ({
+  page,
+  browser,
+  baseURL,
+}) => {
+  await resetCallLessons();
+  const { lessonId } = await seedCallLesson();
+
+  // Nobody consents here: chat is not recording, and a lesson where one
+  // of them declines must still be a lesson they can type in.
+  await page.goto(`/call/${lessonId}`);
+  await expect(page.getByRole("heading", { name: /Lesson with/ })).toBeVisible();
+  await page.getByRole("button", { name: /^Join lesson$/ }).click();
+  await expect(page.getByText(/Waiting for|Connecting/)).toBeVisible({
+    timeout: 60_000,
+  });
+
+  const opened = await callState(lessonId);
+  const student = await joinAsStudent(
+    browser,
+    opened.meetingId!,
+    baseURL ?? "http://localhost:3020",
+  );
+  await expect(page.getByText(/Waiting for/)).toBeHidden({ timeout: 60_000 });
+
+  // --- sending ---------------------------------------------------------
+  await page.getByRole("button", { name: "Messages" }).click();
+  const composer = page.getByLabel("Message", { exact: true });
+  await composer.fill("Bring your notebook next time");
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(page.getByText("Bring your notebook next time")).toBeVisible();
+
+  // THE CLAIM THIS TEST EXISTS FOR. Not "a chat pane works" — that the
+  // pane is a window onto the SAME thread, so what is said mid-lesson is
+  // still there afterwards, attributed to the person the SERVER says
+  // wrote it, and stamped with the lesson it was said during.
+  //
+  // Polled, not read once: the bubble is OPTIMISTIC — it appears before
+  // the server has written anything — so "it is on screen" is not yet
+  // "it is stored". The row is the claim; the pane is a courtesy.
+  await expect
+    .poll(async () => (await threadMessagesFor(lessonId)).length, { timeout: 15_000 })
+    .toBe(1);
+  const stored = await threadMessagesFor(lessonId);
+  expect(stored[0].body).toBe("Bring your notebook next time");
+  expect(stored[0].author).toBe("teacher");
+  expect(stored[0].lesson_id).toBe(lessonId);
+
+  // --- receiving -------------------------------------------------------
+  // The student's browser is the raw SDK, so it can put a payload on the
+  // wire exactly as their app would. What is under test is OUR side of
+  // it: decode, attribute to the other person, render.
+  await student.evaluate(async (payload: string) => {
+    const meeting = (window as unknown as { __meeting?: {
+      chat: { sendCustomMessage: (m: { type: "custom"; message: string }) => Promise<void> };
+    } }).__meeting;
+    await meeting?.chat.sendCustomMessage({ type: "custom", message: payload });
+  }, JSON.stringify({
+    v: 1,
+    id: "6f1d2c34-0b7a-4a1e-8c9d-2e5f7a8b9c01",
+    body: "はい、持っていきます",
+    createdAt: new Date().toISOString(),
+  }));
+
+  const received = page.getByText("はい、持っていきます");
+  await expect(received).toBeVisible({ timeout: 30_000 });
+
+  // Theirs, not ours: the bubble sits on the left. A payload cannot name
+  // its own author, so this is the direction being read correctly.
+  await expect(received).not.toHaveClass(/bg-accent/);
+
+  await student.close();
+  await resetCallLessons();
+});
+
+/**
+ * The thread rows behind a lesson, read straight from the database.
+ *
+ * Local to this spec rather than in `helpers.ts`: the claim being tested
+ * is that the CALL writes into the messages thread, and reading it here
+ * keeps the two halves of that claim in one file.
+ */
+async function threadMessagesFor(
+  lessonId: string,
+): Promise<{ body: string; author: string; lesson_id: string | null }[]> {
+  const db = postgres(
+    process.env.DATABASE_URL ??
+      "postgresql://classroom:classroom@localhost:5439/classroom",
+    { max: 1 },
+  );
+  try {
+    return await db<{ body: string; author: string; lesson_id: string | null }[]>`
+      select m.body, m.author, m.lesson_id
+      from messages m
+      join message_threads t on t.id = m.thread_id
+      join lessons l on l.student_id = t.student_id
+      where l.id = ${lessonId}
+      order by m.created_at asc
+    `;
+  } finally {
+    await db.end();
+  }
+}
 
 type RawRecording = {
   status: string;
