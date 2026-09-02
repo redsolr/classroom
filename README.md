@@ -102,7 +102,7 @@ transcribed on its own (`OPENAI_API_KEY`; model overridable via
 utterances are laid on one clock, and the draft lands on the lesson for
 the teacher to review — `lib/lesson-transcribe-core.ts`. Without the key
 the recording waits at `ingested` with the reason on the row, and the
-hourly sweep (`/api/calls/reconcile`) picks it up once the key exists.
+daily sweep (`/api/calls/reconcile`, 06:00 Bangkok) picks it up once the key exists.
 
 ## Testing on a phone
 

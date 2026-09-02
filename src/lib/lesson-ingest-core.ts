@@ -37,7 +37,7 @@ import { trackStartFromFileName } from "@/lib/transcript";
  *  3. IT RETRIES ON ITS OWN CLOCK. Ingestion is independent of anything
  *     downstream: a transcription failure must never stop the bytes being
  *     saved, and a storage failure must never be retried by whoever
- *     wanted a transcript. The hourly sweep is the retry.
+ *     wanted a transcript. The daily sweep is the retry.
  *  4. IT ONLY ADVANCES ON PROOF. `ingested` is set when every expected
  *     person's audio is in our bucket — never on "the provider said
  *     UPLOADED", which it says about recordings containing nothing.
