@@ -9,7 +9,16 @@ const nextConfig: NextConfig = {
   // boot) renders the page but gets HMR blocked, and edits stop showing
   // up. List a device origin here to develop against it. No effect on a
   // production build.
-  allowedDevOrigins: ["100.70.14.13"],
+  //
+  // The `.ts.net` name is the one a PHONE needs to test a CALL. Camera
+  // and microphone only work in a SECURE CONTEXT, and the single
+  // exception browsers make is `http://localhost` — which on a phone
+  // means the phone. So the Tailscale IP below renders the app and then
+  // fails at the device preview, while `tailscale serve` puts a real
+  // certificate in front of the same dev server and works. Both are
+  // listed because the IP is still the quicker way to look at a page
+  // that needs no camera. See README § "Testing on a phone".
+  allowedDevOrigins: ["100.70.14.13", "desktop-euq1qho.tail92718a.ts.net"],
   // The dev-tools badge is pinned to the bottom edge of the viewport,
   // which is exactly where the phone quick-access bar now lives — on a
   // 390px screen it sits ON the Home tab and swallows the tap. It costs

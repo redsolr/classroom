@@ -95,6 +95,48 @@ topic: job interviews       # a topic
 Set `ANTHROPIC_API_KEY` to switch to real Claude extraction (model
 overridable via `CLASSROOM_AI_MODEL`).
 
+## Testing on a phone
+
+Most of the app is reachable from a phone at this machine's Tailscale
+address (`http://100.70.14.13:3020`). **A lesson call is not.** Camera and
+microphone only work in a **secure context**, and the one exception
+browsers make is `http://localhost` — which, on a phone, means the phone.
+Over the plain-http address the room renders and then fails at the device
+preview, which reads like our bug and isn't one.
+
+`tailscale serve` puts a real certificate in front of the same dev server,
+without exposing anything publicly:
+
+```
+tailscale serve --bg 3020      # then: https://desktop-euq1qho.tail92718a.ts.net
+tailscale serve --https=443 off   # undo
+```
+
+On Windows this needs an **elevated** shell, and the tailnet needs HTTPS
+certificates enabled once (admin console → DNS → HTTPS Certificates).
+The phone needs the Tailscale app, signed into the same tailnet.
+
+Three things move with the origin, or you get a page that cannot log in:
+
+- `allowedDevOrigins` in `next.config.ts` — already lists the `.ts.net`
+  name; without it HMR is blocked and edits stop appearing
+- `NEXT_PUBLIC_APP_URL` and `NEXT_PUBLIC_WORKOS_REDIRECT_URI` in
+  `.env.local` (commented overrides sit beside the current values)
+- the same callback URL registered in WorkOS
+
+**Use `npm run dev`, not `dev:mock`.** A lesson has exactly two people and
+mock auth resolves every request to one identity — it is why the live-call
+tier cannot drive the student's side at all. Sign the desktop in as the
+teacher and the phone as the student.
+
+Known iOS limits, so they aren't mistaken for regressions:
+
+- **No `getDisplayMedia` in iOS Safari.** The phone can receive a screen
+  share and switch to its tab; it cannot start one. Test sharing
+  desktop → phone.
+- **Web push only reaches an installed PWA.** Add the site to the Home
+  Screen first, or notifications silently never arrive.
+
 ## Commands
 
 | Command | What it does |
