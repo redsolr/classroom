@@ -1,5 +1,6 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
 import postgres from "postgres";
+import { sha256Hex, signRequest } from "../src/lib/s3-signature";
 import {
   callState,
   consentAsStudent,
@@ -250,6 +251,38 @@ test("a lesson call records one audio track per person, and only after both cons
     recording.recording!.expectedTrackCount,
   );
 
+  // --- and then it becomes OURS ----------------------------------------
+  // No webhook reaches a local dev server, so this is the sweep's path —
+  // which is also the more important one to prove, since it is what
+  // rescues a lesson whose webhook never arrived. Skipped, loudly, where
+  // there is no bucket to copy into: the recording assertions above are
+  // still worth having on a machine without R2 credentials.
+  if (process.env.R2_ACCESS_KEY_ID && process.env.CRON_SECRET) {
+    const sweep = await fetch(`${baseURL ?? "http://localhost:3020"}/api/calls/reconcile`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
+    });
+    expect(sweep.status, "the sweep must be reachable with the bearer").toBe(200);
+    const report = (await sweep.json()) as { ingested: number; failed: number };
+    expect(report.ingested, "the sweep must have copied this recording").toBeGreaterThanOrEqual(1);
+
+    const stored = await storedTracks(lessonId);
+    expect(stored.state).toBe("ingested");
+    // Both voices, each in our bucket, each checksummed.
+    expect(stored.tracks.map((t) => t.role).sort()).toEqual(["student", "teacher"]);
+    for (const track of stored.tracks) {
+      expect(track.storage_key).not.toBeNull();
+      expect(track.sha256).toMatch(/^[0-9a-f]{64}$/);
+      // Independently of anything the ingest itself checked: the object
+      // is there, and it is the size the row says it is.
+      const head = await headObject(track.storage_key!);
+      expect(head.status, `${track.storage_key} must exist in our bucket`).toBe(200);
+      expect(Number(head.headers.get("content-length"))).toBe(track.bytes);
+    }
+  } else {
+    console.warn("live-call: R2 credentials or CRON_SECRET absent — the copy into our bucket was not proven");
+  }
+
   await student.close();
   await resetCallLessons();
 });
@@ -356,6 +389,48 @@ async function threadMessagesFor(
   } finally {
     await db.end();
   }
+}
+
+/** The recording's state and its tracks, as stored. */
+async function storedTracks(lessonId: string): Promise<{
+  state: string;
+  tracks: { role: string; storage_key: string | null; sha256: string | null; bytes: number | null }[];
+}> {
+  const db = postgres(
+    process.env.DATABASE_URL ??
+      "postgresql://classroom:classroom@localhost:5439/classroom",
+    { max: 1 },
+  );
+  try {
+    const [rec] = await db<{ id: string; state: string }[]>`
+      select r.id, r.state from lesson_recordings r
+      join lesson_calls c on c.id = r.call_id
+      where c.lesson_id = ${lessonId}
+      order by r.created_at desc limit 1`;
+    const tracks = await db<
+      { role: string; storage_key: string | null; sha256: string | null; bytes: number | null }[]
+    >`select role, storage_key, sha256, bytes from lesson_recording_tracks where recording_id = ${rec.id}`;
+    return { state: rec.state, tracks };
+  } finally {
+    await db.end();
+  }
+}
+
+/** A signed HEAD straight at the bucket — the test's own eyes, not the ingest's. */
+async function headObject(key: string): Promise<Response> {
+  const endpoint =
+    process.env.R2_ENDPOINT ??
+    `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
+  const signed = signRequest({
+    method: "HEAD",
+    url: `${endpoint}/${process.env.R2_BUCKET}/${key}`,
+    region: process.env.R2_REGION ?? "auto",
+    service: "s3",
+    accessKeyId: process.env.R2_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
+    payloadSha256: sha256Hex(""),
+  });
+  return fetch(signed.url, { method: "HEAD", headers: signed.headers });
 }
 
 type RawRecording = {
