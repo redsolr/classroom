@@ -18,6 +18,17 @@ import { ingestRecording } from "@/lib/lesson-ingest";
  *    row already there, the event has been handled and we stop.
  */
 
+/**
+ * The ingest kicked off in `after()` below runs inside THIS function's
+ * budget — a callback scheduled after the response is still the same
+ * invocation. Two audio tracks of a long lesson are tens of megabytes to
+ * download, hash and store, and a default budget can cut that off
+ * mid-file. Nothing is lost when it does (the sweep resumes it), but
+ * "copied the moment it finished" quietly becomes "copied on the next
+ * sweep" on exactly the longest lessons. Stated, so it never is.
+ */
+export const maxDuration = 300;
+
 const WELL_KNOWN = "https://api.realtime.cloudflare.com/.well-known/webhooks.json";
 
 // Cached across invocations in a warm lambda. The key is stable; refetching

@@ -28,21 +28,6 @@ export function r2Configured(): boolean {
 }
 
 /**
- * Where a lesson's audio lives.
- *
- * Keyed on OUR ids, never the provider's: the lesson is the thing that
- * survives, and a bucket organised by a vendor's recording id becomes
- * unreadable the moment the vendor changes.
- */
-export function lessonAudioKey(args: {
-  lessonId: string;
-  recordingId: string;
-  fileName: string;
-}): string {
-  return `lessons/${args.lessonId}/${args.recordingId}/${args.fileName}`;
-}
-
-/**
  * Copy one file in, and prove it arrived.
  *
  * Three separate claims, because "the request returned 200" is not one
