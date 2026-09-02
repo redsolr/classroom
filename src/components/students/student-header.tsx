@@ -7,12 +7,14 @@ import {
   Download,
   ExternalLink,
   Link2,
+  MessagesSquare,
   MoreHorizontal,
   Pencil,
   RefreshCcw,
   Trash2,
 } from "lucide-react";
 import type { Student } from "@/db";
+import { openStudentThread } from "@/lib/actions/messages";
 import {
   deleteStudent,
   disableStudentPortal,
@@ -21,6 +23,7 @@ import {
 } from "@/lib/actions/students";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge, studentStatusTone } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { LinkButton } from "@/components/ui/link-button";
 import {
@@ -68,6 +71,19 @@ export function StudentHeader({ student }: { student: Student }) {
           )}
         </p>
       </div>
+
+      {/* Only for someone there is a way to reach. An email is how a
+          login claims this row, so without one a thread could never be
+          anything but a monologue — and a button that opens one anyway
+          is a promise the app cannot keep. */}
+      {(student.email ?? student.workosUserId) && (
+        <form action={openStudentThread.bind(null, student.id, false)}>
+          <Button type="submit" variant="secondary">
+            <MessagesSquare className="size-4 text-fg-tertiary" />
+            Message
+          </Button>
+        </form>
+      )}
 
       <LinkButton href={`/students/${student.id}/prep`}>
         <ClipboardList className="size-4 text-fg-tertiary" />

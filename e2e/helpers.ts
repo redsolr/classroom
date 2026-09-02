@@ -1,13 +1,22 @@
 import { expect, type Page } from "@playwright/test";
 import postgres from "postgres";
 
-/** Send a study-composer message and wait for the turn to settle (the
- * composer takes focus back in the send handler's finally block).
- * Shared by every spec that drives the chat. */
+/**
+ * Send a composer message and wait for the turn to settle (the composer
+ * takes focus back in the send handler's finally block). Shared by every
+ * spec that drives a chat — the AI tutor's and the teacher–student
+ * thread's, which deliberately use the same interaction.
+ *
+ * `exact` matters: `getByLabel` matches on SUBSTRING by default, and the
+ * message thread's back link is labelled "Back to All messages", which
+ * contains "message". Without it the helper resolves to two elements on
+ * that page and fails on strict mode.
+ */
 export async function sendMessage(page: Page, text: string) {
-  await page.getByLabel("Message").fill(text);
+  const composer = page.getByLabel("Message", { exact: true });
+  await composer.fill(text);
   await page.getByRole("button", { name: "Send" }).click();
-  await expect(page.getByLabel("Message")).toBeFocused();
+  await expect(composer).toBeFocused();
 }
 
 function sql() {
@@ -265,6 +274,72 @@ export async function callState(lessonId: string): Promise<{
       // alphabetically — which reads as a flake in an assertion.
       trackRoles: tracks.map((t) => t.role).sort(),
     };
+  } finally {
+    await db.end();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Messages
+// ---------------------------------------------------------------------------
+
+/**
+ * A learner account for an address, with no reviews behind it.
+ *
+ * This is what makes the accountability card render for a roster row:
+ * `learnerForStudent` bridges the two halves of the app on EMAIL, and
+ * without a learner row the card (and its nudge) correctly shows
+ * nothing. Written in SQL because the app only ever creates a learner
+ * from a real login, and the mock-auth tier has exactly one of those.
+ */
+export async function seedLearnerAccount(email: string): Promise<void> {
+  const db = sql();
+  try {
+    await db`
+      insert into learners (workos_user_id, email, name)
+      values (${`e2e_learner_${email}`}, ${email}, 'E2E Learner')
+      on conflict (workos_user_id) do update set email = excluded.email
+    `;
+  } finally {
+    await db.end();
+  }
+}
+
+/** Remove every learner this suite created, by the id prefix it stamps. */
+export async function resetSeededLearners(): Promise<void> {
+  const db = sql();
+  try {
+    await db`delete from learners where workos_user_id like 'e2e_learner_%'`;
+  } finally {
+    await db.end();
+  }
+}
+
+/**
+ * A message from the STUDENT side, written straight into the thread.
+ *
+ * The mocked tier has one identity — the mock teacher — so the incoming
+ * half of a conversation cannot be produced by driving the browser. What
+ * is under test here is the surface that reads it: the unread badge, the
+ * bubble side, and read-on-open. The same reasoning as
+ * `masterEveryCardIn`, which sets a status only weeks of real reviews
+ * could otherwise produce.
+ */
+export async function postStudentMessage(
+  threadId: string,
+  body: string,
+): Promise<void> {
+  const db = sql();
+  try {
+    await db`
+      insert into messages (thread_id, author, body)
+      values (${threadId}, 'student', ${body})
+    `;
+    await db`
+      update message_threads
+      set last_message_at = now(), updated_at = now()
+      where id = ${threadId}
+    `;
   } finally {
     await db.end();
   }

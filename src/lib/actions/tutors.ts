@@ -1,6 +1,7 @@
 "use server";
 
 import { and, eq } from "drizzle-orm";
+import { format } from "date-fns";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -20,6 +21,7 @@ import {
   createRecurringCheckout,
 } from "@/lib/tutor-billing";
 import { LESSON_FOCUS_OPTIONS } from "@/lib/tutor-focus";
+import { postThreadEventForStudent } from "@/lib/messages";
 import {
   PLATFORM_FEE_PERCENT,
   RECURRING_DISCOUNT_PERCENT,
@@ -268,6 +270,18 @@ export async function cancelTutorBooking(bookingId: string): Promise<void> {
         .set({ status: "cancelled", updatedAt: new Date() })
         .where(eq(lessons.id, booking.lessonId));
     }
+  });
+
+  // The tutor loses an hour they had committed. Finding that out by
+  // noticing a gap on the agenda is how a cancellation becomes a
+  // grievance; finding it out in the thread is how it becomes a
+  // conversation about when to reschedule.
+  await postThreadEventForStudent(booking.teacherId, booking.studentId, {
+    author: "system",
+    body: `The lesson on ${format(booking.startsAt, "EEE, MMM d 'at' HH:mm")} was cancelled.`,
+    event: "booking_cancelled",
+    bookingId: booking.id,
+    notify: "teacher",
   });
 
   revalidatePath("/tutors/bookings");

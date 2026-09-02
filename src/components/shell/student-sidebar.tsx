@@ -6,6 +6,7 @@ import {
   Gauge,
   GraduationCap,
   LogOut,
+  MessagesSquare,
   UserRound,
 } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
@@ -27,6 +28,7 @@ import type { SidebarStudy } from "@/lib/study-sidebar";
 const CLASSROOM_ITEMS: NavEntry[] = [
   { href: "/student/schedule", label: "Schedule", icon: CalendarClock },
   { href: "/student", label: "My classroom", icon: GraduationCap, exact: true },
+  { href: "/messages", label: "Messages", icon: MessagesSquare },
   { href: "/student/teacher", label: "Teacher", icon: UserRound },
 ];
 
@@ -34,14 +36,20 @@ export function StudentSidebar({
   studentName,
   studentEmail,
   study,
+  unreadMessages = 0,
 }: {
   studentName: string;
   studentEmail: string | null;
   study: SidebarStudy;
+  unreadMessages?: number;
 }) {
+  const items = CLASSROOM_ITEMS.map((item) =>
+    item.href === "/messages" ? { ...item, badge: unreadMessages } : item,
+  );
+
   return (
     <SidebarShell homeHref="/student">
-      <NavSection label="My classroom" items={CLASSROOM_ITEMS} />
+      <NavSection label="My classroom" items={items} />
       <SelfStudySection study={study} />
 
       <div className="mt-auto">

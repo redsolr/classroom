@@ -19,6 +19,7 @@ import {
   type CompanionContext,
   type CompanionTurn,
 } from "@/lib/ai/companion";
+import { postThreadEventForStudent } from "@/lib/messages";
 import { srsReviewPatch } from "@/lib/srs";
 
 const submitSchema = z.object({
@@ -65,10 +66,25 @@ export async function submitHomeworkViaPortal(
         eq(homework.status, "assigned"),
       ),
     )
-    .returning({ id: homework.id });
+    .returning({
+      id: homework.id,
+      title: homework.title,
+      teacherId: homework.teacherId,
+    });
 
   if (updated.length === 0)
     throw new Error("Homework not found or already submitted");
+
+  // The one event that travels UPWARD. A tutor who has to go and look to
+  // find out whether the work came in finds out during the lesson, which
+  // is the moment it is least useful.
+  await postThreadEventForStudent(updated[0].teacherId, student.id, {
+    author: "system",
+    body: `${student.name} submitted "${updated[0].title}".`,
+    event: "homework_submitted",
+    homeworkId: updated[0].id,
+    notify: "teacher",
+  });
 
   revalidatePath(`/p/${token}`);
 }

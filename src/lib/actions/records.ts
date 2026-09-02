@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
+import { format } from "date-fns";
 import { z } from "zod";
 import {
   corrections,
@@ -13,6 +14,7 @@ import {
 } from "@/db";
 import { requireTeacher } from "@/lib/auth";
 import { assertLessonOwned, assertStudentOwned } from "@/lib/guards";
+import { postThreadEventForStudent } from "@/lib/messages";
 
 function refresh(studentId: string, lessonId?: string | null) {
   revalidatePath(`/students/${studentId}`);
@@ -282,14 +284,35 @@ export async function addHomework(
   if (lessonId) await assertLessonOwned(teacher.id, lessonId);
   const parsed = homeworkSchema.parse(Object.fromEntries(formData));
 
-  await db.insert(homework).values({
-    teacherId: teacher.id,
-    studentId,
+  const [created] = await db
+    .insert(homework)
+    .values({
+      teacherId: teacher.id,
+      studentId,
+      lessonId,
+      title: parsed.title,
+      description: parsed.description || null,
+      dueAt: parsed.dueAt ? new Date(parsed.dueAt) : null,
+    })
+    .returning({ id: homework.id });
+
+  // The thread is the relationship's timeline, so what the app does to
+  // the relationship belongs in it. Assigning homework in a tab the
+  // student may not open for a week and calling that "told them" is the
+  // one-way publishing this whole feature exists to end.
+  await postThreadEventForStudent(teacher.id, studentId, {
+    author: "system",
+    // The due date is formatted like every other date in the thread, not
+    // echoed as the form's raw `YYYY-MM-DD`.
+    body: `New homework: ${parsed.title}${
+      parsed.dueAt ? ` · due ${format(new Date(parsed.dueAt), "EEE, MMM d")}` : ""
+    }`,
+    event: "homework_assigned",
+    homeworkId: created.id,
     lessonId,
-    title: parsed.title,
-    description: parsed.description || null,
-    dueAt: parsed.dueAt ? new Date(parsed.dueAt) : null,
+    notify: "student",
   });
+
   refresh(studentId, lessonId);
 }
 
@@ -299,10 +322,34 @@ export async function setHomeworkStatus(
   status: "assigned" | "submitted" | "reviewed" | "completed" | "skipped",
 ) {
   const teacher = await requireTeacher();
-  await db
+  const [updated] = await db
     .update(homework)
     .set({ status, updatedAt: new Date() })
-    .where(and(eq(homework.id, homeworkId), eq(homework.teacherId, teacher.id)));
+    .where(and(eq(homework.id, homeworkId), eq(homework.teacherId, teacher.id)))
+    .returning({
+      id: homework.id,
+      title: homework.title,
+      // Taken from the ROW, not from the `studentId` argument. The update
+      // is scoped by teacher id so the argument cannot reach another
+      // teacher's data, but it could still name a different student of
+      // this teacher's and post the event into the wrong person's thread.
+      studentId: homework.studentId,
+    });
+
+  // Only the CLOSE is worth telling someone about. A teacher moving a
+  // row back to `assigned` or parking it as `skipped` is bookkeeping,
+  // and a thread that narrates every state change is one people learn to
+  // scroll past — which costs us the messages that matter.
+  if (updated && (status === "reviewed" || status === "completed")) {
+    await postThreadEventForStudent(teacher.id, updated.studentId, {
+      author: "system",
+      body: `${teacher.name ?? "Your tutor"} marked "${updated.title}" ${status}.`,
+      event: "homework_closed",
+      homeworkId: updated.id,
+      notify: "student",
+    });
+  }
+
   refresh(studentId);
 }
 

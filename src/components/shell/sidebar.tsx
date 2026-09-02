@@ -9,6 +9,7 @@ import {
   Gauge,
   LayoutDashboard,
   LogOut,
+  MessagesSquare,
   Settings,
   Users,
 } from "lucide-react";
@@ -33,6 +34,10 @@ const TEACHING_ITEMS: NavEntry[] = [
   { href: "/schedule", label: "Schedule", icon: CalendarClock },
   { href: "/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/students", label: "Students", icon: Users },
+  // Directly under Students: the two are the same relationship seen from
+  // either end, and what happens BETWEEN lessons is the tutor's actual
+  // job here.
+  { href: "/messages", label: "Messages", icon: MessagesSquare },
   { href: "/lessons", label: "Lessons", icon: BookOpenText },
   // Last in the teaching cluster: it's where a tutor sets things up once
   // and then checks earnings, not somewhere they go between lessons.
@@ -43,14 +48,20 @@ export function Sidebar({
   teacherName,
   teacherEmail,
   study,
+  unreadMessages = 0,
 }: {
   teacherName: string;
   teacherEmail: string;
   study: SidebarStudy;
+  unreadMessages?: number;
 }) {
+  const items = TEACHING_ITEMS.map((item) =>
+    item.href === "/messages" ? { ...item, badge: unreadMessages } : item,
+  );
+
   return (
     <SidebarShell homeHref="/schedule">
-      <NavSection items={TEACHING_ITEMS} />
+      <NavSection items={items} />
       <SelfStudySection study={study} />
 
       <div className="mt-auto">

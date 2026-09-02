@@ -4,6 +4,7 @@ import { callPath } from "@/lib/call-path";
 import { CalendarDays, Receipt } from "lucide-react";
 import { requireLearner } from "@/lib/auth";
 import { learnerBookings, learnerPayments } from "@/lib/tutor-queries";
+import { openTutorThread } from "@/lib/actions/messages";
 import { cancelTutorBooking } from "@/lib/actions/tutors";
 import { Badge } from "@/components/ui/badge";
 import { PaymentsTable } from "@/components/study/payments-table";
@@ -117,6 +118,15 @@ export default async function LearnerBookingsPage() {
                       Join lesson
                     </Link>
                   )}
+                  {/* The learner's door into the thread with this tutor.
+                      The teacher has had a Message button on the student
+                      page since the thread shipped; without this the
+                      learner's only way in was noticing "Messages" in the
+                      sidebar — and the thing most worth saying to a tutor
+                      is usually about a lesson you are looking at. */}
+                  <form action={openTutorThread.bind(null, booking.id)}>
+                    <SubmitButton variant="secondary">Message</SubmitButton>
+                  </form>
                   {/* Cancelling frees the tutor's calendar and records
                       what happened. It does NOT refund: a pilot with a
                       handful of tutors wants a human deciding that, not

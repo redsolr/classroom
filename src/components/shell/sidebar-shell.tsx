@@ -35,6 +35,10 @@ export type NavEntry = {
   icon: LucideIcon;
   /** Match only the exact pathname (for parents of nested routes). */
   exact?: boolean;
+  /** Unread count, as a pill on the right of the row. Zero and undefined
+   * both render nothing — a badge that can say "0" is a badge people
+   * stop reading. */
+  badge?: number;
 };
 
 /** The one active-tab rule — shared by every nav list (NavSection here,
@@ -98,7 +102,15 @@ export function NavSection({
             className={navRowClass(isNavEntryActive(pathname, item))}
           >
             <item.icon className="size-4" />
-            {item.label}
+            <span className="min-w-0 flex-1 truncate">{item.label}</span>
+            {item.badge !== undefined && item.badge > 0 && (
+              <span
+                className="min-w-5 rounded-full bg-accent px-1.5 py-0.5 text-center text-[0.7rem] font-semibold text-white"
+                aria-label={`${item.badge} unread`}
+              >
+                {item.badge}
+              </span>
+            )}
           </Link>
         ))}
       </nav>

@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { requireLearner, resolveAccount } from "@/lib/auth";
 import { STUDY_MODEL, STUDY_MODEL_ROSTER } from "@/lib/ai/study-tutor";
 import { getSidebarStudy } from "@/lib/study-sidebar";
+import { unreadCountFor } from "@/lib/message-queries";
 import { AskDock } from "@/components/study/ask-dock";
 import { MobileTabbar } from "@/components/shell/mobile-tabbar";
 import { Sidebar } from "@/components/shell/sidebar";
@@ -20,10 +21,14 @@ export default async function StudyLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // Guard only — anonymous callers bounce to /login before any chrome.
-  await requireLearner();
+  // Anonymous callers bounce to /login before any chrome; the row it
+  // returns is also the identity the message inbox is keyed on.
+  const caller = await requireLearner();
   const account = await resolveAccount();
-  const study = await getSidebarStudy();
+  const [study, unreadMessages] = await Promise.all([
+    getSidebarStudy(),
+    unreadCountFor(caller),
+  ]);
 
   return (
     <div className="min-h-dvh lg:flex">
@@ -32,6 +37,7 @@ export default async function StudyLayout({
           studentName={account.student.name}
           studentEmail={account.student.email}
           study={study}
+          unreadMessages={unreadMessages}
         />
       ) : (
         <Sidebar
@@ -43,6 +49,7 @@ export default async function StudyLayout({
             account?.kind === "teacher" ? account.teacher.email : ""
           }
           study={study}
+          unreadMessages={unreadMessages}
         />
       )}
       {/* Padded so the fixed phone tab bar never covers the last row of

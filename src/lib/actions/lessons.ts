@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { and, eq } from "drizzle-orm";
+import { format } from "date-fns";
 import { z } from "zod";
 import {
   corrections,
@@ -16,6 +17,7 @@ import {
 import { requireTeacher } from "@/lib/auth";
 import { assertLessonOwned, assertStudentOwned } from "@/lib/guards";
 import { lessonDraftSchema } from "@/lib/ai/draft-schema";
+import { postThreadEventForStudent } from "@/lib/messages";
 import { toLocalDateValue } from "@/lib/datetime";
 import { generateAccessToken } from "@/lib/tokens";
 
@@ -378,7 +380,7 @@ export async function shareRecap(lessonId: string, formData: FormData) {
 
   const lessonRow = await db.query.lessons.findFirst({
     where: and(eq(lessons.id, lessonId), eq(lessons.teacherId, teacher.id)),
-    columns: { recapToken: true },
+    columns: { recapToken: true, recapSharedAt: true, startedAt: true },
   });
 
   const token =
@@ -395,6 +397,20 @@ export async function shareRecap(lessonId: string, formData: FormData) {
       updatedAt: new Date(),
     })
     .where(and(eq(lessons.id, lessonId), eq(lessons.teacherId, teacher.id)));
+
+  // Announced on the FIRST share only. This same action is what saves an
+  // edit to a recap already shared, and a thread that says "your recap is
+  // ready" four times because the tutor fixed a typo is a thread people
+  // stop opening.
+  if (!lessonRow?.recapSharedAt) {
+    await postThreadEventForStudent(teacher.id, studentId, {
+      author: "system",
+      body: `Recap from ${lessonRow ? format(lessonRow.startedAt, "EEE, MMM d") : "your lesson"} is ready in your portal.`,
+      event: "recap_shared",
+      lessonId,
+      notify: "student",
+    });
+  }
 
   revalidatePath(`/lessons/${lessonId}`);
   revalidatePath(`/students/${studentId}`);

@@ -1,5 +1,6 @@
 import type Stripe from "stripe";
 import { and, eq } from "drizzle-orm";
+import { format } from "date-fns";
 import {
   db,
   lessons,
@@ -9,6 +10,7 @@ import {
   tutorProfiles,
   tutorSubscriptions,
 } from "@/db";
+import { postThreadEventForStudent } from "@/lib/messages";
 import { accountIsReady, actualStripeFee } from "@/lib/tutor-billing";
 import { splitLesson } from "@/lib/tutor-pricing";
 import { nextOccurrences } from "@/lib/tutor-slots";
@@ -153,6 +155,25 @@ async function confirmSingleBooking(
       // The unique index on the intent is what makes a retried event a
       // no-op rather than a duplicate row.
       .onConflictDoNothing();
+  });
+
+  // AFTER the transaction, never inside it: a notification is not part of
+  // the money write, and a thread post that threw mid-commit would roll
+  // back a booking somebody has already paid for.
+  //
+  // Addressed to the TEACHER. The learner just paid and is looking at
+  // the confirmation; the tutor is the one who has to find out that an
+  // hour of their week is now spoken for.
+  await postThreadEventForStudent(booking.teacherId, booking.studentId, {
+    author: "system",
+    body: `Lesson booked for ${format(booking.startsAt, "EEE, MMM d 'at' HH:mm")}.`,
+    event: "booking_confirmed",
+    bookingId: booking.id,
+    // Both ids are stamped: the booking for the record, and the lesson
+    // because the call room hangs off it — the one artifact a system
+    // message can link to that means the same thing to both people.
+    lessonId,
+    notify: "teacher",
   });
 }
 

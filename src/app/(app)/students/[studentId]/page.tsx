@@ -296,6 +296,7 @@ export default async function StudentProfilePage({
               <AccountabilityCard
                 window={between}
                 name={profile.student.name}
+                studentId={profile.student.id}
               />
             </div>
           )}

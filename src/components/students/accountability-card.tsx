@@ -1,5 +1,12 @@
-import { AlertTriangle, CalendarCheck, CircleSlash } from "lucide-react";
+import {
+  AlertTriangle,
+  CalendarCheck,
+  CircleSlash,
+  MessageSquarePlus,
+} from "lucide-react";
 import type { AccountabilityWindow } from "@/lib/accountability";
+import { openStudentThread } from "@/lib/actions/messages";
+import { Button } from "@/components/ui/button";
 import { Card, CardHeader } from "@/components/ui/page-header";
 
 /**
@@ -24,9 +31,13 @@ import { Card, CardHeader } from "@/components/ui/page-header";
 export function AccountabilityCard({
   window: w,
   name,
+  studentId,
 }: {
   window: AccountabilityWindow;
   name: string;
+  /** Enables the nudge — the card's one action, and the reason the card
+   * exists at all. Without it this was a diagnosis with no mouth. */
+  studentId: string;
 }) {
   const firstName = name.split(" ")[0];
   const daysSince = w.daysSinceLastStudy;
@@ -127,6 +138,29 @@ export function AccountabilityCard({
           else is going to.
         </p>
       )}
+
+      {/* The card's one action. Everything above is something to say to
+          somebody, and until this existed there was nowhere to say it —
+          the tutor read the numbers, closed the tab, and remembered none
+          of it a week later when the lesson came round.
+
+          It DRAFTS, it does not send. The words are the learner's worst
+          five and the sentence goes out signed by their tutor; a
+          one-click send would be the app writing in someone else's voice
+          about someone else's failure. */}
+      <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-3">
+        <p className="text-[0.8125rem] text-fg-tertiary">
+          {flags.length > 0
+            ? "Raise it now, not at the start of the lesson."
+            : "Say it now — encouragement lands better unprompted."}
+        </p>
+        <form action={openStudentThread.bind(null, studentId, true)}>
+          <Button type="submit" size="sm" variant="secondary">
+            <MessageSquarePlus className="size-3.5" />
+            Nudge
+          </Button>
+        </form>
+      </div>
     </Card>
   );
 }

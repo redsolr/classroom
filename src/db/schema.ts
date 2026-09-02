@@ -1678,6 +1678,199 @@ export const lessonCallWebhooks = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// MESSAGES — the thread between a teacher and their student.
+//
+// The gap this closes: the app had a teacher, a student, a lesson, a
+// recap, homework and an accountability card, and no way for the two
+// people to say a sentence to each other. Everything they had was
+// one-way publishing — the teacher approves a record, the learner reads
+// it — which is a relationship modelled as a broadcast.
+//
+// It matters more than "chat is table stakes" because of what the tutor
+// is FOR here (2026-08-30): "more of a motivation and person who will
+// push and really check up whether the student really progressed". That
+// work happens BETWEEN lessons, and the accountability card already
+// knows the uncomfortable facts to raise. It was a diagnosis with no
+// mouth.
+//
+// WHY THIS IS NOT AN INBOX. A plain DM list loses to LINE, WhatsApp and
+// Preply's own messenger — nobody adopts a worse chat app. The only
+// version worth building is the one that carries the app's own
+// artifacts: a homework submission, a shared recap, a booking, and the
+// words the learner keeps getting wrong. That is the reason to open this
+// thread instead of the one already on their phone.
+//
+// It is deliberately called MESSAGES and never "chat". `/chat` is the AI
+// tutor. This repo has already paid once for two things sharing a word
+// (`study_books` vs `study_vocab_lists`, both surfaced as "Books", which
+// took migration 0019 to unwind) in a product whose stated rule is one
+// word, one meaning.
+// ---------------------------------------------------------------------------
+
+export const messageAuthorEnum = pgEnum("message_author", [
+  "teacher",
+  "student",
+  // Not a person: something the app did that both sides should see in
+  // the same place they say things to each other.
+  "system",
+]);
+
+/**
+ * What a system message is ABOUT. Only events that already happen in
+ * this codebase are listed — an enum full of aspirational values is a
+ * lie about what the product does.
+ */
+export const messageEventEnum = pgEnum("message_event", [
+  "homework_assigned",
+  "homework_submitted",
+  "homework_closed",
+  "recap_shared",
+  "booking_confirmed",
+  "booking_cancelled",
+]);
+
+/**
+ * One thread per teacher–student RELATIONSHIP, which is exactly what a
+ * `students` row already is — hence the unique index on it rather than a
+ * participants table. Two people, one history, however many lessons.
+ *
+ * Read state is per SIDE and stored as a timestamp rather than a count:
+ * a count has to be maintained by every writer and drifts the first time
+ * one forgets, while "everything after this instant is unread" is
+ * derivable from the messages themselves and cannot go stale.
+ */
+export const messageThreads = pgTable(
+  "message_threads",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    teacherId: uuid("teacher_id")
+      .notNull()
+      .references(() => teachers.id, { onDelete: "cascade" }),
+    studentId: uuid("student_id")
+      .notNull()
+      .references(() => students.id, { onDelete: "cascade" }),
+    /** Denormalised for the inbox's ordering — the one query that would
+     * otherwise join every thread to its newest message on every render. */
+    lastMessageAt: timestamp("last_message_at", { withTimezone: true }),
+    teacherReadAt: timestamp("teacher_read_at", { withTimezone: true }),
+    studentReadAt: timestamp("student_read_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("message_threads_student_idx").on(t.studentId),
+    index("message_threads_teacher_idx").on(t.teacherId),
+  ],
+);
+
+/**
+ * `body` is ALWAYS the human sentence, for events too.
+ *
+ * The alternative — store the event type plus a foreign key and render
+ * the sentence from today's row — produces a history that rewrites
+ * itself: delete the homework and the thread says a blank happened. Same
+ * reasoning the payments ledger already runs on ("every party's share is
+ * stored, not derived"). The FKs are here so a live target can still be
+ * OPENED, never so the text can be recomputed; each is `set null`, which
+ * degrades the message to exactly what it said at the time.
+ */
+export const messages = pgTable(
+  "messages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    threadId: uuid("thread_id")
+      .notNull()
+      .references(() => messageThreads.id, { onDelete: "cascade" }),
+    author: messageAuthorEnum("author").notNull(),
+    body: text("body").notNull(),
+    /** Null on a typed message; set on every `system` one. */
+    event: messageEventEnum("event"),
+    homeworkId: uuid("homework_id").references(() => homework.id, {
+      onDelete: "set null",
+    }),
+    lessonId: uuid("lesson_id").references(() => lessons.id, {
+      onDelete: "set null",
+    }),
+    bookingId: uuid("booking_id").references(() => tutorBookings.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index("messages_thread_idx").on(t.threadId, t.createdAt)],
+);
+
+/**
+ * Words carried by a message — the nudge the accountability card sends.
+ *
+ * A stamped SNAPSHOT (term + meaning), not a join to `study_vocab`. The
+ * message said what it said; a word the learner later deletes must not
+ * silently empty a sentence their tutor wrote a fortnight ago. It is a
+ * child table rather than a jsonb column because a repeating group with
+ * a stable shape is a table — the repo's own modelling rule.
+ */
+export const messageTerms = pgTable(
+  "message_terms",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    messageId: uuid("message_id")
+      .notNull()
+      .references(() => messages.id, { onDelete: "cascade" }),
+    term: text("term").notNull(),
+    meaning: text("meaning"),
+    position: integer("position").notNull().default(0),
+  },
+  (t) => [index("message_terms_message_idx").on(t.messageId, t.position)],
+);
+
+// ---------------------------------------------------------------------------
+// Web-push subscriptions.
+//
+// A message nobody sees is worse than no message: it teaches both people
+// that the thread is not where things reach them, and then they go back
+// to LINE for good. The in-app unread badge is the floor; this is what
+// makes a nudge arrive on a phone that isn't currently open.
+//
+// Ported from the CRM's ambient-digest arc (`crm/src/server/push.ts`),
+// with the one change this app forces: the CRM is single-user and fans
+// out to EVERY subscription. Here a subscription belongs to a WorkOS
+// user and delivery is targeted — sending one person's message to
+// another person's browser is a privacy incident, not noise.
+// ---------------------------------------------------------------------------
+
+export const pushSubscriptions = pgTable(
+  "push_subscriptions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** The push service's URL for this browser installation — the
+     * natural key, and what a 404/410 from the service identifies. */
+    endpoint: text("endpoint").notNull(),
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    /** Keyed on the WorkOS id rather than a teacher/student/learner row:
+     * one person is often several of those (the founder is all three),
+     * and what we actually have to reach is the human's browser. */
+    workosUserId: text("workos_user_id").notNull(),
+    userAgent: text("user_agent"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("push_subscriptions_endpoint_idx").on(t.endpoint),
+    index("push_subscriptions_user_idx").on(t.workosUserId),
+  ],
+);
+
+// ---------------------------------------------------------------------------
 // Row types
 // ---------------------------------------------------------------------------
 
@@ -1719,3 +1912,7 @@ export type TutorPayment = typeof tutorPayments.$inferSelect;
 export type LessonCall = typeof lessonCalls.$inferSelect;
 export type LessonRecording = typeof lessonRecordings.$inferSelect;
 export type LessonRecordingTrack = typeof lessonRecordingTracks.$inferSelect;
+export type MessageThread = typeof messageThreads.$inferSelect;
+export type Message = typeof messages.$inferSelect;
+export type MessageTerm = typeof messageTerms.$inferSelect;
+export type PushSubscriptionRow = typeof pushSubscriptions.$inferSelect;

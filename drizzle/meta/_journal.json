@@ -176,6 +176,13 @@
       "when": 1788069476788,
       "tag": "0024_pack_theme",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1788160851937,
+      "tag": "0025_messages",
+      "breakpoints": true
     }
   ]
 }

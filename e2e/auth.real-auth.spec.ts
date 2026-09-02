@@ -67,6 +67,10 @@ const PROTECTED_ROUTES = [
   "/tutors",
   "/tutors/bookings",
   "/teaching/payouts",
+  // The 2026-08-31 surface. A thread holds what two people said to each
+  // other, which is the most private thing in the app — more so than the
+  // lesson records, which are written to be read by the student anyway.
+  "/messages",
 ];
 
 function sql() {
@@ -131,6 +135,33 @@ test("anonymous POST to the study chat API is a 401, never a served reply", asyn
     maxRedirects: 0,
   });
   expect(res.status(), "study chat must reject anonymous callers").toBe(401);
+  await anon.dispose();
+});
+
+test("anonymous calls to the push API are 401s, never an enrolment", async () => {
+  const anon = await pwRequest.newContext({ baseURL: BASE_URL });
+
+  // The key route first: it is a GET that returns configuration, which is
+  // exactly the kind of endpoint that gets left open because "it's only a
+  // public key".
+  const key = await anon.get("/api/push/vapid-key", { maxRedirects: 0 });
+  expect(key.status(), "vapid key must reject anonymous callers").toBe(401);
+
+  // And the one that matters more: a subscription stored for an
+  // anonymous caller would have to be attributed to SOMEBODY, and every
+  // available guess is another person's messages delivered to a stranger's
+  // browser.
+  const subscribe = await anon.post("/api/push/subscribe", {
+    data: {
+      endpoint: "https://example.com/push/anonymous",
+      keys: { p256dh: "x", auth: "y" },
+    },
+    maxRedirects: 0,
+  });
+  expect(subscribe.status(), "push subscribe must reject anonymous callers").toBe(
+    401,
+  );
+
   await anon.dispose();
 });
 
