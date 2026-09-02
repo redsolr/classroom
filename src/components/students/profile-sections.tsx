@@ -107,7 +107,10 @@ export function GoalsSection({
               <Badge>{g.priority} priority</Badge>
               {g.targetDate && (
                 <span className="text-[0.78rem] text-fg-tertiary">
-                  target {new Date(g.targetDate).toLocaleDateString()}
+                  target{" "}
+                  <span suppressHydrationWarning>
+                    {new Date(g.targetDate).toLocaleDateString()}
+                  </span>
                 </span>
               )}
             </div>

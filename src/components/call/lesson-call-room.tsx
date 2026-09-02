@@ -421,7 +421,7 @@ export function LessonCallRoom({
       <CallShell>
         <div className="mx-auto w-full max-w-2xl">
           <h1 className="text-xl font-semibold">Lesson with {otherName}</h1>
-          <p className="mt-1 text-sm text-fg-secondary">
+          <p className="mt-1 text-sm text-fg-secondary" suppressHydrationWarning>
             {new Intl.DateTimeFormat(undefined, {
               weekday: "long",
               hour: "numeric",

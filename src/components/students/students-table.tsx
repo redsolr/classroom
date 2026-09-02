@@ -167,7 +167,7 @@ export function StudentsTable({ students }: { students: StudentListRow[] }) {
                   {s.targetLevel ? ` → ${s.targetLevel}` : ""}
                 </td>
                 <td className="px-4 py-2.5 text-fg-secondary">{s.lessonCount}</td>
-                <td className="px-4 py-2.5 text-fg-secondary">
+                <td className="px-4 py-2.5 text-fg-secondary" suppressHydrationWarning>
                   {s.lastLessonAt
                     ? formatDistanceToNow(new Date(s.lastLessonAt), {
                         addSuffix: true,

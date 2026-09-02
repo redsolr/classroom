@@ -111,8 +111,12 @@ export function WeekCalendar({
                       lesson.id === createdId && "chip-created",
                     )}
                     title={`${format(new Date(lesson.startedAt), "HH:mm")} · ${lesson.studentName}${lesson.title ? ` · ${lesson.title}` : ""}`}
+                    // The hour is the browser's, not the server's.
+                    suppressHydrationWarning
                   >
-                    {format(new Date(lesson.startedAt), "HH:mm")}{" "}
+                    <span suppressHydrationWarning>
+                      {format(new Date(lesson.startedAt), "HH:mm")}
+                    </span>{" "}
                     {lesson.studentName}
                   </span>
                 );

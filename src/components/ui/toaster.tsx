@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { Toaster as SonnerToaster, toast } from "sonner";
 import { useThemeStore } from "@/stores/theme.store";
 
@@ -27,11 +28,19 @@ import { useThemeStore } from "@/stores/theme.store";
  */
 export function Toaster() {
   const resolved = useThemeStore((s) => s.resolved);
+  // In a lesson call the bottom edge IS the controls — Record, Stop,
+  // Leave. A confirmation landing there covers the button the person
+  // just pressed, and a covered toast is HOVERED, which stops it
+  // auto-dismissing: on CI (2026-09-02) "Recording — this lesson will
+  // become study material" sat over Stop for four minutes intercepting
+  // every click. Bottom is the thumb's edge everywhere else; in a call
+  // it is the room's, so confirmations go to the top there.
+  const inCall = usePathname()?.startsWith("/call/") ?? false;
 
   return (
     <SonnerToaster
       theme={resolved}
-      position="bottom-center"
+      position={inCall ? "top-center" : "bottom-center"}
       offset="calc(var(--study-tabbar-h) + 1rem)"
       mobileOffset="calc(var(--study-tabbar-h) + 1rem)"
       // The tokens, not sonner's own palette — a confirmation in a
@@ -45,7 +54,7 @@ export function Toaster() {
           actionButton: "!bg-accent !text-white !rounded-md",
         },
       }}
-      className="lg:!right-6 lg:!left-auto"
+      className={inCall ? undefined : "lg:!right-6 lg:!left-auto"}
     />
   );
 }

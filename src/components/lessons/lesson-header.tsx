@@ -59,7 +59,10 @@ export function LessonHeader({ detail }: { detail: LessonDetail }) {
             className="w-full bg-transparent text-[1.5rem] font-semibold tracking-tight outline-none placeholder:text-fg-tertiary"
           />
           <p className="mt-0.5 text-[0.9375rem] text-fg-secondary">
-            {format(new Date(lesson.startedAt), "EEEE, MMMM d yyyy · HH:mm")}
+            {/* The browser's local time, which the server cannot know. */}
+            <span suppressHydrationWarning>
+              {format(new Date(lesson.startedAt), "EEEE, MMMM d yyyy · HH:mm")}
+            </span>
             {lesson.durationMinutes ? ` · ${lesson.durationMinutes} min` : ""}
           </p>
         </div>

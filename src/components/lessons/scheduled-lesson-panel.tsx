@@ -37,7 +37,14 @@ export function ScheduledLessonPanel({ detail }: { detail: LessonDetail }) {
         <div className="min-w-0 flex-1">
           <p className="text-[0.9375rem] font-medium">
             Scheduled for{" "}
-            {format(new Date(lesson.startedAt), "EEEE, MMMM d yyyy · HH:mm")}
+            {/* Local time is the BROWSER's, and the server's clock is not
+                the teacher's — a mismatch here threw a hydration error and
+                stalled the page (found on CI 2026-09-02). React's answer
+                for text that legitimately differs between server and
+                client is to say so on the element that holds it. */}
+            <span suppressHydrationWarning>
+              {format(new Date(lesson.startedAt), "EEEE, MMMM d yyyy · HH:mm")}
+            </span>
             {lesson.durationMinutes ? ` · ${lesson.durationMinutes} min` : ""}
           </p>
           <p className="mt-0.5 text-[0.875rem] text-fg-secondary">

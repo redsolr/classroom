@@ -489,7 +489,10 @@ export function HomeworkSection({
               <Badge tone={homeworkStatusTone[h.status]}>{h.status}</Badge>
               {h.dueAt && (
                 <span className="text-[0.78rem] text-fg-tertiary">
-                  due {new Date(h.dueAt).toLocaleDateString()}
+                  due{" "}
+                  <span suppressHydrationWarning>
+                    {new Date(h.dueAt).toLocaleDateString()}
+                  </span>
                 </span>
               )}
               {h.lessonId && (

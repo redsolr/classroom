@@ -95,8 +95,10 @@ export function RecapPanel({ detail }: { detail: LessonDetail }) {
           shared ? (
             <span className="text-[0.8125rem] text-success">
               Shared{" "}
-              {lesson.recapSharedAt &&
-                format(new Date(lesson.recapSharedAt), "MMM d, HH:mm")}
+              <span suppressHydrationWarning>
+                {lesson.recapSharedAt &&
+                  format(new Date(lesson.recapSharedAt), "MMM d, HH:mm")}
+              </span>
             </span>
           ) : undefined
         }
