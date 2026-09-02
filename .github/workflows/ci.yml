@@ -96,6 +96,15 @@ jobs:
       # that was never in them.
       - run: npx tsx scripts/seed-paths.ts
       - run: npm run test:e2e
+      # Same reason as the live-call tier: an eight-test cascade after a
+      # hydration mismatch on /students (2026-09-02, be1e661) left no DOM
+      # to read and did not reproduce on the next push or locally.
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mocked-test-results
+          path: test-results/
+          retention-days: 7
 
   e2e-real-auth:
     runs-on: ubuntu-latest
@@ -205,6 +214,16 @@ jobs:
         run: npm run db:migrate
       - if: steps.creds.outputs.has == 'true'
         run: npm run test:e2e:live-call
+      # The trace is the only way to see what a real call did on a runner
+      # six times slower than a laptop. On 2026-09-02 this tier failed
+      # twice with "Stop button found, never clickable" and nothing to
+      # look at; the local run of the same spec passed in 1.4 minutes.
+      - if: failure() && steps.creds.outputs.has == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-call-test-results
+          path: test-results/
+          retention-days: 7
 
 
   deploy:
