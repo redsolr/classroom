@@ -4,10 +4,12 @@ import { CalendarX2 } from "lucide-react";
 import { requireTeacher } from "@/lib/auth";
 import { getLessonWithRecords, type LessonDetail } from "@/lib/queries";
 import { aiModeLabel } from "@/lib/ai/extract";
+import { loadLessonTranscript } from "@/lib/lesson-transcript-queries";
 import { attendanceOutcomeLabel } from "@/components/ui/badge";
 import { Card } from "@/components/ui/page-header";
 import { LessonEditor } from "@/components/lessons/lesson-editor";
 import { LessonHeader } from "@/components/lessons/lesson-header";
+import { RecordingPanel } from "@/components/lessons/recording-panel";
 import { ScheduledLessonPanel } from "@/components/lessons/scheduled-lesson-panel";
 
 export const metadata: Metadata = { title: "Lesson" };
@@ -43,18 +45,32 @@ export default async function LessonPage({
   const teacher = await requireTeacher();
   const detail = await getLessonWithRecords(teacher.id, lessonId);
   if (!detail) notFound();
+  // Ownership is established above; the transcript is keyed on the lesson.
+  const transcript = await loadLessonTranscript(lessonId);
 
   const { status } = detail.lesson;
 
   return (
     <div>
       <LessonHeader detail={detail} />
+      {/* Above the status branches: a recorded lesson has something to
+          say about its audio whether it is still scheduled, being
+          transcribed, or already drafted. */}
+      {transcript.recordings.length > 0 && (
+        <div className="mb-4">
+          <RecordingPanel transcript={transcript} studentName={detail.student.name} />
+        </div>
+      )}
       {status === "scheduled" ? (
         <ScheduledLessonPanel detail={detail} />
       ) : status === "cancelled" ? (
         <CancelledLessonNotice detail={detail} />
       ) : (
-        <LessonEditor detail={detail} aiMode={aiModeLabel()} />
+        <LessonEditor
+          detail={detail}
+          aiMode={aiModeLabel()}
+          hasTranscript={transcript.placed.length > 0}
+        />
       )}
     </div>
   );

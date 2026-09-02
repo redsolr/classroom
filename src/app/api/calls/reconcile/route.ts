@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { reconcileRecordings } from "@/lib/lesson-ingest";
+import { reconcileTranscripts } from "@/lib/lesson-transcribe";
 
 /**
  * `GET|POST /api/calls/reconcile` — the lesson-audio safety net.
@@ -60,13 +61,24 @@ async function handle(request: NextRequest): Promise<NextResponse> {
   }
 
   try {
+    // Copy first, then read: a recording the first sweep just made ours
+    // is picked up by the second in the same run, so a lesson whose
+    // webhook was lost still reaches the teacher's desk within the hour.
     const report = await reconcileRecordings();
+    const transcripts = await reconcileTranscripts();
     return NextResponse.json({
       considered: report.considered,
       ingested: report.ingested,
       still_waiting: report.stillWaiting,
       failed: report.failed,
       expiring_soon: report.expiringSoon,
+      transcripts: {
+        considered: transcripts.considered,
+        transcribed: transcripts.transcribed,
+        drafted: transcripts.drafted,
+        still_waiting: transcripts.stillWaiting,
+        failed: transcripts.failed,
+      },
     });
   } catch (error) {
     console.error("[ingest] reconcile run failed:", error);

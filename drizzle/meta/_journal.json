@@ -183,6 +183,13 @@
       "when": 1788160851937,
       "tag": "0025_messages",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1788352556645,
+      "tag": "0026_lesson_transcripts",
+      "breakpoints": true
     }
   ]
 }

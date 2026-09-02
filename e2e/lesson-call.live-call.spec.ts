@@ -263,11 +263,27 @@ test("a lesson call records one audio track per person, and only after both cons
       headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
     });
     expect(sweep.status, "the sweep must be reachable with the bearer").toBe(200);
-    const report = (await sweep.json()) as { ingested: number; failed: number };
+    const report = (await sweep.json()) as {
+      ingested: number;
+      failed: number;
+      transcripts: { transcribed: number; failed: number };
+    };
     expect(report.ingested, "the sweep must have copied this recording").toBeGreaterThanOrEqual(1);
 
     const stored = await storedTracks(lessonId);
-    expect(stored.state).toBe("ingested");
+    // ONE sweep carries a recording from finished to the teacher's desk:
+    // copied, then — in the same run — read. So the state here is
+    // `ingested` only on a machine with no transcriber; anywhere else it
+    // has already moved on. What this block proves is the COPY, whatever
+    // happened after it.
+    expect([
+      "ingested",
+      "transcribing",
+      "transcribed",
+      "extracting",
+      "awaiting_teacher_review",
+      "completed",
+    ]).toContain(stored.state);
     // Both voices, each in our bucket, each checksummed.
     expect(stored.tracks.map((t) => t.role).sort()).toEqual(["student", "teacher"]);
     for (const track of stored.tracks) {
@@ -278,6 +294,29 @@ test("a lesson call records one audio track per person, and only after both cons
       const head = await headObject(track.storage_key!);
       expect(head.status, `${track.storage_key} must exist in our bucket`).toBe(200);
       expect(Number(head.headers.get("content-length"))).toBe(track.bytes);
+    }
+
+    // --- and then it is READ ----------------------------------------------
+    // The same sweep carries a recording from `ingested` to the teacher's
+    // desk. Chromium's fake microphone produces a tone, not speech, so
+    // what is proven here is the PIPELINE on a real file with a real
+    // model — both tracks read back out of our bucket, hashed against
+    // the row, sent to the transcriber, marked transcribed — and that the
+    // recording reaches a terminal state rather than parking. Whether the
+    // words are right is a question this audio cannot ask.
+    if (process.env.OPENAI_API_KEY) {
+      expect(
+        report.transcripts.transcribed,
+        "both voices must have been transcribed by the same sweep that copied them",
+      ).toBeGreaterThanOrEqual(2);
+
+      const done = await storedTracks(lessonId);
+      expect(["awaiting_teacher_review", "completed"]).toContain(done.state);
+      for (const track of done.tracks) {
+        expect(track.transcribed_at, `${track.role}'s track must be marked transcribed`).not.toBeNull();
+      }
+    } else {
+      console.warn("live-call: OPENAI_API_KEY absent — the transcription of the copied audio was not proven");
     }
   } else {
     console.warn("live-call: R2 credentials or CRON_SECRET absent — the copy into our bucket was not proven");
@@ -394,7 +433,13 @@ async function threadMessagesFor(
 /** The recording's state and its tracks, as stored. */
 async function storedTracks(lessonId: string): Promise<{
   state: string;
-  tracks: { role: string; storage_key: string | null; sha256: string | null; bytes: number | null }[];
+  tracks: {
+    role: string;
+    storage_key: string | null;
+    sha256: string | null;
+    bytes: number | null;
+    transcribed_at: Date | null;
+  }[];
 }> {
   const db = postgres(
     process.env.DATABASE_URL ??
@@ -408,8 +453,15 @@ async function storedTracks(lessonId: string): Promise<{
       where c.lesson_id = ${lessonId}
       order by r.created_at desc limit 1`;
     const tracks = await db<
-      { role: string; storage_key: string | null; sha256: string | null; bytes: number | null }[]
-    >`select role, storage_key, sha256, bytes from lesson_recording_tracks where recording_id = ${rec.id}`;
+      {
+        role: string;
+        storage_key: string | null;
+        sha256: string | null;
+        bytes: number | null;
+        transcribed_at: Date | null;
+      }[]
+    >`select role, storage_key, sha256, bytes, transcribed_at
+      from lesson_recording_tracks where recording_id = ${rec.id}`;
     return { state: rec.state, tracks };
   } finally {
     await db.end();

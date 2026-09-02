@@ -87,6 +87,51 @@ export async function putLessonAudio(args: {
   return { key: args.key, bytes: args.body.length, sha256: digest };
 }
 
+/**
+ * Read one file back out.
+ *
+ * The length is checked against what the store declared, because a
+ * response that ends early is still a 200 and half a lesson transcribes
+ * into a lesson that ends mid-sentence. The DIGEST is the caller's to
+ * check against the track row — this module does not know what the
+ * bytes were supposed to be, only that it got all of them.
+ */
+export async function getLessonAudio(
+  key: string,
+): Promise<{ body: Buffer; contentType: string }> {
+  const response = await send({
+    method: "GET",
+    key,
+    payloadSha256: sha256Hex(""),
+  });
+  if (response.status === 404) {
+    // Named in full: which bucket, at which host. A bare "not found" made
+    // a wrong-environment mistake read as lost audio.
+    throw new Error(
+      `R2 has no object at ${key} in bucket ${process.env.R2_BUCKET} (${new URL(response.url).host}) — the lesson audio is missing`,
+    );
+  }
+  if (!response.ok) {
+    throw new Error(
+      `R2 GET ${key} failed (${response.status}): ${(await response.text()).slice(0, 500)}`,
+    );
+  }
+  const body = Buffer.from(await response.arrayBuffer());
+  const declared = response.headers.get("content-length");
+  if (declared !== null && Number(declared) !== body.length) {
+    throw new Error(
+      `R2 GET ${key} arrived truncated — ${body.length} bytes of a declared ${declared}`,
+    );
+  }
+  if (body.length === 0) {
+    throw new Error(`R2 GET ${key} returned an empty object`);
+  }
+  return {
+    body,
+    contentType: response.headers.get("content-type") ?? "audio/webm",
+  };
+}
+
 /** The stored length, or null if the object is not there. */
 export async function headObject(key: string): Promise<number | null> {
   const response = await send({

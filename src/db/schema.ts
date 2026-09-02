@@ -1643,6 +1643,18 @@ export const lessonRecordingTracks = pgTable(
     storageKey: text("storage_key"),
     bytes: integer("bytes"),
     sha256: text("sha256"),
+    /**
+     * When this person's file began, read out of the provider's file name
+     * on ingest. Two people's tracks do not start on the same millisecond
+     * — a reconnect starts a fresh file minutes in — so this is what lets
+     * two separately transcribed voices be laid on ONE timeline. Null when
+     * the name did not carry it; the recording's own start stands in.
+     */
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    /** Set once every utterance of this track is stored. The per-track
+     * marker is what makes a re-run transcribe only what is missing. */
+    transcribedAt: timestamp("transcribed_at", { withTimezone: true }),
+    transcriptModel: text("transcript_model"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -1653,6 +1665,48 @@ export const lessonRecordingTracks = pgTable(
       t.providerFileName,
     ),
     index("lesson_recording_tracks_recording_idx").on(t.recordingId),
+  ],
+);
+
+/**
+ * One row per thing one person said, in one track.
+ *
+ * THE UNIT OF EVIDENCE. Everything a lesson later claims about a learner
+ * — this correction, that word — should be able to point at the row it
+ * came from, and a row is something that can be pointed at: it has an id
+ * that does not move, a speaker that is a FACT (the track it came from,
+ * never a model's guess about who was talking), and a time within a
+ * file we hold. A timestamp a model wrote into prose is none of those.
+ *
+ * `sequence` is the order within the track; the timeline across tracks
+ * is derived from each track's `started_at` plus `start_ms`.
+ */
+export const lessonUtterances = pgTable(
+  "lesson_utterances",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    recordingId: uuid("recording_id")
+      .notNull()
+      .references(() => lessonRecordings.id, { onDelete: "cascade" }),
+    trackId: uuid("track_id")
+      .notNull()
+      .references(() => lessonRecordingTracks.id, { onDelete: "cascade" }),
+    role: lessonCallRoleEnum("role").notNull(),
+    sequence: integer("sequence").notNull(),
+    /** Offsets within the TRACK's file, in milliseconds. */
+    startMs: integer("start_ms").notNull(),
+    endMs: integer("end_ms").notNull(),
+    text: text("text").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("lesson_utterances_track_sequence_idx").on(
+      t.trackId,
+      t.sequence,
+    ),
+    index("lesson_utterances_recording_idx").on(t.recordingId),
   ],
 );
 
@@ -1912,6 +1966,7 @@ export type TutorPayment = typeof tutorPayments.$inferSelect;
 export type LessonCall = typeof lessonCalls.$inferSelect;
 export type LessonRecording = typeof lessonRecordings.$inferSelect;
 export type LessonRecordingTrack = typeof lessonRecordingTracks.$inferSelect;
+export type LessonUtterance = typeof lessonUtterances.$inferSelect;
 export type MessageThread = typeof messageThreads.$inferSelect;
 export type Message = typeof messages.$inferSelect;
 export type MessageTerm = typeof messageTerms.$inferSelect;

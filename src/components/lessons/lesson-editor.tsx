@@ -31,9 +31,13 @@ import { RecapPanel } from "./recap-panel";
 function InputPanel({
   detail,
   aiMode,
+  hasTranscript,
 }: {
   detail: LessonDetail;
   aiMode: "claude" | "mock";
+  /** The lesson was recorded and transcribed: the transcript is the
+   * input, and whatever is typed here is added to it. */
+  hasTranscript: boolean;
 }) {
   const { lesson } = detail;
   const [rawInput, setRawInput] = React.useState(lesson.rawInput ?? "");
@@ -51,7 +55,7 @@ function InputPanel({
   return (
     <Card>
       <CardHeader
-        title="Lesson input"
+        title={hasTranscript ? "Your notes" : "Lesson input"}
         actions={
           aiMode === "mock" ? (
             <Badge tone="warning">AI mock mode</Badge>
@@ -59,12 +63,20 @@ function InputPanel({
         }
       />
       <div className="space-y-3 px-4 py-3">
+        {hasTranscript && (
+          <p className="text-[0.875rem] text-fg-secondary">
+            The transcript above is processed automatically. Anything you
+            add here is read alongside it.
+          </p>
+        )}
         <Textarea
-          rows={14}
+          rows={hasTranscript ? 6 : 14}
           value={rawInput}
           onChange={(e) => setRawInput(e.target.value)}
           placeholder={
-            "Paste rough notes, chat messages, or a transcript…\n\nExamples the mock parser understands:\n  she go -> she goes\n  vocab: nevertheless\n  hw: write 5 sentences with past tense\n  topic: job interviews"
+            hasTranscript
+              ? "Anything the microphone did not catch — a correction you made on the whiteboard, homework you agreed on…"
+              : "Paste rough notes, chat messages, or a transcript…\n\nExamples the mock parser understands:\n  she go -> she goes\n  vocab: nevertheless\n  hw: write 5 sentences with past tense\n  topic: job interviews"
           }
           className="font-mono text-[0.875rem]"
         />
@@ -329,16 +341,18 @@ function LessonHomeworkPanel({ detail }: { detail: LessonDetail }) {
 export function LessonEditor({
   detail,
   aiMode,
+  hasTranscript = false,
 }: {
   detail: LessonDetail;
   aiMode: "claude" | "mock";
+  hasTranscript?: boolean;
 }) {
   const draft = detail.lesson.aiDraft as LessonDraft | null;
 
   return (
     <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
       <div className="space-y-4">
-        <InputPanel detail={detail} aiMode={aiMode} />
+        <InputPanel detail={detail} aiMode={aiMode} hasTranscript={hasTranscript} />
         <PrivateNotesPanel detail={detail} />
       </div>
       <div className="space-y-4">

@@ -95,6 +95,15 @@ topic: job interviews       # a topic
 Set `ANTHROPIC_API_KEY` to switch to real Claude extraction (model
 overridable via `CLASSROOM_AI_MODEL`).
 
+A recorded lesson feeds the same loop without anyone pasting anything.
+Once both people's audio is in our bucket (`ingested`), each file is
+transcribed on its own (`OPENAI_API_KEY`; model overridable via
+`CLASSROOM_TRANSCRIBE_MODEL`, which must support `diarized_json`), the
+utterances are laid on one clock, and the draft lands on the lesson for
+the teacher to review — `lib/lesson-transcribe-core.ts`. Without the key
+the recording waits at `ingested` with the reason on the row, and the
+hourly sweep (`/api/calls/reconcile`) picks it up once the key exists.
+
 ## Testing on a phone
 
 Most of the app is reachable from a phone at this machine's Tailscale

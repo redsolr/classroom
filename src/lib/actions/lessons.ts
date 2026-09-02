@@ -17,6 +17,7 @@ import {
 import { requireTeacher } from "@/lib/auth";
 import { assertLessonOwned, assertStudentOwned } from "@/lib/guards";
 import { lessonDraftSchema } from "@/lib/ai/draft-schema";
+import { markRecordingReviewed } from "@/lib/lesson-transcribe-core";
 import { postThreadEventForStudent } from "@/lib/messages";
 import { toLocalDateValue } from "@/lib/datetime";
 import { generateAccessToken } from "@/lib/tokens";
@@ -344,6 +345,10 @@ export async function applyLessonDraft(lessonId: string, draftJson: string) {
       .where(and(eq(lessons.id, lessonId), eq(lessons.teacherId, teacher.id)));
   });
 
+  // A recorded lesson's pipeline ends where the teacher's decision
+  // lands — approved here, or discarded below. Either is a review.
+  await markRecordingReviewed(lessonId);
+
   revalidatePath(`/lessons/${lessonId}`);
   revalidatePath(`/students/${studentId}`);
   revalidatePath("/lessons");
@@ -360,6 +365,7 @@ export async function discardLessonDraft(lessonId: string) {
     .update(lessons)
     .set({ aiDraft: null, updatedAt: new Date() })
     .where(and(eq(lessons.id, lessonId), eq(lessons.teacherId, teacher.id)));
+  await markRecordingReviewed(lessonId);
 
   revalidatePath(`/lessons/${lessonId}`);
 }

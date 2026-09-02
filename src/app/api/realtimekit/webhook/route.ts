@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { after, NextResponse } from "next/server";
 import { db, lessonCallWebhooks, lessonRecordings } from "@/db";
 import { ingestRecording } from "@/lib/lesson-ingest";
+import { processRecording } from "@/lib/lesson-transcribe";
 
 /**
  * REALTIMEKIT WEBHOOKS — the provider telling us a recording finished.
@@ -186,13 +187,28 @@ async function handle(
     // job, on its own clock, and a failure here is loud rather than
     // silent because nothing else in this handler will notice it.
     after(async () => {
+      let ingested = false;
       try {
         const outcome = await ingestRecording(recording.id);
+        ingested = outcome.state === "ingested";
         console.log(
           `[ingest] ${recording.id}: ${outcome.state} (copied ${outcome.copied}, already stored ${outcome.alreadyStored})`,
         );
       } catch (error) {
         console.error(`[ingest] ${recording.id}: ingestion threw`, error);
+      }
+      // The moment the audio is ours is the moment to start reading it.
+      // Same posture as the copy: attempted now, finished by the sweep
+      // if this invocation runs out of budget first. Nothing downstream
+      // starts unless the copy above actually reached `ingested`.
+      if (!ingested) return;
+      try {
+        const outcome = await processRecording(recording.id);
+        console.log(
+          `[transcript] ${recording.id}: ${outcome.state}${outcome.reason ? ` — ${outcome.reason}` : ""}`,
+        );
+      } catch (error) {
+        console.error(`[transcript] ${recording.id}: processing threw`, error);
       }
     });
     return;

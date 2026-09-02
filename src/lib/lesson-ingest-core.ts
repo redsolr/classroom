@@ -12,6 +12,7 @@ import {
   type RecordingManifest,
   type TrackForMatching,
 } from "@/lib/recording-manifest";
+import { trackStartFromFileName } from "@/lib/transcript";
 
 /**
  * OWNING THE ARTIFACT — copying a finished lesson out of the provider's
@@ -262,6 +263,8 @@ export function createIngest(deps: IngestDeps) {
               storageKey: stored.key,
               bytes: stored.bytes,
               sha256: stored.sha256,
+              // When this file began, for the transcript's timeline.
+              startedAt: trackStartFromFileName(item.file.fileName),
             })
             .where(eq(lessonRecordingTracks.id, item.trackId));
         } else {
@@ -281,6 +284,7 @@ export function createIngest(deps: IngestDeps) {
               storageKey: stored.key,
               bytes: stored.bytes,
               sha256: stored.sha256,
+              startedAt: trackStartFromFileName(item.file.fileName),
             })
             .onConflictDoNothing({
               target: [
